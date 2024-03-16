@@ -1,4 +1,4 @@
-const game_time = 300;
+ game_time = 300;
 var time = [game_time, game_time];
 var current_player = 1;
 var duel_is_active = false;
@@ -112,8 +112,8 @@ function formatTime(time_in_sec) {
 function initTimers() {
     time[0] = game_time;
     time[1] = game_time;
-    donut1.setState({ value: time[0], color: inactiveTimerColor });
-    donut2.setState({ value: time[1], color: inactiveTimerColor });
+    donut1.setState({max: game_time, value: time[0], color: inactiveTimerColor });
+    donut2.setState({max: game_time, value: time[1], color: inactiveTimerColor });
     document.getElementById("Player1Label").style.backgroundColor = inactivePlayerColor;
     document.getElementById("Player2Label").style.backgroundColor = inactivePlayerColor;
     document.getElementById("timer1").textContent = formatTime(time[0]);
