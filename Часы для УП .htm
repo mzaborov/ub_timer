@@ -59,12 +59,26 @@
             <div class="col"></div>                        
         </div>
     </div>
+    <div>
+        <input type="file" id="jsonData"/> <button onclick="parseJsonData();">Parse</button>
+    </div>
 
     <script type="text/javascript" src="js\timer-code.js"></script>
     <script type="text/javascript">
-        fetch('duels.json')
-            .then((response) => response.json())
-            .then((json) => console.log(json))
+        function parseJsonData() {
+            var file = document.getElementById("jsonData").files[0];
+            if (file) {
+                var reader = new FileReader();
+                reader.readAsText(file, "UTF-8");
+                reader.onload = function (evt) {
+                    var jsonData = JSON.parse(evt.target.result);
+                    console.log(jsonData);
+                }
+                reader.onerror = function (evt) {
+                    console.error(evt);
+                }
+            }
+        }
     </script>
 </body>
 </html>
