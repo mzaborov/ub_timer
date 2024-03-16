@@ -10,8 +10,11 @@ var activeTimerColor = "MediumBlue";
 var inactiveTimerColor = "DarkGrey";
 var emergingTimerColor = "OrangeRed";
 var finishingTimerColor = "FireBrick";
+var activePlayerColor =  "MediumBlue";
+var inactivePlayerColor =  "DarkGrey";
 var current_round=0;
 var shiftIsUsed =false;
+var jsonData; 
 
 var donut1 = new Donutty(document.getElementById("donut1"), {min:0, max:game_time, value:game_time , round :false,color: inactiveTimerColor});
 var donut2 = new Donutty(document.getElementById("donut2"), {min:0, max:game_time, value:game_time, round:false, color: inactiveTimerColor});
@@ -42,11 +45,16 @@ function setPlayer(playerNum) {
    if (playerNum ===1 )   {
         donut1.setState({color: activeTimerColor});
         donut2.setState({color: inactiveTimerColor});
+        document.getElementById("Player1Label").style.backgroundColor=activePlayerColor;
+        document.getElementById("Player2Label").style.backgroundColor=inactivePlayerColor;
      }
     else
     {
         donut1.setState({color: inactiveTimerColor});
         donut2.setState({color: activeTimerColor});
+        document.getElementById("Player1Label").style.backgroundColor=inactivePlayerColor;
+        document.getElementById("Player2Label").style.backgroundColor=activePlayerColor;
+
     } 
 }
 
@@ -103,6 +111,8 @@ function initTimers()
     time[1] = game_time;
     donut1.setState({value:time[0],color: inactiveTimerColor});
     donut2.setState({value:time[1], color: inactiveTimerColor});
+    document.getElementById("Player1Label").style.backgroundColor=inactivePlayerColor;
+    document.getElementById("Player2Label").style.backgroundColor=inactivePlayerColor;
     document.getElementById("timer1").textContent = formatTime(time[0]);
     document.getElementById("timer2").textContent = formatTime(time[1]);
 }
@@ -153,3 +163,19 @@ function changeTime() {
     if (current_player === 1) {timeTicker(donut1)} else {timeTicker(donut2)}       
 }
 
+/*---------------------Загрузка JSON---------------------------------*/
+
+function loadJSON(){
+    var file = document.getElementById("jsonData").files[0];
+    if (file) {
+        var reader = new FileReader();
+        reader.readAsText(file, "UTF-8");
+        reader.onload = function (evt) {
+            jsonData = JSON.parse(evt.target.result);
+
+        }
+        reader.onerror = function (evt) {
+            console.error(evt);
+        }
+    }
+}
