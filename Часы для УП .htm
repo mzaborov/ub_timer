@@ -38,20 +38,29 @@
     <!-- Имена игроков-->
     <div class="container text-center mt-5 mb-4">
         <div class="row">
-            <div class="col"></div>
+            <div class="col">
+                <select class="form-select" id="Player1Roles" >
+                    <option selected value="-1">Выберите Роль...</option>
+                </select>
+        
+            </div>
             <div class="col input-group text-end" id="Player1LabelGroup">
                 <span class="input-group-text" id="Player1Label" style="color:white;">Игрок №1</span>
                 <input type="text" class="form-control" placeholder="Имя игрока" id="Player1Name" style="width: 70px;">
             </div>
             <div class="col-1 text-center">
-                <i class="fa-solid fa-dice-two" style="color: #616060; font-size: 36px;" title="Жребий"></i>
+                <i class="fa-solid fa-dice-two" style="color: MediumBlue; font-size: 36px;" title="Жребий"></i>
                 <!-- Todo: сделать анимацию кубиков 1:2 и подсказку-->
             </div>
             <div class="col input-group  text-start" id="Player2LabelGroup">
                 <input type="text"  class="form-control" placeholder="Имя игрока" id="Player2Name"  style="width: 70px;">
                 <span class="input-group-text" id="Player2Label" style="color:white;">Игрок №2</span>
             </div>
-            <div class="col"></div>
+            <div class="col">
+                <select class="form-select" id="Player2Roles">
+                    <option selected value="-1">Выберите Роль...</option>
+                </select>
+            </div>
         </div>
     </div>
 

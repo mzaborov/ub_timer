@@ -13,7 +13,6 @@ var finishingTimerColor = "FireBrick";
 var activePlayerColor = "MediumBlue";
 var inactivePlayerColor = "DarkGrey";
 var current_round = 0;
-var shiftIsUsed = false;
 var duelsList;
 
 var donut1 = new Donutty(document.getElementById("donut1"), { min: 0, max: game_time, value: game_time, round: false, color: inactiveTimerColor });
@@ -199,6 +198,22 @@ function duelChoosed() {
     if (indx!="-1") {
     document.getElementById("Player1Name").value = duelsList[indx].Player1;
     document.getElementById("Player2Name").value = duelsList[indx].Player2;
+    var select1 = document.getElementById('Player1Roles');
+    var select2 = document.getElementById('Player2Roles');
+    clearSelectOptions('Player1Roles');
+    clearSelectOptions('Player2Roles');
+    for (var i in duelsList[indx].SituationRoles) { 
+        var sitRoles = duelsList[indx].SituationRoles[i];
+        var opt1 = document.createElement('option');
+        var opt2 = document.createElement('option');
+        opt1.value = i;
+        opt2.value = i;
+        opt1.innerHTML = sitRoles.Role;
+        opt2.innerHTML = sitRoles.Role;
+        select1.appendChild(opt1);
+        select2.appendChild(opt2);
+    };
+
     }  
 
 }
