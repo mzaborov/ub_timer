@@ -11,7 +11,16 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 </head>
 <body>
-
+    <div class="input-group mb-3">
+        <input type="file" class="form-control" id="jsonData">
+        <label class="input-group-text" for="jsonData">Загрузить</label>
+        <select class="form-select" id="inputGroupSelect02">
+            <option selected>Выберите поединок</option>
+            <option value="1">Поединок 1. Ситуация № 65 "Давайте майнить биткоины". Заборов Михаил - Звонов Антон</option>
+            <option value="2">Поединок 2. Ситуация № 02 "Друг Акционера". Чумак Сергей- Пермяков Максим</option>
+        </select>
+        <label class="input-group-text" for="inputGroupSelect02">Options</label>
+      </div>
     <div class="container text-center mt-5 mb-4">
         <h2 id="current_round"> &nbsp;  </h2>
     </div>
@@ -19,12 +28,14 @@
         <div class="row">            
             <div class="col"></div>
             <div class="col"></div>
-            <div class="col text-end">
-                <h2 id="player1">Игрок №1</h2>
-            </div>  
+            <div class="col input-group">
+                <span class="input-group-text" id="Player1Label">Игрок №1</span>
+                <input type="text" aria-label="Имя игрока" class="form-control" style="width: 70px;">
+            </div>
             <div class="col"></div>
-            <div class="col text-start">
-                <h2 id="player2">Игрок №2</h2>
+            <div class="col input-group">
+                <span class="input-group-text" id="Player1Label">Игрок №2</span>
+                <input type="text" aria-label="Имя игрока" class="form-control" style="width: 70px;">
             </div>
             <div class="col"></div>
             <div class="col"></div>
@@ -44,7 +55,7 @@
                 <div class="row" >
                     <button class="btn btn-primary active mb-1" onclick="changePlayer()"  id="change_player" style="visibility: hidden; display: block ">Переход хода</button>
                     <button class="btn btn-light btn-sm active mb-1 " onclick="start_stop_timer()" id="start_stop_timer" style="visibility: hidden; display: block">Возобновить</button>
-                    <button class="btn btn-light btn-sm active mb-1" onclick="pause()" id="pause" style="visibility: hidden; display: block">Пауза</button>
+                    <button class="btn btn-light btn-sm active mb-1" onclick="pause()" id="pause" style="visibility: hidden; display: block">Пауза(от Секунданта)</button>
                     <button class="btn btn-light btn-sm active mb-1" onclick="protest()" id="protest" style="visibility: hidden; display: block">Протест</button>
                     <button class="btn btn-primary btn-sm active mb-1" onclick="start_stop_duel()" id="start_stop_duel" style="visibility: visible; display: block ">Начать поединок</button>
                 </div>        
@@ -59,12 +70,9 @@
             <div class="col"></div>                        
         </div>
     </div>
-    <div>
-        <input type="file" id="jsonData"/> <button onclick="parseJsonData();">Parse</button>
-    </div>
 
     <script type="text/javascript" src="js\timer-code.js"></script>
-    <script type="text/javascript">
+    <!--script type="text/javascript">
         function parseJsonData() {
             var file = document.getElementById("jsonData").files[0];
             if (file) {
@@ -79,6 +87,6 @@
                 }
             }
         }
-    </script>
+    </script-->
 </body>
 </html>

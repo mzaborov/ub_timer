@@ -1,5 +1,6 @@
 [
     {
+        "DuelNum": "1",
         "Player1": "Заборов Михаил",
         "Player2": "Звонов Антон",
         "SituationNum":  "65",
@@ -14,6 +15,7 @@
             ]            
     },
     {
+        "DuelNum": "2",
         "Player1": "Чумак Сергей",
         "Player2": "Пермяков Максим",
         "SituationNum":  "02",
