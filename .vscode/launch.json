@@ -1,0 +1,12 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Yandex Browser",
+            "runtimeExecutable": "C:/Users/MZaborov/AppData/Local/Yandex/YandexBrowser/Application/browser.exe",
+            "args": "${workspaceFolder}/Часы для УП .htm"            
+        }
+    ]
+}
