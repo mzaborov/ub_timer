@@ -1,4 +1,4 @@
-const game_time = 300;
+const game_time = 40;
 var time = [game_time,game_time];
 var current_player = 1;
 var duel_is_active = false;

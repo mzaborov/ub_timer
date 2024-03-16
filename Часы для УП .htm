@@ -61,6 +61,10 @@
     </div>
 
     <script type="text/javascript" src="js\timer-code.js"></script>
-    
+    <script type="text/javascript">
+        fetch('duels.json')
+            .then((response) => response.json())
+            .then((json) => console.log(json))
+    </script>
 </body>
 </html>
