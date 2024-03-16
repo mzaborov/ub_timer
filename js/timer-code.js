@@ -173,7 +173,8 @@ function loadJSON(){
         reader.onload = function (evt) {
             duelsList = JSON.parse(evt.target.result);
             var  select = document.getElementById('duel_chooser');
-            for(var duel in duelsList) {
+            for(var i in duelsList) {
+                var duel = duelsList[i];
                 var opt = document.createElement('option');
                 opt.value = duel.DuelNum;
                 opt.innerHTML = "Поединок "+ duel.DuelNum+ ". Ситуация №"+duel.SituationNum+" \"" + duel.SituationName+" \". "+duel.Player1 + " - " + duel.Player2;
