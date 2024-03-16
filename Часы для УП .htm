@@ -17,30 +17,59 @@
 </head>
 
 <body>
-    <div class="input-group mb-3">
-        <input type="file" class="form-control" onchange="loadJSON()" id="jsonData">
-        <label class="input-group-text" for="jsonData">Загрузить</label>
-        <select class="form-select" id="duel_chooser">
-            <option selected>Выберите поединок</option>
-        </select>
-        <label class="input-group-text" for="duel_chooser">Поединки</label>
-    </div>
+    <input type="file" class="form-control" onchange="loadJSON()" id="jsonData" style="display: none;">
+
     <div class="container text-center mt-5 mb-4">
         <h2 id="current_round"> &nbsp; </h2>
     </div>
 
+    <div class="text-center1">
+        <div class="timer-content">
+            <div class="row">
+                <div class="col">
+                    <div class="row justify-content-start">
+                        <div class="col-2">
+                            <button type="button" class="btn btn-primary theButton" for="duel_chooser"
+                                onclick="triggerClick()">
+                                <i class="fa-solid fa-arrow-up-from-bracket"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="row justify-content-end">
+                        <div class="col-2">
+                            <div class="dropdown dropstart" id="duel-chooser-href">
+                                <button type="button" class="btn btn-primary theButton" data-bs-toggle="dropdown"
+                                    aria-expanded="false" data-bs-auto-close="outside">
+                                    <i class="fa-regular fa-clone"></i>
+                                </button>
+                                <form class="dropdown-menu p-4 m-2" style="width:500px">
+                                    <h3>Выбрать поединок</h3>
+                                    <div id="duel-chooser">
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <br />
+    <br />
     <div class="text-center">
         <div class="timer-content">
-            <div class="container text-center">
-                <div class="row">
-                    <div class="col input-group md-2">
-                        <span class="input-group-text" id="Player1Label" style="color:white;">Игрок №1</span>
-                        <input type="text" aria-label="Имя игрока" class="form-control" style="width: 70px;">
-                    </div>
-                    <div class="col input-group">
-                        <span class="input-group-text" id="Player2Label" style="color:white;">Игрок №2</span>
-                        <input type="text" aria-label="Имя игрока" class="form-control" style="width: 70px;">
-                    </div>
+            <div class="row">
+                <div class="col input-group">
+                    <span class="input-group-text" id="Player1Label" style="color:white;">Игрок №1</span>
+                    <input id="Player1Input" type="text" aria-label="Имя игрока" class="form-control"
+                        style="width: 70px;">
+                </div>
+                <div class="col input-group">
+                    <span class="input-group-text" id="Player2Label" style="color:white;">Игрок №2</span>
+                    <input id="Player2Input" type="text" aria-label="Имя игрока" class="form-control"
+                        style="width: 70px;">
                 </div>
             </div>
         </div>
