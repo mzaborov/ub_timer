@@ -2,3 +2,13 @@
 .timer {
   display: inline-block;
 }
+
+body {
+  min-width: 1000px;
+}
+
+.timer-content {
+  width: 800px;
+  max-width: 800px;
+  margin: auto;
+}
