@@ -14,7 +14,7 @@ var activePlayerColor =  "MediumBlue";
 var inactivePlayerColor =  "DarkGrey";
 var current_round=0;
 var shiftIsUsed =false;
-var jsonData; 
+var duelsList; 
 
 var donut1 = new Donutty(document.getElementById("donut1"), {min:0, max:game_time, value:game_time , round :false,color: inactiveTimerColor});
 var donut2 = new Donutty(document.getElementById("donut2"), {min:0, max:game_time, value:game_time, round:false, color: inactiveTimerColor});
@@ -171,8 +171,14 @@ function loadJSON(){
         var reader = new FileReader();
         reader.readAsText(file, "UTF-8");
         reader.onload = function (evt) {
-            jsonData = JSON.parse(evt.target.result);
-
+            duelsList = JSON.parse(evt.target.result);
+            var  select = document.getElementById('duel_chooser');
+            for(var duel in duelsList) {
+                var opt = document.createElement('option');
+                opt.value = duel.DuelNum;
+                opt.innerHTML = "Поединок "+ duel.DuelNum+ ". Ситуация №"+duel.SituationNum+" \"" + duel.SituationName+" \". "+duel.Player1 + " - " + duel.Player2;
+                select.appendChild(opt);
+               };
         }
         reader.onerror = function (evt) {
             console.error(evt);
