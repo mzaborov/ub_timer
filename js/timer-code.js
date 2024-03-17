@@ -200,7 +200,7 @@ function duelChoosed() {
         document.getElementById("Player1Name").value = duelsList[currentDuel].Player1;
         document.getElementById("Player2Name").value = duelsList[currentDuel].Player2;
         document.getElementById("Duel_Num").textContent =  "Ситуация №" + duelsList[currentDuel].SituationNum + " \"" + duelsList[currentDuel].SituationName + " \""; 
-        document.getElementById("Duel_Text").textContent = duelsList[currentDuel].SituationDescription;
+        document.getElementById("Duel_Text").innerHTML = duelsList[currentDuel].SituationDescription;
         var select1 = document.getElementById('Player1Roles');
         var select2 = document.getElementById('Player2Roles');
         clearSelectOptions('Player1Roles');
