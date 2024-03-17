@@ -39,10 +39,9 @@
     <div class="container text-center mt-5 mb-4">
         <div class="row">
             <div class="col">
-                <select class="form-select" id="Player1Roles" >
+                <select class="form-select" id="Player1Roles" onchange="roleChoosed(1)">
                     <option selected value="-1">Выберите Роль...</option>
-                </select>
-        
+                </select>        
             </div>
             <div class="col input-group text-end" id="Player1LabelGroup">
                 <span class="input-group-text" id="Player1Label" style="color:white;">Игрок №1</span>
@@ -57,7 +56,7 @@
                 <span class="input-group-text" id="Player2Label" style="color:white;">Игрок №2</span>
             </div>
             <div class="col">
-                <select class="form-select" id="Player2Roles">
+                <select class="form-select" id="Player2Roles" onchange="roleChoosed(2)">
                     <option selected value="-1">Выберите Роль...</option>
                 </select>
             </div>
@@ -67,11 +66,16 @@
     <!-- Часы и кнопки-->
     <div class="container text-center mb-4">
         <div class="row">
+            <div class="col-2 text-сenter" id="Player1RoleGoalsGroup">
+                <span><b>Интересы</b></span><br>
+                <div class="border border-primary  start text-wrap fs-6" id="Player1RoleGoal"  style="width: 250px;" >                
+                </div>
+            </div>
             <div class="col text-end" id="Player1DonutGroup">
                 <div class="d-inline-block position-relative">
                     <div class="d-inline-block" style="width: 200px; height: 200px;" id="donut1"></div>
                     <div class="position-absolute top-0 start-0 text-center fs-1" style="width: 200px; height: 200px; line-height: 200px" id="timer1"></div>
-                </div>
+                </div>        
             </div>
             <div class="col-2 text-center" id="ButtonsGroup">
                 <div class="row">
@@ -88,7 +92,16 @@
                     <div class="position-absolute top-0 start-0 text-center fs-1 " style="width: 200px; height: 200px; line-height: 200px" id="timer2"></div>
                 </div>
             </div>
+        <div class="col-2 text-сenter" id="Player2RoleGoalsGroup">
+            <span><b>Интересы</b></span> <br>
+            <div class="border border-primary text-start text-wrap fs-6" id="Player2RoleGoal" style="width: 250px;" >    </div>
         </div>
+    </div>
+
+    <div class=" text-сenter" id="DuelTextGroup">
+        <br> <br>
+        <div class="text-start fs-4 font-weight " id="Duel_Num"> Ситуация </div> <br>
+        <div class="border border-primary text-start text-wrap fs-5" id="Duel_Text" style="width: 72vw;" >    </div>
     </div>
 
     <script type="text/javascript" src="js\timer-code.js"></script>
