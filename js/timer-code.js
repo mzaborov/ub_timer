@@ -14,6 +14,7 @@ var activePlayerColor = "MediumBlue";
 var inactivePlayerColor = "DarkGrey";
 var current_round = 0;
 var duelsList;
+var currentDuel;
 
 var donut1 = new Donutty(document.getElementById("donut1"), { min: 0, max: game_time, value: game_time, round: false, color: inactiveTimerColor });
 var donut2 = new Donutty(document.getElementById("donut2"), { min: 0, max: game_time, value: game_time, round: false, color: inactiveTimerColor });
@@ -194,29 +195,37 @@ function loadJSON() {
 }
 
 function duelChoosed() {
-    var indx = document.getElementById('duel_chooser').value;
-    if (indx!="-1") {
-    document.getElementById("Player1Name").value = duelsList[indx].Player1;
-    document.getElementById("Player2Name").value = duelsList[indx].Player2;
-    var select1 = document.getElementById('Player1Roles');
-    var select2 = document.getElementById('Player2Roles');
-    clearSelectOptions('Player1Roles');
-    clearSelectOptions('Player2Roles');
-    for (var i in duelsList[indx].SituationRoles) { 
-        var sitRoles = duelsList[indx].SituationRoles[i];
-        var opt1 = document.createElement('option');
-        var opt2 = document.createElement('option');
-        opt1.value = i;
-        opt2.value = i;
-        opt1.innerHTML = sitRoles.Role;
-        opt2.innerHTML = sitRoles.Role;
-        select1.appendChild(opt1);
-        select2.appendChild(opt2);
-    };
+    currentDuel = document.getElementById('duel_chooser').value;
+    if (currentDuel!="-1") {     
+        document.getElementById("Player1Name").value = duelsList[currentDuel].Player1;
+        document.getElementById("Player2Name").value = duelsList[currentDuel].Player2;
+        document.getElementById("Duel_Num").textContent =  "Ситуация №" + duelsList[currentDuel].SituationNum + " \"" + duelsList[currentDuel].SituationName + " \""; 
+        document.getElementById("Duel_Text").textContent = duelsList[currentDuel].SituationDescription;
+        var select1 = document.getElementById('Player1Roles');
+        var select2 = document.getElementById('Player2Roles');
+        clearSelectOptions('Player1Roles');
+        clearSelectOptions('Player2Roles');
+        for (var i in duelsList[currentDuel].SituationRoles) { 
+            var sitRoles = duelsList[currentDuel].SituationRoles[i];
+            var opt1 = document.createElement('option');
+            var opt2 = document.createElement('option');
+            opt1.value = i;
+            opt2.value = i;
+            opt1.innerHTML = sitRoles.Role;
+            opt2.innerHTML = sitRoles.Role;
+            select1.appendChild(opt1);
+            select2.appendChild(opt2);
+        };
 
     }  
 
 }
+function  roleChoosed(player){
+ var role =  document.getElementById("Player"+player+"Roles").value;
+ document.getElementById("Player"+player+"RoleGoal").textContent= duelsList[currentDuel].SituationRoles[role].Goals;
+ 
+}
+
 
 function clearSelectOptions(selectName) {
     var selectElement = document.getElementById(selectName);
@@ -228,7 +237,7 @@ function clearSelectOptions(selectName) {
     }
 }
 
-/*---------------------Кнопка тулбара ---------------------------------*/
+/*---------------------Кнопки тулбара ---------------------------------*/
 
 function setDuelTime(time) {
     game_time=time;
