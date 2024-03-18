@@ -1,4 +1,4 @@
- game_time = 300;
+game_time = 300;
 var time = [game_time, game_time];
 var current_player = 1;
 var duel_is_active = false;
@@ -6,11 +6,11 @@ var clock_is_active = false;
 var emergingTime = 30
 var finishingTime = 10
 var timerID = 0;
-var activeTimerColor = "MediumBlue";
+var activeTimerColor = "#0d6efd";
 var inactiveTimerColor = "DarkGrey";
 var emergingTimerColor = "OrangeRed";
 var finishingTimerColor = "FireBrick";
-var activePlayerColor = "MediumBlue";
+var activePlayerColor = "#0d6efd";
 var inactivePlayerColor = "DarkGrey";
 var current_round = 0;
 var duelsList;
@@ -24,6 +24,7 @@ initTimers()
 /*--------------------------Переход хода----------------------------*/
 
 function changePlayer() {
+    console.log('asd');
     stop_timer();
     var newPlayer = (current_player % 2) + 1;
     if (time[newPlayer - 1] === 0) // однократный возврат обратно себе 
@@ -44,6 +45,8 @@ function setPlayer(playerNum) {
     if (playerNum === 1) {
         donut1.setState({ color: activeTimerColor });
         donut2.setState({ color: inactiveTimerColor });
+        // document.getElementById("Player1").classList.add('active')
+        // document.getElementById("Player2").classList.remove('active')
         document.getElementById("Player1Label").style.backgroundColor = activePlayerColor;
         document.getElementById("Player2Label").style.backgroundColor = inactivePlayerColor;
     }
@@ -52,7 +55,8 @@ function setPlayer(playerNum) {
         donut2.setState({ color: activeTimerColor });
         document.getElementById("Player1Label").style.backgroundColor = inactivePlayerColor;
         document.getElementById("Player2Label").style.backgroundColor = activePlayerColor;
-
+        // document.getElementById("Player1").classList.remove('active')
+        // document.getElementById("Player2").classList.add('active')
     }
 }
 
@@ -63,18 +67,18 @@ function start_stop_duel() {
 }
 
 function enable_disable_duel_options_conrols(visibility, disabled) {
-    document.getElementById("start_stop_timer").style.visibility =visibility;
+    document.getElementById("start_stop_timer").style.visibility = visibility;
     document.getElementById("change_player").style.visibility = visibility;
     document.getElementById("protest").style.visibility = visibility;
     document.getElementById("pause").style.visibility = visibility;
     document.getElementById("Player1Name").disabled = disabled;
     document.getElementById("Player2Name").disabled = disabled;
     document.getElementById("JSON_File").disabled = disabled;
-    document.getElementById("duel_chooser").disabled = disabled;
-    document.getElementById("duel_time_picker").disabled = disabled;    
+    // document.getElementById("duel_chooser").disabled = disabled;
+    document.getElementById("duel_time_picker").disabled = disabled;
     document.getElementById("5min").disabled = disabled;
     document.getElementById("4min").disabled = disabled;
-    document.getElementById("1min").disabled = disabled;    
+    document.getElementById("1min").disabled = disabled;
 }
 
 
@@ -84,7 +88,7 @@ function start_duel() {
     document.getElementById("start_stop_duel").classList.remove("btn-primary");
     document.getElementById("start_stop_duel").classList.add("btn-danger");
     initTimers();
-    setPlayer(1);
+    setPlayer(current_player);
     start_timer();
     current_round = 1;
     document.getElementById("current_round").textContent = "Раунд №" + current_round;
@@ -94,10 +98,10 @@ function start_duel() {
 function stop_duel() {
     enable_disable_duel_options_conrols("hidden", false);
     stop_timer();
-      document.getElementById("current_round").textContent = '\xa0';
+    document.getElementById("current_round").textContent = '\xa0';
     document.getElementById("start_stop_duel").textContent = "Начать поединок";
     document.getElementById("start_stop_duel").classList.remove("btn-danger");
-    document.getElementById("start_stop_duel").classList.add("btn-primary");       
+    document.getElementById("start_stop_duel").classList.add("btn-primary");
     duel_is_active = false;
     initTimers()
 
@@ -112,10 +116,12 @@ function formatTime(time_in_sec) {
 function initTimers() {
     time[0] = game_time;
     time[1] = game_time;
-    donut1.setState({max: game_time, value: time[0], color: inactiveTimerColor });
-    donut2.setState({max: game_time, value: time[1], color: inactiveTimerColor });
-    document.getElementById("Player1Label").style.backgroundColor = inactivePlayerColor;
-    document.getElementById("Player2Label").style.backgroundColor = inactivePlayerColor;
+    donut1.setState({ max: game_time, value: time[0], color: inactiveTimerColor });
+    donut2.setState({ max: game_time, value: time[1], color: inactiveTimerColor });
+    // document.getElementById("Player1Label").style.backgroundColor = inactivePlayerColor;
+    // document.getElementById("Player2Label").style.backgroundColor = inactivePlayerColor;
+    // document.getElementById("Player1Label").classList.add = 'active'
+    // document.getElementById("Player2Label").classList.add = 'active'
     document.getElementById("timer1").textContent = formatTime(time[0]);
     document.getElementById("timer2").textContent = formatTime(time[1]);
 }
@@ -167,6 +173,10 @@ function changeTime() {
 }
 
 /*---------------------Загрузка JSON  и работа со списком поединков ---------------------------------*/
+function triggerClick() {
+    const JSON_File = document.getElementById("JSON_File")
+    JSON_File.click()
+}
 
 function loadJSON() {
     var file = document.getElementById("JSON_File").files[0];
@@ -175,18 +185,42 @@ function loadJSON() {
         reader.readAsText(file, "UTF-8");
         reader.onload = function (evt) {
             duelsList = JSON.parse(evt.target.result);
-            var select = document.getElementById('duel_chooser');
-            clearSelectOptions('duel_chooser');
-            document.getElementById("Player1Name").value= "" ;          
-            document.getElementById("Player2Name").value= "" ;      
-            document.getElementById("duel_chooser").value= "-1" ;      
-            for (var i in duelsList) {
-                var duel = duelsList[i];
-                var opt = document.createElement('option');
-                opt.value = i;
-                opt.innerHTML = "Поединок " + duel.DuelNum + ". Ситуация №" + duel.SituationNum + " \"" + duel.SituationName + " \". " + duel.Player1 + " - " + duel.Player2;
-                select.appendChild(opt);
-            };
+            // var select = document.getElementById('duel_chooser');
+            // clearSelectOptions('duel_chooser');
+            // document.getElementById("Player1Name").value = "";
+            // document.getElementById("Player2Name").value = "";
+            // document.getElementById("duel_chooser").value = "-1";
+            // for (var i in duelsList) {
+            //     var duel = duelsList[i];
+            //     var opt = document.createElement('option');
+            //     opt.value = i;
+            //     opt.innerHTML = "Поединок " + duel.DuelNum + ". Ситуация №" + duel.SituationNum + " \"" + duel.SituationName + " \". " + duel.Player1 + " - " + duel.Player2;
+            //     select.appendChild(opt);
+            // };
+
+            const fileName = document.getElementById('file-name');
+            const duelChooser = document.getElementById('duel-chooser');
+
+            fileName.innerHTML = file.name.split('.').slice(0, -1).join('')
+
+            duelChooser.innerHTML = ''
+            duelsList.forEach((duel, index) => {
+                var figure = document.createElement('figure');
+                figure.innerHTML = `
+                    <a class="icon-link" href="#" onclick='duelChoosed("${index}")'>
+                        <blockquote class="blockquote">
+                            <p>№${duel.DuelNum} :: ${duel.SituationName}</p>
+                        </blockquote>
+                    </a>
+
+                    <figcaption class="blockquote-footer">
+                        ${duel.Player1} VS ${duel.Player2}
+                    </figcaption>
+                `
+                duelChooser.appendChild(figure);
+            })
+
+
         }
         reader.onerror = function (evt) {
             console.error(evt);
@@ -194,19 +228,21 @@ function loadJSON() {
     }
 }
 
-function duelChoosed() {
-    currentDuel = document.getElementById('duel_chooser').value;
-    if (currentDuel!="-1") {     
-        document.getElementById("Player1Name").value = duelsList[currentDuel].Player1;
-        document.getElementById("Player2Name").value = duelsList[currentDuel].Player2;
-        document.getElementById("Duel_Num").textContent =  "Ситуация №" + duelsList[currentDuel].SituationNum + " \"" + duelsList[currentDuel].SituationName + " \""; 
-        document.getElementById("Duel_Text").textContent = duelsList[currentDuel].SituationDescription;
+function duelChoosed(currentDuelRef) {
+    currentDuel = currentDuelRef
+    if (currentDuel != "-1") {
+        const duel = duelsList[currentDuel]
+        document.getElementById("players-name").innerHTML = `Ситуация №${duel.SituationNum} ${duel.SituationName}`;
+        document.getElementById("Player1Name").value = duel.Player1;
+        document.getElementById("Player2Name").value = duel.Player2;
+        document.getElementById("Duel_Num").textContent = "Ситуация №" + duel.SituationNum + " \"" + duel.SituationName + " \"";
+        document.getElementById("Duel_Text").textContent = duel.SituationDescription;
         var select1 = document.getElementById('Player1Roles');
         var select2 = document.getElementById('Player2Roles');
         clearSelectOptions('Player1Roles');
         clearSelectOptions('Player2Roles');
-        for (var i in duelsList[currentDuel].SituationRoles) { 
-            var sitRoles = duelsList[currentDuel].SituationRoles[i];
+        for (var i in duel.SituationRoles) {
+            var sitRoles = duel.SituationRoles[i];
             var opt1 = document.createElement('option');
             var opt2 = document.createElement('option');
             opt1.value = i;
@@ -217,19 +253,18 @@ function duelChoosed() {
             select2.appendChild(opt2);
         };
 
-    }  
+    }
 
 }
-function  roleChoosed(player){
- var role =  document.getElementById("Player"+player+"Roles").value;
- document.getElementById("Player"+player+"RoleGoal").textContent= duelsList[currentDuel].SituationRoles[role].Goals;
- 
+function roleChoosed(player) {
+    var role = document.getElementById("Player" + player + "Roles").value;
+    document.getElementById("Player" + player + "RoleGoal").innerHTML = duelsList[currentDuel].SituationRoles[role].Goals;
 }
 
 
 function clearSelectOptions(selectName) {
     var selectElement = document.getElementById(selectName);
-    
+
     for (var i = selectElement.options.length - 1; i > 0; i--) {
         if (selectElement.options[i].value !== '-1') {
             selectElement.remove(i);
@@ -240,6 +275,33 @@ function clearSelectOptions(selectName) {
 /*---------------------Кнопки тулбара ---------------------------------*/
 
 function setDuelTime(time) {
-    game_time=time;
+    game_time = time;
     initTimers();
+}
+
+/*---------------------dice ---------------------------------*/
+
+function dice() {
+    const dice0 = document.getElementById("dice0")
+    const player1 = document.getElementById("Player1")
+    const player2 = document.getElementById("Player2")
+
+    // player1.classList.remove("active")
+    // player2.classList.remove("active")
+    document.getElementById("Player1Label").style.backgroundColor = '';
+    document.getElementById("Player2Label").style.backgroundColor = '';
+
+    dice0.style.transform = 'rotate(1080deg)'
+    setTimeout(() => {
+        dice0.style.transform = 'rotate(0deg)'
+        if (Math.random() >= 0.5) {
+            // player1.classList.add("active")
+            current_player = 1;
+            document.getElementById("Player1Label").style.backgroundColor = activeTimerColor;
+        } else {
+            // player2.classList.add("active")
+            current_player = 2;
+            document.getElementById("Player2Label").style.backgroundColor = activeTimerColor;
+        }
+    }, 1000)
 }
