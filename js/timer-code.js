@@ -236,7 +236,7 @@ function duelChoosed(currentDuelRef) {
         document.getElementById("Player1Name").value = duel.Player1;
         document.getElementById("Player2Name").value = duel.Player2;
         document.getElementById("Duel_Num").textContent = "Ситуация №" + duel.SituationNum + " \"" + duel.SituationName + " \"";
-        document.getElementById("Duel_Text").textContent = duel.SituationDescription;
+        document.getElementById("Duel_Text").innerHTML = duel.SituationDescription;
         var select1 = document.getElementById('Player1Roles');
         var select2 = document.getElementById('Player2Roles');
         clearSelectOptions('Player1Roles');
