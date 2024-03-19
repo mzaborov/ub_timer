@@ -18,7 +18,8 @@
     <input type="file" class="form-control" onchange="loadFile(Event)" id="File_Loader"  accept=".xlsx, .json" style="display: none;">
 
     <div class="body">
-        <!-- HEADER -->
+       
+        <!-- Тулбар -->
         <div class="body0" style="padding-top: 20px;">
             <div class="centered">
                 <div class="row justify-content-around">
@@ -59,9 +60,9 @@
                                         нет данных
                                     </div>
                                 </form>
-                                <input type="checkbox" class="btn-check" id="hide_text" onclick="ShowHideSituationInfo()" >
-                                <label class="btn btn-primary" for="hide_text">
-                                    <i class="fa-solid fa-xmark" style="color: #ffffff;"></i>
+                                <input type="checkbox" class="btn-check" id="hide_text" onclick="ShowHideSituationInfo()" checked >
+                                <label class="btn btn-outline-primary" for="hide_text">
+                                    <i class="fa-solid fa-newspaper"></i>
                                 </label>                                
                             </div>
                         </div>
@@ -69,7 +70,8 @@
                 </div>
             </div>
         </div>
-        
+
+        <!-- Имена и роли Игроков -->
         <div class="body0" style="padding-top: 20px; margin-top: 20px; padding-bottom: 20px;">
             <div class="centered">
                 <!-- Players -->
@@ -111,7 +113,8 @@
                 </div>
             </div>
         </div>
-
+        
+        <!-- Часы -->
         <div class="body0" style="padding-top: 20px; padding-bottom: 20px;">
             <div class="centered">
                 <div class="row">
@@ -146,7 +149,7 @@
             </div>
         </div>
 
-
+        <!--Интересы Игроков -->
         <div class="body0" id="PlayersInterests">
             <div class="the-content wrap-inner-text">
                 <div class="row" style="margin-top: -222px;">
@@ -166,12 +169,14 @@
             </div>
         </div>
 
+        <!-- текст ситуации -->
         <div class="body100" id="SituationText">
             <div class="centered text-сenter">
                 <div class="fw-bold" id="Duel_Num"></div>
                 <div id="Duel_Text"></div>
             </div>
         </div>
+        
     </div>
 
 

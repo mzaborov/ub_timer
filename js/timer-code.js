@@ -295,7 +295,7 @@ function setDuelTime(time) {
 function ShowHideSituationInfo()
 {
     
-    if (document.getElementById("hide_text").checked)
+    if (!document.getElementById("hide_text").checked)
     {      
         document.getElementById("PlayersInterests").style.visibility = 'hidden';
         document.getElementById("SituationText").style.visibility = 'hidden';
@@ -309,14 +309,41 @@ function ShowHideSituationInfo()
 }
 /*---------------------dice ---------------------------------*/
 
+
+function ToggleColors() {
+    let count = 0;
+    const intervalId = setInterval(() => {
+        if (count % 2 === 0) {
+            document.getElementById("Player1Label").style.backgroundColor = activePlayerColor;
+            document.getElementById("Player2Label").style.backgroundColor = inactivePlayerColor;    
+        } else {
+            document.getElementById("Player1Label").style.backgroundColor = inactivePlayerColor;
+            document.getElementById("Player2Label").style.backgroundColor = activePlayerColor;    
+        }
+
+        count++;
+
+        if (count >= 9) {
+            clearInterval(intervalId);
+            document.getElementById("Player1Label").style.backgroundColor = inactivePlayerColor;
+            document.getElementById("Player2Label").style.backgroundColor = inactivePlayerColor;
+        }
+    }, 100);
+}
+ 
+
+
 function dice() {
     const dice0 = document.getElementById("dice0")
     dice0.style.transform = 'rotate(1080deg)'
+    ToggleColors();
     setTimeout(() => {
         dice0.style.transform = 'rotate(0deg)'
         if (Math.random() >= 0.5) {
             document.getElementById("Player1Name").value = duelsList[currentDuel].Player2;
             document.getElementById("Player2Name").value = duelsList[currentDuel].Player1;    
         }
+        document.getElementById("Player1Label").style.backgroundColor = inactivePlayerColor;
+        document.getElementById("Player2Label").style.backgroundColor = inactivePlayerColor;    
     }, 1000)
 }
