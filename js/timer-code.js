@@ -336,7 +336,7 @@ function ToggleColors() {
 function dice() {
     const dice0 = document.getElementById("dice0")
     dice0.style.transform = 'rotate(1080deg)'
-    ToggleColors();
+    //ToggleColors();
     setTimeout(() => {
         dice0.style.transform = 'rotate(0deg)'
         if (Math.random() >= 0.5) {
