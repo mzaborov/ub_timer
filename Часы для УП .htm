@@ -9,15 +9,13 @@
     <link rel="stylesheet" href="fontawesome/css/all.css">
     <link rel="stylesheet" href="css/timer.css">
     <script src="js\donutty.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
-        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
-        crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"      integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"        crossorigin="anonymous"></script>
 </head>
 
 <body>
-    <input type="file" class="form-control" onchange="loadJSON()" id="JSON_File" style="display: none;">
+    <input type="file" class="form-control" onchange="loadFile(Event)" id="File_Loader"  accept=".xlsx, .json" style="display: none;">
 
     <div class="body">
         <!-- HEADER -->
@@ -26,18 +24,14 @@
                 <div class="row justify-content-around">
                     <div class="col">
                         <div class="the-logo">
-                            Я<span class="the-logo__it">IT</span>Ы
-                            <div class="the-logo__text">Сообщество цифровых управленцев</div>
-                            <div class="the-logo__description">Стрим развития переговорных и управленических навыков
-                            </div>
+                            <img  src="assets\Img\ciocdo_logo.png" style="width:350px;" />                                                        
                         </div>
                     </div>
                     <div class="col text-end">
                         <div class="col" style="padding-bottom: 5px;">
-                            <button type="button" class="btn btn-primary the-button" for="duel_chooser"
-                                onclick="triggerClick()">
+                            <button type="button" class="btn btn-primary the-button" for="duel_chooser"  onclick="triggerClick()" id="Choose_File_Button">
                                 <i class="fa-solid fa-arrow-up-from-bracket"></i>
-                                <span id="file-name">Выберете файл</span>
+                                <span id="file-name">Выберите файл</span>
                             </button>
 
                             <div class="btn-group" role="group" aria-label="время поединка" id="duel_time_picker">
@@ -47,7 +41,7 @@
 
                                 <input type="radio" class="btn-check" onclick="setDuelTime(240)" name="dueltime"
                                     id="4min">
-                                <label class="btn btn-outline-primary" for="4min">3 мин.</label>
+                                <label class="btn btn-outline-primary" for="4min">4 мин.</label>
 
                                 <input type="radio" class="btn-check" onclick="setDuelTime(60)" name="dueltime"
                                     id="1min">
@@ -56,24 +50,27 @@
                         </div>
                         <div class="col">
                             <div class="dropdown dropstart5" id="duel-chooser-href">
-                                <button type="button" class="btn btn-primary the-button" data-bs-toggle="dropdown"
-                                    aria-expanded="false" data-bs-auto-close="outside">
+                                <button type="button" class="btn btn-primary the-button" data-bs-toggle="dropdown"  aria-expanded="false" data-bs-auto-close="outside" id="Choose_Duel_Button">
                                     <i class="fa-solid fa-user-group"></i>
-                                    <span id="players-name">Выберете поединок</span>
+                                    <span id="players-name">Выберите поединок</span>
                                 </button>
                                 <form class="dropdown-menu p-4 m-2" style="width:500px">
                                     <div id="duel-chooser">
                                         нет данных
                                     </div>
                                 </form>
+                                <input type="checkbox" class="btn-check" id="hide_text" onclick="ShowHideSituationInfo()" >
+                                <label class="btn btn-primary" for="hide_text">
+                                    <i class="fa-solid fa-xmark" style="color: #ffffff;"></i>
+                                </label>                                
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-
-        <div class="body0" style="background-color: bisque; padding-top: 20px; margin-top: 20px; padding-bottom: 20px;">
+        
+        <div class="body0" style="padding-top: 20px; margin-top: 20px; padding-bottom: 20px;">
             <div class="centered">
                 <!-- Players -->
                 <div class="row">
@@ -83,8 +80,10 @@
                             <input type="text" class="form-control" placeholder="Имя игрока" id="Player1Name">
                         </div>
                     </div>
-                    <div class="col-2 dice">
-                        <i class="fa-solid fa-dice" title="Жребий" id="dice0" onclick="dice()"></i>
+                    <div class="col-2 dice" >
+                        <button id="dice_button" onclick="dice()">
+                           <i class="fa-solid fa-dice" title="Жребий" id="dice0" ></i>
+                        </button>
                     </div>
                     <div class="col-5">
                         <div class="input-group mb-3">
@@ -101,7 +100,7 @@
                             <option selected value="-1">Выберите Роль...</option>
                         </select>
                     </div>
-                    <div class="col-2 text-center wrap-round">
+                    <div class="col-2 text-center wrap-round fw-bold">
                         <span id="current_round">&nbsp;</span>
                     </div>
                     <div class="col-5">
@@ -113,7 +112,7 @@
             </div>
         </div>
 
-        <div class="body0" style="background-color: bisque; padding-top: 20px; padding-bottom: 20px;">
+        <div class="body0" style="padding-top: 20px; padding-bottom: 20px;">
             <div class="centered">
                 <div class="row">
                     <div class="col-5">
@@ -127,17 +126,11 @@
                     </div>
                     <div class="col-2" style="z-index: 10;">
                         <div class="row">
-                            <button class="btn btn-primary btn-sm active mb-1" onclick="changePlayer()"
-                                id="change_player" style="visibility: hidden; display: block ">Переход хода</button>
-                            <button class="btn btn-light btn-sm active mb-1" onclick="start_stop_timer()"
-                                id="start_stop_timer" style="visibility: hidden; display: block">Возобновить</button>
-                            <button class="btn btn-light btn-sm active mb-1" onclick="pause()" id="pause"
-                                style="visibility: hidden; display: block">Пауза(от Секунданта)</button>
-                            <button class="btn btn-light btn-sm active mb-1" onclick="protest()" id="protest"
-                                style="visibility: hidden; display: block">Протест</button>
-                            <button class="btn btn-primary btn-sm active" onclick="start_stop_duel()"
-                                id="start_stop_duel" style="visibility: visible; display: block ">Начать
-                                поединок</button>
+                            <button class="btn btn-primary btn-sm active mb-1" onclick="changePlayer()"  id="change_player" style="visibility: hidden; display: block ">Переход хода</button>
+                            <button class="btn btn-light btn-sm active mb-1" onclick="start_stop_timer()" id="start_stop_timer" style="visibility: hidden; display: block">Возобновить</button>
+                            <button class="btn btn-light btn-sm active mb-1" onclick="pause()" id="pause" style="visibility: hidden; display: block">Пауза(от Секунданта)</button>
+                            <button class="btn btn-light btn-sm active mb-1" onclick="protest()" id="protest" style="visibility: hidden; display: block">Протест</button>
+                            <button class="btn btn-primary btn-sm active" onclick="start_stop_duel()" id="start_stop_duel" style="visibility: visible; display: block ">Начать поединок</button>
                         </div>
                     </div>
                     <div class="col-5">
@@ -154,28 +147,28 @@
         </div>
 
 
-        <div class="body0">
+        <div class="body0" id="PlayersInterests">
             <div class="the-content wrap-inner-text">
                 <div class="row" style="margin-top: -222px;">
                     <div class="col-5 text-start">
                         <span><b>Интересы</b></span><br>
-                        <div class="wrap-inner-text__left-text" id="Player1RoleGoal">
+                        <div class="wrap-inner-text__left-text" style="background-color:  #e9ecef; " id="Player1RoleGoal">
                         </div>
                     </div>
                     <div class="col-2"></div>
                     <div class="col-5 text-end">
                         <b>Интересы</b>
                         <br />
-                        <div class="wrap-inner-text__right-text" id="Player2RoleGoal">
+                        <div class="wrap-inner-text__right-text" style="background-color:  #e9ecef;"  id="Player2RoleGoal">
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="body100">
+        <div class="body100" id="SituationText">
             <div class="centered text-сenter">
-                <div id="Duel_Num"></div>
+                <div class="fw-bold" id="Duel_Num"></div>
                 <div id="Duel_Text"></div>
             </div>
         </div>
