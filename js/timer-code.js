@@ -246,19 +246,15 @@ function duelChoosed(currentDuelRef) {
     if (currentDuel != "-1") {
         const duel = duelsList[currentDuel]
         document.getElementById("players-name").innerHTML = `Ситуация №${duel.SituationNum} ${duel.SituationName}`;
-        document.getElementById("Player1Name").value = duel.Player1;
+        document.getElementById("Player1Name").value =duel.Player1;
         document.getElementById("Player2Name").value = duel.Player2;
         document.getElementById("Duel_Num").textContent = "Ситуация №" + duel.SituationNum + " \"" + duel.SituationName + " \"";
-        document.getElementById("Duel_Text").innerHTML = duel.SituationDescription;
-        var RolesTExt="";
-        for(i in currentDuel.SituationRoles){
-          RolesTExt+= "<b>"+SituationRoles[i].Role+ "</b> - "+SituationRoles[i].Goals
-         }
-        document.getElementById("Duel_Text").innerHTML = RolesTExt;
+        document.getElementById("Duel_Text").innerHTML = duel.SituationDescription;        
         var select1 = document.getElementById('Player1Roles');
         var select2 = document.getElementById('Player2Roles');
         clearSelectOptions('Player1Roles');
         clearSelectOptions('Player2Roles');
+        var RolesText="";
         for (var i in duel.SituationRoles) {
             var sitRoles = duel.SituationRoles[i];
             var opt1 = document.createElement('option');
@@ -269,7 +265,9 @@ function duelChoosed(currentDuelRef) {
             opt2.innerHTML = sitRoles.Role;
             select1.appendChild(opt1);
             select2.appendChild(opt2);
-        };
+            RolesText+= "<br><b>"+ duel.SituationRoles[i].Role+ "</b> - "+ duel.SituationRoles[i].Goals;
+        };     
+        document.getElementById("Duel_Roles").innerHTML = RolesText;
 
     }
 
