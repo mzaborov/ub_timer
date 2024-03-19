@@ -250,6 +250,11 @@ function duelChoosed(currentDuelRef) {
         document.getElementById("Player2Name").value = duel.Player2;
         document.getElementById("Duel_Num").textContent = "Ситуация №" + duel.SituationNum + " \"" + duel.SituationName + " \"";
         document.getElementById("Duel_Text").innerHTML = duel.SituationDescription;
+        var RolesTExt="";
+        for(i in currentDuel.SituationRoles){
+          RolesTExt+= "<b>"+SituationRoles[i].Role+ "</b> - "+SituationRoles[i].Goals
+         }
+        document.getElementById("Duel_Text").innerHTML = RolesTExt;
         var select1 = document.getElementById('Player1Roles');
         var select2 = document.getElementById('Player2Roles');
         clearSelectOptions('Player1Roles');
@@ -310,33 +315,9 @@ function ShowHideSituationInfo()
 /*---------------------dice ---------------------------------*/
 
 
-function ToggleColors() {
-    let count = 0;
-    const intervalId = setInterval(() => {
-        if (count % 2 === 0) {
-            document.getElementById("Player1Label").style.backgroundColor = activePlayerColor;
-            document.getElementById("Player2Label").style.backgroundColor = inactivePlayerColor;    
-        } else {
-            document.getElementById("Player1Label").style.backgroundColor = inactivePlayerColor;
-            document.getElementById("Player2Label").style.backgroundColor = activePlayerColor;    
-        }
-
-        count++;
-
-        if (count >= 9) {
-            clearInterval(intervalId);
-            document.getElementById("Player1Label").style.backgroundColor = inactivePlayerColor;
-            document.getElementById("Player2Label").style.backgroundColor = inactivePlayerColor;
-        }
-    }, 100);
-}
- 
-
-
 function dice() {
     const dice0 = document.getElementById("dice0")
     dice0.style.transform = 'rotate(1080deg)'
-    //ToggleColors();
     setTimeout(() => {
         dice0.style.transform = 'rotate(0deg)'
         if (Math.random() >= 0.5) {
