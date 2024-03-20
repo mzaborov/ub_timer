@@ -248,13 +248,13 @@ function duelChoosed(currentDuelRef) {
         document.getElementById("players-name").innerHTML = `Ситуация №${duel.SituationNum} ${duel.SituationName}`;
         document.getElementById("Player1Name").value =duel.Player1;
         document.getElementById("Player2Name").value = duel.Player2;
-        document.getElementById("Duel_Num").textContent = "Ситуация №" + duel.SituationNum + " \"" + duel.SituationName + " \"";
+        document.getElementById("Duel_Num").textContent = "Ситуация №" + duel.SituationNum + ". \"" + duel.SituationName + "\"";
         document.getElementById("Duel_Text").innerHTML = duel.SituationDescription;        
         var select1 = document.getElementById('Player1Roles');
         var select2 = document.getElementById('Player2Roles');
         clearSelectOptions('Player1Roles');
         clearSelectOptions('Player2Roles');
-        var RolesText="";
+        var RolesText="<b>Роли и интересы:</b>";
         for (var i in duel.SituationRoles) {
             var sitRoles = duel.SituationRoles[i];
             var opt1 = document.createElement('option');
