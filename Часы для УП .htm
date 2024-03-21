@@ -120,7 +120,7 @@
         </div>
 
         <!-- Часы -->
-        <div class="body0" style="padding-top: 20px; padding-bottom: 20px;">
+        <div class="timer">
             <div class="centered">
                 <div class="row">
                     <div class="col-5">
@@ -158,60 +158,60 @@
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!--Интересы Игроков -->
-        <div class="body0" id="PlayersInterests">
-            <div class="the-content wrap-inner-text">
-                <div class="row" style="margin-top: -222px;">
-                    <div class="col-5 text-start">
-                        <span><b>Интересы</b></span><br>
-                        <div class="wrap-inner-text__left-text" style="background-color:  #e9ecef; "
-                            id="Player1RoleGoal">
+            <!--Интересы Игроков -->
+            <div class="interests" id="PlayersInterests">
+                <div class="the-content wrap-inner-text">
+                    <div class="row">
+                        <div class="col-5 text-start">
+                            <span><b>Интересы</b></span><br>
+                            <div class="wrap-inner-text__left-text" id="Player1RoleGoal">
+                            </div>
                         </div>
-                    </div>
-                    <div class="col-2"></div>
-                    <div class="col-5 text-end">
-                        <b>Интересы</b>
-                        <br />
-                        <div class="wrap-inner-text__right-text" style="background-color:  #e9ecef;"
-                            id="Player2RoleGoal">
+                        <div class="col-2"></div>
+                        <div class="col-5 text-end">
+                            <b>Интересы</b>
+                            <br />
+                            <div class="wrap-inner-text__right-text" id="Player2RoleGoal">
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+
+
         <!-- текст ситуации -->
-
-        <div id="carouselControls" class="carousel slide " data-bs-theme="dark" data-bs-interval="false">
-            <div class="carousel-inner">
-                <div class="carousel-item active">
-                    <div class="centered text-start" style="width: 100%; height: 300px">
-                        <div class="fw-bold" id="Duel_Num"></div>
-                        <div id="Duel_Text"></div>
+        <div class="carousel-block">
+            <div style="height: 100%;" id="carouselControls" class="carousel slide " data-bs-theme="dark"
+                data-bs-interval="false">
+                <div style="height: 100%; overflow: auto; padding: 20px 0;" class="carousel-inner">
+                    <div class="carousel-item active">
+                        <div class="text-start" style="width: 80%; margin: auto;">
+                            <div class="fw-bold" id="Duel_Num"></div>
+                            <div id="Duel_Text"></div>
+                        </div>
+                    </div>
+                    <div class="carousel-item">
+                        <div class="text-start" style="width: 80%; margin: auto">
+                            <div class="fw-bold" id="Duel_Roles_label"></div>
+                            <div id="Duel_Roles"></div>
+                        </div>
                     </div>
                 </div>
-                <div class="carousel-item">
-                    <div class="centered text-start" style="width: 100%; height: 300px">
-                        <div class="fw-bold" id="Duel_Roles_label"></div>
-                        <div id="Duel_Roles"></div>
-                    </div>
-                </div>
+                <button style="width:10%" class="carousel-control-prev" type="button" data-bs-target="#carouselControls"
+                    data-bs-slide="prev">
+                    <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                    <span class="visually-hidden">Previous</span>
+                </button>
+                <button style="width:10%" class="carousel-control-next" type="button" data-bs-target="#carouselControls"
+                    data-bs-slide="next">
+                    <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                    <span class="visually-hidden">Next</span>
+                </button>
             </div>
-            <button class="carousel-control-prev" type="button" data-bs-target="#carouselControls" data-bs-slide="prev">
-                <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-                <span class="visually-hidden">Previous</span>
-            </button>
-            <button class="carousel-control-next" type="button" data-bs-target="#carouselControls" data-bs-slide="next">
-                <span class="carousel-control-next-icon" aria-hidden="true"></span>
-                <span class="visually-hidden">Next</span>
-            </button>
         </div>
-
-
     </div>
-
-
     <script type="text/javascript" src="js\timer-code.js"></script>
 </body>
 

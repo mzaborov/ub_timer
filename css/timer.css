@@ -183,3 +183,32 @@ html, body {
   cursor: pointer;
   transition: all 1s ease-out;
 }
+
+/* block timer */
+
+.timer {
+  padding-top: 20px; 
+  padding-bottom: 20px;
+  background-color: #f6f6f6;
+  position: relative;
+}
+
+/* block interests */
+
+.interests{
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+}
+
+/* block carousel */
+
+.carousel-block{
+  flex-basis: 100%;
+  overflow: hidden;
+}
+
+.carousel-inner {
+ 
+}
