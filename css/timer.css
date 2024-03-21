@@ -49,19 +49,11 @@ body {
 
 /* dice */
 
-.dice {
-  color:  #6468ff;
-  font-size: 36px;
-  text-align: center;
- 
-}
-#dice0 {
-  cursor: pointer;
-  transition: all 1s ease-out;
-}
-#dice1, #dice2 {
+
+
+/* #dice1, #dice2 {
   display: none;
-}
+} */
 
 
 .wrap-round {
@@ -140,11 +132,7 @@ html, body {
   margin-bottom: 30px; */
 }
 
-.centered {
-  width: 1000px;
-  max-width: 1000px;
-  margin: auto;
-}
+
 
 /*  */
 /* V2 */
@@ -159,7 +147,14 @@ html, body {
   flex-direction: column;
 }
 
-/* blocks */
+.centered {
+  width: 1000px;
+  max-width: 1000px;
+  margin: auto;
+}
+
+/* block header */
+
 .header {
   padding-top: 20px;
 }
@@ -167,4 +162,24 @@ html, body {
 .header-logo {
   width:300px; 
   margin-top: -25px;
+}
+
+/* block name-and-role */
+
+.name-and-role {
+  padding-top: 20px; 
+  margin-top: 20px; 
+  padding-bottom: 20px;
+  background-color: #f6f6f6;
+}
+
+.name-and-role__dice {
+  color:  #6468ff;
+  font-size: 36px;
+  text-align: center;
+}
+
+#name-and-role__icon {
+  cursor: pointer;
+  transition: all 1s ease-out;
 }

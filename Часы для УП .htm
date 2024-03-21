@@ -53,7 +53,7 @@
                             </div>
                         </div>
                         <div class="col">
-                            <div class="dropdown dropstart" id="duel-chooser-href">
+                            <div class="dropdown" id="duel-chooser-href">
                                 <button type="button" class="btn btn-primary the-button" data-bs-toggle="dropdown"
                                     aria-expanded="false" data-bs-auto-close="outside" id="Choose_Duel_Button">
                                     <i class="fa-solid fa-user-group"></i>
@@ -77,7 +77,7 @@
         </div>
 
         <!-- Имена и роли Игроков -->
-        <div class="body0" style="padding-top: 20px; margin-top: 20px; padding-bottom: 20px;">
+        <div class="name-and-role">
             <div class="centered">
                 <!-- Players -->
                 <div class="row">
@@ -87,9 +87,9 @@
                             <input type="text" class="form-control" placeholder="Имя игрока" id="Player1Name">
                         </div>
                     </div>
-                    <div class="col-2 dice">
+                    <div class="col-2 name-and-role__dice">
                         <button id="dice_button" onclick="dice()">
-                            <i class="fa-solid fa-dice" title="Жребий" id="dice0"></i>
+                            <i class="fa-solid fa-dice name-and-role__icon" title="Жребий"></i>
                         </button>
                     </div>
                     <div class="col-5">
