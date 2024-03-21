@@ -10,27 +10,30 @@
     <link rel="stylesheet" href="css/timer.css">
     <script src="js\donutty.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"      integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"        crossorigin="anonymous"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+        crossorigin="anonymous"></script>
 </head>
 
 <body>
-    <input type="file" class="form-control" onchange="loadFile(Event)" id="File_Loader"  accept=".xlsx, .json" style="display: none;">
+    <input type="file" class="form-control" onchange="loadFile(Event)" id="File_Loader" accept=".xlsx, .json"
+        style="display: none;">
 
     <div class="body">
-       
+
         <!-- Тулбар -->
-        <div class="body0" style="padding-top: 20px;">
+        <div class="header">
             <div class="centered">
                 <div class="row justify-content-around">
                     <div class="col">
-                        <div class="the-logo">
-                            <img  src="assets\Img\ciocdo_logo.png" style="width:350px;" />                                                        
-                        </div>
+                        <img class="header-logo" src="assets\Img\ciocdo_logo.png" />
                     </div>
                     <div class="col text-end">
-                        <div class="col" style="padding-bottom: 5px;">
-                            <button type="button" class="btn btn-primary the-button" for="duel_chooser"  onclick="triggerClick()" id="Choose_File_Button">
+                        <div class="col mb-1">
+                            <button type="button" class="btn btn-primary the-button" for="duel_chooser"
+                                onclick="triggerClick()" id="Choose_File_Button">
                                 <i class="fa-solid fa-arrow-up-from-bracket"></i>
                                 <span id="file-name">Выберите файл</span>
                             </button>
@@ -50,8 +53,9 @@
                             </div>
                         </div>
                         <div class="col">
-                            <div class="dropdown dropstart5" id="duel-chooser-href">
-                                <button type="button" class="btn btn-primary the-button" data-bs-toggle="dropdown"  aria-expanded="false" data-bs-auto-close="outside" id="Choose_Duel_Button">
+                            <div class="dropdown dropstart" id="duel-chooser-href">
+                                <button type="button" class="btn btn-primary the-button" data-bs-toggle="dropdown"
+                                    aria-expanded="false" data-bs-auto-close="outside" id="Choose_Duel_Button">
                                     <i class="fa-solid fa-user-group"></i>
                                     <span id="players-name">Выберите поединок</span>
                                 </button>
@@ -60,10 +64,11 @@
                                         нет данных
                                     </div>
                                 </form>
-                                <input type="checkbox" class="btn-check" id="hide_text" onclick="ShowHideSituationInfo()" checked >
+                                <input type="checkbox" class="btn-check" id="hide_text"
+                                    onclick="ShowHideSituationInfo()" checked>
                                 <label class="btn btn-outline-primary" for="hide_text">
                                     <i class="fa-solid fa-newspaper"></i>
-                                </label>                                
+                                </label>
                             </div>
                         </div>
                     </div>
@@ -82,9 +87,9 @@
                             <input type="text" class="form-control" placeholder="Имя игрока" id="Player1Name">
                         </div>
                     </div>
-                    <div class="col-2 dice" >
+                    <div class="col-2 dice">
                         <button id="dice_button" onclick="dice()">
-                           <i class="fa-solid fa-dice" title="Жребий" id="dice0" ></i>
+                            <i class="fa-solid fa-dice" title="Жребий" id="dice0"></i>
                         </button>
                     </div>
                     <div class="col-5">
@@ -113,7 +118,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Часы -->
         <div class="body0" style="padding-top: 20px; padding-bottom: 20px;">
             <div class="centered">
@@ -129,11 +134,17 @@
                     </div>
                     <div class="col-2" style="z-index: 10;">
                         <div class="row">
-                            <button class="btn btn-primary btn-sm active mb-1" onclick="changePlayer()"  id="change_player" style="visibility: hidden; display: block ">Переход хода</button>
-                            <button class="btn btn-light btn-sm active mb-1" onclick="start_stop_timer()" id="start_stop_timer" style="visibility: hidden; display: block">Возобновить</button>
-                            <button class="btn btn-light btn-sm active mb-1" onclick="pause()" id="pause" style="visibility: hidden; display: block">Пауза(от Секунданта)</button>
-                            <button class="btn btn-light btn-sm active mb-1" onclick="protest()" id="protest" style="visibility: hidden; display: block">Протест</button>
-                            <button class="btn btn-primary btn-sm active" onclick="start_stop_duel()" id="start_stop_duel" style="visibility: visible; display: block ">Начать поединок</button>
+                            <button class="btn btn-primary btn-sm active mb-1" onclick="changePlayer()"
+                                id="change_player" style="visibility: hidden; display: block ">Переход хода</button>
+                            <button class="btn btn-light btn-sm active mb-1" onclick="start_stop_timer()"
+                                id="start_stop_timer" style="visibility: hidden; display: block">Возобновить</button>
+                            <button class="btn btn-light btn-sm active mb-1" onclick="pause()" id="pause"
+                                style="visibility: hidden; display: block">Пауза(от Секунданта)</button>
+                            <button class="btn btn-light btn-sm active mb-1" onclick="protest()" id="protest"
+                                style="visibility: hidden; display: block">Протест</button>
+                            <button class="btn btn-primary btn-sm active" onclick="start_stop_duel()"
+                                id="start_stop_duel" style="visibility: visible; display: block ">Начать
+                                поединок</button>
                         </div>
                     </div>
                     <div class="col-5">
@@ -155,47 +166,49 @@
                 <div class="row" style="margin-top: -222px;">
                     <div class="col-5 text-start">
                         <span><b>Интересы</b></span><br>
-                        <div class="wrap-inner-text__left-text" style="background-color:  #e9ecef; " id="Player1RoleGoal">
+                        <div class="wrap-inner-text__left-text" style="background-color:  #e9ecef; "
+                            id="Player1RoleGoal">
                         </div>
                     </div>
                     <div class="col-2"></div>
                     <div class="col-5 text-end">
                         <b>Интересы</b>
                         <br />
-                        <div class="wrap-inner-text__right-text" style="background-color:  #e9ecef;"  id="Player2RoleGoal">
+                        <div class="wrap-inner-text__right-text" style="background-color:  #e9ecef;"
+                            id="Player2RoleGoal">
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        <!-- текст ситуации -->     
-       
+        <!-- текст ситуации -->
+
         <div id="carouselControls" class="carousel slide " data-bs-theme="dark" data-bs-interval="false">
             <div class="carousel-inner">
-              <div class="carousel-item active">
-                <div class="centered text-start"style="width: 100%; height: 300px">
-                    <div class="fw-bold" id="Duel_Num"></div>
-                    <div id="Duel_Text"></div>
+                <div class="carousel-item active">
+                    <div class="centered text-start" style="width: 100%; height: 300px">
+                        <div class="fw-bold" id="Duel_Num"></div>
+                        <div id="Duel_Text"></div>
+                    </div>
                 </div>
-              </div>
-              <div class="carousel-item">
-                <div class="centered text-start"style="width: 100%; height: 300px">
-                    <div class="fw-bold" id="Duel_Roles_label"></div>
-                    <div id="Duel_Roles"></div>
+                <div class="carousel-item">
+                    <div class="centered text-start" style="width: 100%; height: 300px">
+                        <div class="fw-bold" id="Duel_Roles_label"></div>
+                        <div id="Duel_Roles"></div>
+                    </div>
                 </div>
-              </div>
             </div>
             <button class="carousel-control-prev" type="button" data-bs-target="#carouselControls" data-bs-slide="prev">
-              <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-              <span class="visually-hidden">Previous</span>
+                <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                <span class="visually-hidden">Previous</span>
             </button>
             <button class="carousel-control-next" type="button" data-bs-target="#carouselControls" data-bs-slide="next">
-              <span class="carousel-control-next-icon" aria-hidden="true"></span>
-              <span class="visually-hidden">Next</span>
+                <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                <span class="visually-hidden">Next</span>
             </button>
-          </div>
-          
-        
+        </div>
+
+
     </div>
 
 
