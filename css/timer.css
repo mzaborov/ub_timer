@@ -14,29 +14,6 @@ body {
   padding: 10px 0;
 }
 
-/* LOGO */
-
-.the-logo__it {
-  background-color: #6468ff;
-  color: white;
-  padding: 5px 6px;
-  border-radius: 5px;
-  margin: 0 2px;
-}
-
-.the-logo__text {
-  font-weight: normal;
-  font-size: 16px;
-  margin-top: 5px;
-}
-
-.the-logo__description {
-  font-weight: normal;
-  font-size: 13px;
-  margin-top: 5px;
-  color: gray;
-}
-
 /* THE BTN */
 .the-button {
   /* margin-bottom: 10px; */
@@ -49,13 +26,6 @@ body {
 
 /* dice */
 
-
-
-/* #dice1, #dice2 {
-  display: none;
-} */
-
-
 .wrap-round {
   background-color: #ffffff;
   color: black;
@@ -64,74 +34,12 @@ body {
   border-radius: 10px;
 }
 
-
-
-
-
-.wrap-inner-text {
-  /* margin-top: -222px;
-  position: absolute;
-    left: 0;
-    right: 0; */
-    /* z-index: -1; */
-}
-.wrap-inner-text__left-text {
-  margin-left: -70px;
-  width: 250px;
-  background: #ffffff;
-  padding: 10px;
-  border-radius: 10px;
-  margin-top: 10px;
-  font-size: 14px;
-  text-align: center;
-}
-
-.wrap-inner-text__right-text {
-  margin-left: 222px;
-  width: 250px;
-  background: #ffffff;
-  padding: 10px;
-  border-radius: 10px;
-  margin-top: 10px;
-  font-size: 14px;
-  text-align: center
-}
-
-
-#Duel_Text {
-overflow: auto;
-}
-
-
 /* HTML */
 
 html, body {
   width: 100%;
   height: 100%;
 }
-
-
-
-.body0 {}
-.body100 {
-  flex-grow: 1;
-  overflow: scroll;
-}
-
-.head-block {
-  /* padding-top: 10px;
-  padding-bottom: 30px;
-  border-bottom: 1px solid #eeeeee;
-  margin-bottom: 30px; */
-}
-
-.timer-block {
-  /* padding-top: 10px;
-  padding-bottom: 30px;
-  border-bottom: 1px solid #eeeeee;
-  margin-bottom: 30px; */
-}
-
 
 
 /*  */
@@ -200,6 +108,28 @@ html, body {
   left: 0;
   right: 0;
   top: 0;
+}
+
+.interests__left-text {
+  margin-left: -70px;
+  width: 250px;
+  background: #ffffff;
+  padding: 10px;
+  border-radius: 10px;
+  margin-top: 10px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.interests__right-text {
+  margin-left: 222px;
+  width: 250px;
+  background: #ffffff;
+  padding: 10px;
+  border-radius: 10px;
+  margin-top: 10px;
+  font-size: 14px;
+  text-align: center
 }
 
 /* block carousel */
