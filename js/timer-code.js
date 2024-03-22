@@ -10,7 +10,7 @@ var activeTimerColor = "blue";
 var inactiveTimerColor = "DarkGray";
 var emergingTimerColor = "OrangeRed";
 var finishingTimerColor = "FireBrick";
-var activePlayerColor = "#f8f9fa";
+var activePlayerColor = "blue";
 var inactivePlayerColor = "#f8f9fa";
 var current_round = 0;
 var duelsList;
@@ -310,30 +310,41 @@ function ShowHideSituationInfo() {
 
 
 function dice() {
-
+    var qty=1;
     setTimeout(() => {
         if (Math.random() >= 0.5) {
             document.getElementById("Player1Name").value = duelsList[currentDuel].Player2;
             document.getElementById("Player2Name").value = duelsList[currentDuel].Player1;
         }
-        document.getElementById("Player1Label").style.backgroundColor = inactivePlayerColor;
-        document.getElementById("Player2Label").style.backgroundColor = inactivePlayerColor;
-    }, 1100)
+      
+    }, 1200)
 
-    blinking(1000 + Math.ceil(Math.random() * 1000), 75)
+    blinking(1000 + Math.ceil(Math.random() * 1000), 100,qty)
 }
 
-function blinking(count, step) {
+function blinking(count, step,qty) {
     const a = document.getElementById("Player1Name").value
     const b = document.getElementById("Player2Name").value
 
     document.getElementById("Player1Name").value = b
-    document.getElementById("Player2Name").value = a
+    document.getElementById("Player2Name").value = a 
 
-    setTimeout(() => {
-        count = count - step
-        if (count > 0) {
-            blinking(count, step)
-        }
-    }, step)
+     if (qty % 2 === 0) {
+        document.getElementById("Player1Label").style.backgroundColor = inactivePlayerColor;
+        document.getElementById("Player2Label").style.backgroundColor = activePlayerColor;
+       } 
+   else {
+       document.getElementById("Player1Label").style.backgroundColor = activePlayerColor;
+       document.getElementById("Player2Label").style.backgroundColor = inactivePlayerColor;
+   } 
+ count = count - step; 
+     qty++;
+    if (count > 0) {
+       setTimeout(() => {blinking(count, step,qty)}, step);
+    }
+    else {
+        document.getElementById("Player1Label").style.backgroundColor = inactivePlayerColor;
+        document.getElementById("Player2Label").style.backgroundColor = inactivePlayerColor;
+    }
+
 }
