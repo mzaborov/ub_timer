@@ -40,19 +40,24 @@ function changePlayer() {
 
 }
 
+
 function setPlayer(playerNum) {
     current_player = playerNum;
     if (playerNum === 1) {
         donut1.setState({ color: activeTimerColor });
         donut2.setState({ color: inactiveTimerColor });
         document.getElementById("Player1Label").style.backgroundColor = activePlayerColor;
+        document.getElementById("Player1Label").style.color = "white";
         document.getElementById("Player2Label").style.backgroundColor = inactivePlayerColor;
+        document.getElementById("Player2Label").style.color = "black";
     }
     else {
         donut1.setState({ color: inactiveTimerColor });
         donut2.setState({ color: activeTimerColor });
         document.getElementById("Player1Label").style.backgroundColor = inactivePlayerColor;
+        document.getElementById("Player1Label").style.color = "black";
         document.getElementById("Player2Label").style.backgroundColor = activePlayerColor;
+        document.getElementById("Player2Label").style.color = "white";    
     }
 }
 
@@ -328,23 +333,12 @@ function blinking(count, step,qty) {
 
     document.getElementById("Player1Name").value = b
     document.getElementById("Player2Name").value = a 
-
-     if (qty % 2 === 0) {
-        document.getElementById("Player1Label").style.backgroundColor = inactivePlayerColor;
-        document.getElementById("Player2Label").style.backgroundColor = activePlayerColor;
-       } 
-   else {
-       document.getElementById("Player1Label").style.backgroundColor = activePlayerColor;
-       document.getElementById("Player2Label").style.backgroundColor = inactivePlayerColor;
-   } 
- count = count - step; 
-     qty++;
-    if (count > 0) {
-       setTimeout(() => {blinking(count, step,qty)}, step);
-    }
-    else {
-        document.getElementById("Player1Label").style.backgroundColor = inactivePlayerColor;
-        document.getElementById("Player2Label").style.backgroundColor = inactivePlayerColor;
-    }
+    setPlayer (qty % 2 +1);
+    count = count - step; 
+        qty++;
+        if (count > 0) {
+        setTimeout(() => {blinking(count, step,qty)}, step);
+        }
+        else { initTimers(); }
 
 }
