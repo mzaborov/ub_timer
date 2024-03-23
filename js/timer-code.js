@@ -15,6 +15,7 @@ var inactivePlayerColor = "#f8f9fa";
 var current_round = 0;
 var duelsList;
 var currentDuel;
+var lastShiftIsUsed =  false;
 
 var donut1 = new Donutty(document.getElementById("donut1"), { min: 0, max: game_time, value: game_time, round: false, color: inactiveTimerColor });
 var donut2 = new Donutty(document.getElementById("donut2"), { min: 0, max: game_time, value: game_time, round: false, color: inactiveTimerColor });
@@ -24,19 +25,22 @@ initTimers()
 /*--------------------------Переход хода----------------------------*/
 
 function changePlayer() {
-    console.log('asd');
     stop_timer();
     var newPlayer = (current_player % 2) + 1;
     if (time[newPlayer - 1] === 0) // однократный возврат обратно себе 
     {
         // визуализировать мигание бубликов
+        var cur = current_player;
+        setPlayer(newPlayer);
+        setTimeout(() => {setPlayer(cur);  }, 700);
+        lastShiftIsUsed =  true;
     }
     else {
         setPlayer(newPlayer);
     }
     current_round++;
     document.getElementById("current_round").textContent = "Раунд №" + current_round;
-
+    document.getElementById("change_player").disabled = true;
 
 }
 
@@ -91,11 +95,12 @@ function start_duel() {
     document.getElementById("start_stop_duel").classList.remove("btn-primary");
     document.getElementById("start_stop_duel").classList.add("btn-danger");
     initTimers();
-    setPlayer(current_player);
+    setPlayer(1);
     start_timer();
     current_round = 1;
     document.getElementById("current_round").textContent = "Раунд №" + current_round;
     duel_is_active = true;
+   lastShiftIsUsed =  false;
 }
 
 function stop_duel() {
@@ -125,6 +130,8 @@ function initTimers() {
     document.getElementById("Player2Label").style.backgroundColor = inactivePlayerColor;
     document.getElementById("timer1").textContent = formatTime(time[0]);
     document.getElementById("timer2").textContent = formatTime(time[1]);
+    document.getElementById("Player1Label").style.color = "black";
+    document.getElementById("Player2Label").style.color = "black";    
 }
 
 function start_stop_timer() {
@@ -140,6 +147,7 @@ function start_timer() {
     document.getElementById("pause").classList.remove("disabled");
     document.getElementById("protest").classList.add("active");
     document.getElementById("protest").classList.remove("disabled");
+    document.getElementById("change_player").disabled = false;
 }
 
 function stop_timer() {
