@@ -6,6 +6,8 @@ var clock_is_active = false;
 var emergingTime = 30
 var finishingTime = 10
 var timerID = 0;
+var pauseTimerID = 0;
+var pauseTime =60;
 const activeTimerColor = "blue";
 const inactiveTimerColor = "DarkGray";
 const emergingTimerColor = "OrangeRed";
@@ -200,16 +202,41 @@ function pause(regime)
     switch(regime) {
         case   "start" : 
                 stop_timer();
+                document.getElementById("pauseModalLabel").textContent = "Секундант Игрока №"+current_player+" взял паузу";
+                pauseTime=60; 
+                pause_donut.setState({ value: pauseTime});
+                document.getElementById("pause_timer").textContent = formatTime(pauseTime);                
                 break;
         case   "start_timer" : 
-                
+                 pauseTimerID = setInterval(changePauseTime, 1000)
+                 document.getElementById("pause_timer_start_button").classList.add("btn-secondary");
+                 document.getElementById("pause_timer_start_button").classList.remove("btn-primary");
+                 document.getElementById("pause_timer_start_button").style.visibility = "hidden";
+                 document.getElementById("pause_timer_start_button").disabled = true;
+                 document.getElementById("pause_continue_duel_button").classList.add("btn-primary");
+                 document.getElementById("pause_continue_duel_button").classList.remove("btn-secondary");
                  break;              
         
         case   "stop" : 
+                clearInterval(pauseTimerID);
                 start_timer();
+                document.getElementById("pause_timer_start_button").disabled = false;
+                document.getElementById("pause_timer_start_button").classList.remove("btn-secondary");
+                document.getElementById("pause_timer_start_button").classList.add("btn-primary");
+                document.getElementById("pause_timer_start_button").style.visibility = "visible";
+                document.getElementById("pause_continue_duel_button").classList.remove("btn-primary");
+                document.getElementById("pause_continue_duel_button").classList.add("btn-secondary");
+
                  break;              
       }
 }
+
+function changePauseTime() {
+    pauseTime--;
+    pause_donut.setState({ value: pauseTime});
+    document.getElementById("pause_timer").textContent = formatTime(pauseTime);
+}
+
 /*---------------------часы---------------------------------*/
 
 function formatTime(time_in_sec) {
@@ -235,7 +262,7 @@ function start_timer() {
 }
 
 function stop_timer() {
-    timerID = clearInterval(timerID)
+    clearInterval(timerID);
     document.getElementById("start_stop_timer").innerText = "Запустить часы";
     clock_is_active = false;
     document.getElementById("pause").classList.add("disabled");
@@ -264,6 +291,7 @@ function timeTicker(donaty) {
 function changeTime() {
     if (current_player === 1) { timeTicker(donut1) } else { timeTicker(donut2) }
 }
+
 
 /*---------------------Загрузка JSON  и работа со списком поединков ---------------------------------*/
 function triggerClick() {
