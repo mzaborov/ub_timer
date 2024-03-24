@@ -76,6 +76,7 @@
             </div>
         </div>
 
+
         <!-- Имена и роли Игроков -->
         <div class="name-and-role">
             <div class="centered">
@@ -132,21 +133,17 @@
                             </div>
                         </div>
                     </div>
+
                     <div class="col-2" style="z-index: 10;">
                         <div class="row">
-                            <button class="btn btn-primary btn-sm active mb-1" onclick="changePlayer()"
-                                id="change_player" style="visibility: hidden; display: block ">Переход хода</button>
-                            <button class="btn btn-light btn-sm active mb-1" onclick="start_stop_timer()"
-                                id="start_stop_timer" style="visibility: hidden; display: block">Возобновить</button>
-                            <button class="btn btn-light btn-sm active mb-1" onclick="pause()" id="pause"
-                                style="visibility: hidden; display: block">Пауза(от Секунданта)</button>
-                            <button class="btn btn-light btn-sm active mb-1" onclick="protest()" id="protest"
-                                style="visibility: hidden; display: block">Протест</button>
-                            <button class="btn btn-primary btn-sm active" onclick="start_stop_duel()"
-                                id="start_stop_duel" style="visibility: visible; display: block ">Начать
-                                поединок</button>
+                            <button class="btn btn-primary btn-sm active mb-1" onclick="changePlayer()"   id="change_player" style="visibility: hidden; display: block ">Переход хода</button>
+                            <button class="btn btn-light btn-sm active mb-1" onclick="start_stop_timer()" id="start_stop_timer" style="visibility: hidden; display: block">Возобновить</button>
+                            <button class="btn btn-light btn-sm active mb-1" data-bs-toggle="modal" data-bs-target="#pauseModal"  onclick="pause('start')" id="pause" style="visibility: hidden; display: block">Пауза (Секундант)</button>
+                            <button class="btn btn-light btn-sm active mb-1" data-bs-toggle="modal" data-bs-target="#protestModal" onclick="protest('start')" id="protest" style="visibility: hidden; display: block">Протест (Секундант)</button>
+                            <button class="btn btn-primary btn-sm active" onclick="start_stop_duel()"  id="start_stop_duel" style="visibility: visible; display: block ">Начать поединок</button>
                         </div>
                     </div>
+
                     <div class="col-5">
                         <div class="col text-start" id="Player2DonutGroup">
                             <div class="d-inline-block position-relative text-center">
@@ -182,7 +179,7 @@
 
 
         <!-- текст ситуации -->
-        <div class="carousel-block">
+        <div class="carousel-block" id="SituationText">
             <div style="height: 100%;" id="carouselControls" class="carousel slide " data-bs-theme="dark"
                 data-bs-interval="false">
                 <div style="height: 100%; overflow: auto; padding: 20px 0;" class="carousel-inner">
@@ -212,6 +209,52 @@
             </div>
         </div>
     </div>
+
+
+    <!-- *****  -->
+    <!-- *****  -->
+    <!-- формы  -->
+    <!-- *****  -->
+    <!-- *****  -->
+
+    <div class="modal fade" id="protestModal" tabindex="-1" aria-labelledby="protestModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="protestModalLabel">Секундант заявил протекст</h1>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success" data-bs-dismiss="modal"  onclick="protest('stop')">Протест удволетворен</button>
+                    <button type="button" class="btn btn-danger" data-bs-dismiss="modal"  onclick="protest('stop')">Протест отклонен</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="pauseModal" tabindex="-1" aria-labelledby="pauseModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="pauseModalLabel">Секундант запросил паузу</h1>
+                </div>
+                <div class="modal-body">
+                    <div class="centered" id="PauseDonutGroup">
+                        <div class="d-inline-block position-relative">
+                            <div class="d-inline-block" style="width: 200px; height: 200px;" id="pause_donut"></div>
+                            <div class="position-absolute top-0 start-0 text-center fs-1"
+                                style="width: 200px; height: 200px; line-height: 200px" id="pause_timer"></div>
+                        </div>
+                    </div>
+                 </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary"  onclick="pause('start_timer')"> Запустить</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                        onclick="pause('stop')">Продолжить поединок</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
     <script type="text/javascript" src="js\timer-code.js"></script>
 </body>
 

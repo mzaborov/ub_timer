@@ -6,44 +6,25 @@ var clock_is_active = false;
 var emergingTime = 30
 var finishingTime = 10
 var timerID = 0;
-var activeTimerColor = "blue";
-var inactiveTimerColor = "DarkGray";
-var emergingTimerColor = "OrangeRed";
-var finishingTimerColor = "FireBrick";
-var activePlayerColor = "blue";
-var inactivePlayerColor = "#f8f9fa";
+const activeTimerColor = "blue";
+const inactiveTimerColor = "DarkGray";
+const emergingTimerColor = "OrangeRed";
+const finishingTimerColor = "FireBrick";
+const activePlayerColor = "blue";
+const inactivePlayerColor = "#f8f9fa";
+const donuttyTrackColor = "rgba(70, 130, 180, 0.15)";
 var current_round = 0;
 var duelsList;
 var currentDuel;
 var lastShiftIsUsed =  false;
 
-var donut1 = new Donutty(document.getElementById("donut1"), { min: 0, max: game_time, value: game_time, round: false, color: inactiveTimerColor });
-var donut2 = new Donutty(document.getElementById("donut2"), { min: 0, max: game_time, value: game_time, round: false, color: inactiveTimerColor });
-initTimers()
+var donut1 = new Donutty(document.getElementById("donut1"), { min: 0, max: game_time, value: game_time, round: false, color: inactiveTimerColor, bg:donuttyTrackColor });
+var donut2 = new Donutty(document.getElementById("donut2"), { min: 0, max: game_time, value: game_time, round: false, color: inactiveTimerColor, bg:donuttyTrackColor });
+var pause_donut = new Donutty(document.getElementById("pause_donut"), { min: 0, max: 60, value: 60, round: false, color: "red", bg:donuttyTrackColor });
 
+initTimers();
 
-/*--------------------------Переход хода----------------------------*/
-
-function changePlayer() {
-    stop_timer();
-    var newPlayer = (current_player % 2) + 1;
-    if (time[newPlayer - 1] === 0) // однократный возврат обратно себе 
-    {
-        // визуализировать мигание бубликов
-        var cur = current_player;
-        setPlayer(newPlayer);
-        setTimeout(() => {setPlayer(cur);  }, 700);
-        lastShiftIsUsed =  true;
-    }
-    else {
-        setPlayer(newPlayer);
-    }
-    current_round++;
-    document.getElementById("current_round").textContent = "Раунд №" + current_round;
-    document.getElementById("change_player").disabled = true;
-
-}
-
+/*--------------------------Подсветка игроков----------------------------*/
 
 function setPlayer(playerNum) {
     current_player = playerNum;
@@ -64,6 +45,93 @@ function setPlayer(playerNum) {
         document.getElementById("Player2Label").style.color = "white";    
     }
 }
+
+function highlightPlayer()
+{
+    if (current_player ===1) { 
+        donut1.setState({ bg: activePlayerColor, color: activePlayerColor}); 
+        donut2.setState({ bg:donuttyTrackColor, color: inactiveTimerColor });
+       } 
+    else {
+        donut2.setState({ bg: activePlayerColor, color: activePlayerColor });
+        donut1.setState({ bg:donuttyTrackColor, color: inactiveTimerColor });        
+    };  
+}
+
+
+function initTimers() {
+    time[0] = game_time;
+    time[1] = game_time;
+    donut1.setState({ max: game_time, value: time[0], color: inactiveTimerColor , bg: donuttyTrackColor });
+    donut2.setState({ max: game_time, value: time[1], color: inactiveTimerColor, bg: donuttyTrackColor });
+    document.getElementById("Player1Label").style.backgroundColor = inactivePlayerColor;
+    document.getElementById("Player2Label").style.backgroundColor = inactivePlayerColor;
+    document.getElementById("timer1").textContent = formatTime(time[0]);
+    document.getElementById("timer2").textContent = formatTime(time[1]);
+    document.getElementById("Player1Label").style.color = "black";
+    document.getElementById("Player2Label").style.color = "black";    
+}
+
+/*---------------------Dice ---------------------------------*/
+
+function dice() {
+    var qty=1;
+    blinking(1600 + Math.ceil(Math.random() * 1000), 200,qty)
+}
+
+function blinking(count, step,qty) {
+    const a = document.getElementById("Player1Name").value;
+    const b = document.getElementById("Player2Name").value;
+
+    document.getElementById("Player1Name").value = b;
+    document.getElementById("Player2Name").value = a ;
+    var newPlayer= qty % 2 +1;
+    setPlayer (newPlayer);
+    highlightPlayer();
+    count = count - step; 
+        qty++;
+        if (count > 0) {
+        setTimeout(() => {blinking(count, step,qty)}, step);
+        }
+        else { initTimers(); }
+}
+
+
+
+/*--------------------------Переход хода----------------------------*/
+
+
+function changePlayer() {
+    stop_timer();
+    var newPlayer = (current_player % 2) + 1;
+    if (time[newPlayer - 1] === 0) // однократный возврат обратно себе 
+    {
+        // визуализировать мигание бубликов
+        var cur = current_player;
+        setPlayer(newPlayer);
+        highlightPlayer();
+        setTimeout(() => {setPlayer(cur); 
+                            if (cur === 1) { 
+                                donut2.setState({ bg: donuttyTrackColor, color: inactiveTimerColor});
+                                donut1.setState({ bg: activePlayerColor, color: activeTimerColor });
+                            } 
+                            else {
+                                donut1.setState({ bg: donuttyTrackColor, color: inactiveTimerColor });
+                                donut2.setState({ bg: activePlayerColor, color: activeTimerColor });     
+                            };            
+                        }, 1200);
+        lastShiftIsUsed =  true;        
+    }
+    else {
+        setPlayer(newPlayer);
+    }
+    current_round++;
+    document.getElementById("current_round").textContent = "Раунд №" + current_round;
+    document.getElementById("change_player").disabled = true;
+
+}
+
+
 
 /*--------------------------Поединок----------------------------*/
 function start_stop_duel() {
@@ -115,24 +183,40 @@ function stop_duel() {
 
 }
 
+function protest(regime)
+{
+
+    switch(regime) {
+      case   "start" : 
+              stop_timer();
+              break;
+      case   "stop" : 
+              start_timer();
+              break;              
+    }
+}
+function pause(regime)
+{
+    switch(regime) {
+        case   "start" : 
+                stop_timer();
+                break;
+        case   "start_timer" : 
+                
+                 break;              
+        
+        case   "stop" : 
+                start_timer();
+                 break;              
+      }
+}
 /*---------------------часы---------------------------------*/
 
 function formatTime(time_in_sec) {
     return String(Math.floor(time_in_sec / 60)).padStart(2, "0") + ":" + String(time_in_sec % 60).padStart(2, "0");
 }
 
-function initTimers() {
-    time[0] = game_time;
-    time[1] = game_time;
-    donut1.setState({ max: game_time, value: time[0], color: inactiveTimerColor });
-    donut2.setState({ max: game_time, value: time[1], color: inactiveTimerColor });
-    document.getElementById("Player1Label").style.backgroundColor = inactivePlayerColor;
-    document.getElementById("Player2Label").style.backgroundColor = inactivePlayerColor;
-    document.getElementById("timer1").textContent = formatTime(time[0]);
-    document.getElementById("timer2").textContent = formatTime(time[1]);
-    document.getElementById("Player1Label").style.color = "black";
-    document.getElementById("Player2Label").style.color = "black";    
-}
+
 
 function start_stop_timer() {
     if (clock_is_active) { stop_timer(); }
@@ -147,7 +231,7 @@ function start_timer() {
     document.getElementById("pause").classList.remove("disabled");
     document.getElementById("protest").classList.add("active");
     document.getElementById("protest").classList.remove("disabled");
-    document.getElementById("change_player").disabled = false;
+    if(!lastShiftIsUsed){ document.getElementById("change_player").disabled = false;}
 }
 
 function stop_timer() {
@@ -317,36 +401,5 @@ function ShowHideSituationInfo() {
         document.getElementById("PlayersInterests").style.visibility = 'visible';
         document.getElementById("SituationText").style.visibility = 'visible';
     }
-
-}
-/*---------------------dice ---------------------------------*/
-
-
-function dice() {
-    var qty=1;
-    setTimeout(() => {
-        if (Math.random() >= 0.5) {
-            document.getElementById("Player1Name").value = duelsList[currentDuel].Player2;
-            document.getElementById("Player2Name").value = duelsList[currentDuel].Player1;
-        }
-      
-    }, 1200)
-
-    blinking(1000 + Math.ceil(Math.random() * 1000), 100,qty)
-}
-
-function blinking(count, step,qty) {
-    const a = document.getElementById("Player1Name").value
-    const b = document.getElementById("Player2Name").value
-
-    document.getElementById("Player1Name").value = b
-    document.getElementById("Player2Name").value = a 
-    setPlayer (qty % 2 +1);
-    count = count - step; 
-        qty++;
-        if (count > 0) {
-        setTimeout(() => {blinking(count, step,qty)}, step);
-        }
-        else { initTimers(); }
 
 }
