@@ -8,6 +8,9 @@ var finishingTime = 10
 var timerID = 0;
 var pauseTimerID = 0;
 var pauseTime =60;
+var refereeTimerID = 0;
+var refereeTime =60;
+
 const activeTimerColor = "blue";
 const inactiveTimerColor = "DarkGray";
 const emergingTimerColor = "OrangeRed";
@@ -23,7 +26,7 @@ var lastShiftIsUsed =  false;
 var donut1 = new Donutty(document.getElementById("donut1"), { min: 0, max: game_time, value: game_time, round: false, color: inactiveTimerColor, bg:donuttyTrackColor });
 var donut2 = new Donutty(document.getElementById("donut2"), { min: 0, max: game_time, value: game_time, round: false, color: inactiveTimerColor, bg:donuttyTrackColor });
 var pause_donut = new Donutty(document.getElementById("pause_donut"), { min: 0, max: 60, value: 60, round: false, color: "red", bg:donuttyTrackColor });
-
+var referee_donut = new Donutty(document.getElementById("referee_donut"), { min: 0, max: 60, value: 60, round: false, color: "red", bg:donuttyTrackColor });
 initTimers();
 
 /*--------------------------Подсветка игроков----------------------------*/
@@ -86,7 +89,9 @@ function blinking(count, step,qty) {
     const b = document.getElementById("Player2Name").value;
 
     document.getElementById("Player1Name").value = b;
+    duelsList[currentDuel].Player1 = b;
     document.getElementById("Player2Name").value = a ;
+    duelsList[currentDuel].Player2 = a;
     var newPlayer= qty % 2 +1;
     setPlayer (newPlayer);
     highlightPlayer();
@@ -95,7 +100,7 @@ function blinking(count, step,qty) {
         if (count > 0) {
         setTimeout(() => {blinking(count, step,qty)}, step);
         }
-        else { initTimers(); }
+        else { initTimers();  }
 }
 
 
@@ -181,8 +186,12 @@ function stop_duel() {
     document.getElementById("start_stop_duel").classList.remove("btn-danger");
     document.getElementById("start_stop_duel").classList.add("btn-primary");
     duel_is_active = false;
-    initTimers()
-
+    initTimers();
+    refereeTime=60; 
+    referee_donut.setState({ value: refereeTime});
+    document.getElementById("referee_timer").textContent = formatTime(refereeTime);
+    const myModal = new bootstrap.Modal(document.getElementById('finishDuelModal'), {});                
+    myModal.show();    
 }
 
 function protest(regime)
@@ -366,18 +375,20 @@ function loadFile(event) {
 }
 
 function duelChoosed(currentDuelRef) {
-    currentDuel = currentDuelRef
+    currentDuel = currentDuelRef;
     if (currentDuel != "-1") {
         const duel = duelsList[currentDuel]
         document.getElementById("players-name").innerHTML = `Ситуация №${duel.SituationNum} ${duel.SituationName}`;
         document.getElementById("Player1Name").value = duel.Player1;
         document.getElementById("Player2Name").value = duel.Player2;
-        document.getElementById("Duel_Num").textContent = "Ситуация №" + duel.SituationNum + ". \"" + duel.SituationName + "\"";
+        document.getElementById("Duel_Num").textContent = "Ситуация №" + duel.SituationNum +" (" +duel.Type +"). \"" + duel.SituationName + "\"";
         document.getElementById("Duel_Text").innerHTML = duel.SituationDescription;
         var select1 = document.getElementById('Player1Roles');
         var select2 = document.getElementById('Player2Roles');
         clearSelectOptions('Player1Roles');
         clearSelectOptions('Player2Roles');
+        setDuelTime(duel.DuelMinutesLength*60);
+        document.getElementById(duel.DuelMinutesLength+"min").checked = true;
         var RolesText = "<b>Роли и интересы:</b>";
         for (var i in duel.SituationRoles) {
             var sitRoles = duel.SituationRoles[i];
@@ -430,4 +441,18 @@ function ShowHideSituationInfo() {
         document.getElementById("SituationText").style.visibility = 'visible';
     }
 
+}
+
+function toggeSound()
+{
+    if (document.getElementById("sound").checked) {
+        document.getElementById("sound_icon").classList.add("fa-volume-high");
+        document.getElementById("sound_icon").classList.remove("fa-volume-xmark");
+    }
+    else
+    {
+        document.getElementById("sound_icon").classList.add("fa-volume-xmark");
+        document.getElementById("sound_icon").classList.remove("fa-volume-high");
+        
+    }
 }
