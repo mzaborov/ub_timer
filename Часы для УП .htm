@@ -219,7 +219,7 @@
     <!-- *****  -->
     <!-- *****  -->
 
-      <!-- протест -->
+     <!-- протест -->
     <div class="modal fade" id="protestModal" tabindex="-1" aria-labelledby="protestModalLabel" aria-hidden="true"  data-bs-backdrop="static" data-bs-keyboard="false" >
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -258,7 +258,7 @@
         </div>
     </div>
 
-    <!-- Завершение -->
+    <!-- Завершение поединка -->
     <div class="modal fade " id="finishDuelModal" tabindex="-1" aria-labelledby="finishDuelModalLabel" aria-hidden="true"  data-bs-backdrop="static" data-bs-keyboard="false">
         <div class="modal-dialog modal-dialog-centered  modal-xl">
             <div class="modal-content">
@@ -273,19 +273,21 @@
                    </div>
                     <div class="btn-toolbar row text-center" role="toolbar" title="Судьи">
                         <div class="btn-group col me-2" role="group" title="Нанимающиеся на работу">
-                            <button type="button" class="btn btn-primary btn-sm ">Cудья&nbsp;1 </button>
-                            <button type="button" class="btn btn-success btn-sm">Cудья&nbsp;2 </button>
-                            <button type="button" class="btn btn-success btn-sm">Cудья&nbsp;3 </button>                              
+                            <button type="button" class="btn  btn-sm" id="refBut0"></button>
+                            <button type="button" class="btn btn-sm" id="refBut1"></button>
+                            <button type="button" class="btn btn-sm" id="refBut2"> </button>                              
                         </div>
                         <div class="btn-group col me-2" role="group" title="Отправляющие на переговоры">
-                            <button type="button" class="btn btn-primary btn-sm">Cудья&nbsp;4</button>                              
-                            <button type="button" class="btn btn-outline-dark btn-sm">  Cудья&nbsp;5 </button>
-                            <button type="button" class="btn btn-dark btn-sm"> Cудья&nbsp;6</button>
+                            <button type="button" class="btn btn-sm" id="refBut3"></button>                              
+                            <button type="button" class="btn btn-sm" id="refBut4"></button>
+                            <button type="button" class="btn btn-sm" id="refBut5"></button>
+                            <button type="button" class="btn btn-sm" id="refBut6"></button>
+                            <button type="button" class="btn btn-sm" id="refBut7"></button>
                         </div>
                         <div class="btn-group col" role="group" title="Доверяющие собственность">
-                            <button type="button" class="btn btn-dark btn-sm"> Cудья&nbsp;7</button>
-                            <button type="button" class="btn btn-dark btn-sm"> Cудья&nbsp;8 </button>
-                            <button type="button" class="btn btn-dark btn-sm"> Cудья&nbsp;9</button>
+                            <button type="button" class="btn btn-sm" id="refBut8"></button>
+                            <button type="button" class="btn btn-sm" id="refBut9"></button>
+                            <button type="button" class="btn btn-sm" id="refBut10"></button>
                         </div>
                     </div>                    
                 </div>
@@ -294,18 +296,16 @@
                         <h5 class="text-center"> я бы нанялся на работу к</h5>
                         <div class="btn-group" role="group" aria-label="выбор игрока">
                             <input type="radio" class="btn-check" name="btnradio" id="plr1radio">
-                            <label class="btn btn-outline-success" for="plr1radio">Игроку № 1 (Шевчук Александр)</label>
-                          
+                            <label class="btn" for="plr1radio" id="plr1radiolabel" >Игроку № 1 (Шевчук Александр)</label>                          
                             <input type="radio" class="btn-check" name="btnradio" id="plr2radio">
-                            <label class="btn btn-outline-primary" for="plr2radio">Игроку № 2 (Кузьмина Екатерина)</label>
-                         
+                            <label class="btn" for="plr2radio" id="plr2radiolabel" >Игроку № 2 (Кузьмина Екатерина)</label>                         
                           </div>
                      </div>                    
                  </div>
                 <div class="modal-body d-flex justify-content-center align-items-center">
                     <div class ="row"   style="width: 600px;"">
-                        <div class = "col d-flex justify-content-start align-items-center" id="Player1Score">
-                           <h2 class = "fs-1 text-bg-success ">&nbsp2&nbsp </h2>
+                        <div class = "col d-flex justify-content-start align-items-center" >
+                           <h2 class = "fs-1 " id="Player1Score">&nbsp2&nbsp </h2>
                         </div>
                         <div class = "col" id="refereeDonutGroup">
                             <div class="d-inline-block position-relative">
@@ -314,8 +314,8 @@
                                     style="width: 200px; height: 200px; line-height: 200px" id="referee_timer"></div>
                             </div>
                         </div>
-                        <div class = "col d-flex justify-content-end align-items-center" id="Player2Score">
-                            <h2 class = "fs-1 text-bg-primary ">&nbsp2&nbsp</h2>
+                        <div class = "col d-flex justify-content-end align-items-center">
+                            <h2 class = "fs-1"  id="Player2Score">&nbsp2&nbsp</h2>
                          </div> 
                      </div>
                  </div>                 
@@ -340,41 +340,46 @@
                 </div>
 
                 <div class="modal-footer align-items-center ">                    
+                    <div class="container-fluid">
+                        <div class="row">
+                            <div class="col-6">
+                                <div class="btn-group" role="group" aria-label="тип поединка" id="duel_type_picker">
+                                    <input type="radio" class="btn-check btn-sm" onclick="initRefereeStructure(-1,'classic')" name="duel_type" id="classic" checked>
+                                    <label class="btn btn-outline-dark btn-sm" for="classic">
+                                        <i class="fa-solid fa-landmark"></i>
+                                    </label>
+                                    <input type="radio" class="btn-check" onclick="initRefereeStructure(-1,'express')" name="duel_type" id="express">
+                                    <label class="btn btn-outline-dark btn-sm" for="express">
+                                        <i class="fa-solid fa-bolt-lightning"></i>
+                                    </label>
+                                </div>
 
+                                <div class="btn-group" role="group" aria-label="время поединка" id="ref_qty_picker">
+                                    <input type="radio" class="btn-check btn-sm" onclick="initRefereeStructure(9,'current')" name="ref_qty" id="9ref" checked>
+                                    <label class="btn btn-outline-dark btn-sm" for="9ref">9</label>
+                                    <input type="radio" class="btn-check btn-sm " onclick="initRefereeStructure(7,'current')" name="ref_qty" id="7ref">
+                                    <label class="btn btn-outline-dark btn-sm" for="7ref">7</label>
+                                    <input type="radio" class="btn-check btn-sm" onclick="initRefereeStructure(5,'current')" name="ref_qty" id="5ref">
+                                    <label class="btn btn-outline-dark btn-sm" for="5ref">5</label>
+                                </div>
 
-                    <div class="btn-group" role="group" aria-label="тип поединка" id="duel_type_picker">
-                        <input type="radio" class="btn-check" onclick="initRefereeStructure(-1,'classic')" name="duel_type" id="classic" checked>
-                        <label class="btn btn-outline-dark" for="classic">
-                            <i class="fa-solid fa-landmark"></i>
-                        </label>
-                        <input type="radio" class="btn-check" onclick="initRefereeStructure(-1,'classic')" name="duel_type" id="express">
-                        <label class="btn btn-outline-dark" for="express">
-                            <i class="fa-solid fa-bolt-lightning"></i>
-                        </label>
-                    </div>
-
-                    <div class="btn-group" role="group" aria-label="время поединка" id="ref_qty_picker">
-                        <input type="radio" class="btn-check" onclick="setRefereeQty(9)" name="ref_qty" id="9ref" checked>
-                        <label class="btn btn-outline-dark" for="9ref">9</label>
-                        <input type="radio" class="btn-check" onclick="setRefereeQty(7)" name="ref_qty" id="7ref">
-                        <label class="btn btn-outline-dark" for="7ref">7</label>
-                        <input type="radio" class="btn-check" onclick="setRefereeQty(5)" name="ref_qty" id="5ref">
-                        <label class="btn btn-outline-dark" for="5ref">5</label>
-                    </div>
-
-                    <div class=" justify-content-start"> 
-                        <input type="checkbox" class="btn-check btn-sm"" id="hide_referee_hint"  data-bs-toggle="collapse" href="#referee_hint" checked>                                
-                        <label class="btn btn-outline-dark btn-sm" for="hide_referee_hint">
-                            <i class="fa-solid fa-newspaper"></i>
-                        </label>
-                    </div>  
-                    <div class=""> 
-                        <button type="button" class="btn btn-primary"  onclick="refereeTimerStart()"  id="finish_duel_timer_start_button">Запустить часы</button>
-                        <button type="button" class="btn btn-primary"  onclick="nextReferee()"  id="finish_duel_next_referee_button">Следующий</button>
-                        <button type="button" class="btn btn-danger" data-bs-dismiss="modal"  id="finish_duel_button" >Завершить поединок</button>
-                  </div>
+                                <div class="btn-group" role="group" aria-label="скрыть подсказку" id="hide_referee_hint_grp"> 
+                                    <input type="checkbox" class="btn-check btn-sm"" id="hide_referee_hint"  data-bs-toggle="collapse" href="#referee_hint" checked>                                
+                                    <label class="btn btn-outline-dark btn-sm" for="hide_referee_hint">
+                                        <i class="fa-solid fa-newspaper"></i>
+                                    </label>
+                                </div>  
+                            </div>      
+                            <div class="col" id="duel_end_buttons_grp"> 
+                                <button type="button" class="btn btn-primary"  onclick="refereeTimerStart()"  id="finish_duel_timer_start_button">Запустить часы</button>
+                                <button type="button" class="btn btn-primary"  onclick="nextReferee()"  id="finish_duel_next_referee_button">Следующий</button>
+                                <button type="button" class="btn btn-danger"   data-bs-dismiss="modal"  id="finish_duel_button" >Завершить поединок</button>
+                            </div>
+                        </div>   
+                    </div>        
                 </div>
             </div>
+
         </div>
     </div>
 
