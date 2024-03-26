@@ -273,58 +273,31 @@
                    </div>
                     <div class="btn-toolbar row text-center" role="toolbar" title="Судьи">
                         <div class="btn-group col me-2" role="group" title="Нанимающиеся на работу">
-                            <button type="button" class="btn btn-primary ">
-                                <i>Cудья&nbsp;1</i>
-                                <span class="badge text-bg-danger rounded-pill">2</span>
-                            </button>
-                            <button type="button" class="btn btn-primary ">
-                                <i>Cудья&nbsp;2</i>
-                                <span class="badge text-bg-success rounded-pill">1</span>
-                            </button>
-                            <button type="button" class="btn btn-primary ">
-                                <i>Cудья&nbsp;3</i>
-                                <span class="badge text-bg-success rounded-pill">1</span>
-                            </button>                              
+                            <button type="button" class="btn btn-primary btn-sm ">Cудья&nbsp;1 </button>
+                            <button type="button" class="btn btn-success btn-sm">Cудья&nbsp;2 </button>
+                            <button type="button" class="btn btn-success btn-sm">Cудья&nbsp;3 </button>                              
                         </div>
                         <div class="btn-group col me-2" role="group" title="Отправляющие на переговоры">
-                            <button type="button" class="btn btn-primary ">
-                                <i>Cудья&nbsp;4</i>
-                                <span class="badge text-bg-danger rounded-pill">2</span>
-                            </button>                              
-                            <button type="button" class="btn btn-outline-primary ">
-                                <i>Cудья&nbsp;5</i>
-                                <span class="badge text-bg-secondary rounded-pill">&nbsp</span>
-                            </button>
-                            <button type="button" class="btn btn-outline-primary">
-                                <i>Cудья&nbsp;6</i>
-                                <span class="badge text-bg-secondary rounded-pill">&nbsp</span>
-                            </button>
+                            <button type="button" class="btn btn-primary btn-sm">Cудья&nbsp;4</button>                              
+                            <button type="button" class="btn btn-outline-dark btn-sm">  Cудья&nbsp;5 </button>
+                            <button type="button" class="btn btn-dark btn-sm"> Cудья&nbsp;6</button>
                         </div>
                         <div class="btn-group col" role="group" title="Доверяющие собственность">
-                            <button type="button" class="btn btn-outline-primary ">
-                                <i>Cудья&nbsp;7</i>
-                                <span class="badge text-bg-secondary rounded-pill">&nbsp</span>
-                            </button>
-                            <button type="button" class="btn btn-outline-primary ">
-                                <i>Cудья&nbsp;8</i>
-                                <span class="badge text-bg-secondary rounded-primary ">&nbsp</span>
-                            </button>
-                            <button type="button" class="btn btn-outline-primary ">
-                                <i>Cудья&nbsp;9</i>
-                                <span class="badge text-bg-secondary rounded-pill">&nbsp</span>
-                            </button>
+                            <button type="button" class="btn btn-dark btn-sm"> Cудья&nbsp;7</button>
+                            <button type="button" class="btn btn-dark btn-sm"> Cудья&nbsp;8 </button>
+                            <button type="button" class="btn btn-dark btn-sm"> Cудья&nbsp;9</button>
                         </div>
                     </div>                    
                 </div>
                 <div class=" justify-content-center ">
                      <div class="row"> 
                         <h5 class="text-center"> я бы нанялся на работу к</h5>
-                        <div class="btn-group" role="group" aria-label="Basic radio toggle button group">
-                            <input type="radio" class="btn-check" name="btnradio" id="btnradio1">
-                            <label class="btn btn-outline-primary" for="btnradio1">Игроку №  1 (Шевчук Александр)</label>
+                        <div class="btn-group" role="group" aria-label="выбор игрока">
+                            <input type="radio" class="btn-check" name="btnradio" id="plr1radio">
+                            <label class="btn btn-outline-success" for="plr1radio">Игроку № 1 (Шевчук Александр)</label>
                           
-                            <input type="radio" class="btn-check" name="btnradio" id="btnradio2" autocomplete="off">
-                            <label class="btn btn-outline-primary" for="btnradio2">Игроку № 2 (Кузьмина Екатерина)</label>
+                            <input type="radio" class="btn-check" name="btnradio" id="plr2radio">
+                            <label class="btn btn-outline-primary" for="plr2radio">Игроку № 2 (Кузьмина Екатерина)</label>
                          
                           </div>
                      </div>                    
@@ -332,7 +305,7 @@
                 <div class="modal-body d-flex justify-content-center align-items-center">
                     <div class ="row"   style="width: 600px;"">
                         <div class = "col d-flex justify-content-start align-items-center" id="Player1Score">
-                           <h2 class = "fs-1 text-primary "> 2 </h2>
+                           <h2 class = "fs-1 text-bg-success ">&nbsp2&nbsp </h2>
                         </div>
                         <div class = "col" id="refereeDonutGroup">
                             <div class="d-inline-block position-relative">
@@ -342,11 +315,11 @@
                             </div>
                         </div>
                         <div class = "col d-flex justify-content-end align-items-center" id="Player2Score">
-                            <h2 class = "fs-1 text-primary ">2</h2>
+                            <h2 class = "fs-1 text-bg-primary ">&nbsp2&nbsp</h2>
                          </div> 
                      </div>
                  </div>                 
-                 <div class="modal-body collapse" id="referee_hint">
+                 <div class="modal-body collapse"  style="background-color:#f6f6f6 ;" id="referee_hint">
                     <p > Судьи <b>Нанимающиеся на работу</b> оценивают способность к установлению и поддержанию положительных человеческих контактов, когда на первый план
                         выступает выполнение обещаний, уважение человеческого достоинства делового партнера или подчиненного и другие
                         морально-этические соображения, а также способность руководителя обеспечить материальное и моральное
@@ -366,10 +339,32 @@
                     </p>
                 </div>
 
-                <div class="modal-footer align-items-center ">
+                <div class="modal-footer align-items-center ">                    
+
+
+                    <div class="btn-group" role="group" aria-label="тип поединка" id="duel_type_picker">
+                        <input type="radio" class="btn-check" onclick="initRefereeStructure(-1,'classic')" name="duel_type" id="classic" checked>
+                        <label class="btn btn-outline-dark" for="classic">
+                            <i class="fa-solid fa-landmark"></i>
+                        </label>
+                        <input type="radio" class="btn-check" onclick="initRefereeStructure(-1,'classic')" name="duel_type" id="express">
+                        <label class="btn btn-outline-dark" for="express">
+                            <i class="fa-solid fa-bolt-lightning"></i>
+                        </label>
+                    </div>
+
+                    <div class="btn-group" role="group" aria-label="время поединка" id="ref_qty_picker">
+                        <input type="radio" class="btn-check" onclick="setRefereeQty(9)" name="ref_qty" id="9ref" checked>
+                        <label class="btn btn-outline-dark" for="9ref">9</label>
+                        <input type="radio" class="btn-check" onclick="setRefereeQty(7)" name="ref_qty" id="7ref">
+                        <label class="btn btn-outline-dark" for="7ref">7</label>
+                        <input type="radio" class="btn-check" onclick="setRefereeQty(5)" name="ref_qty" id="5ref">
+                        <label class="btn btn-outline-dark" for="5ref">5</label>
+                    </div>
+
                     <div class=" justify-content-start"> 
-                        <input type="checkbox" class="btn-check" id="hide_referee_hint"  data-bs-toggle="collapse" href="#referee_hint" checked>                                
-                        <label class="btn btn-outline-primary" for="hide_referee_hint">
+                        <input type="checkbox" class="btn-check btn-sm"" id="hide_referee_hint"  data-bs-toggle="collapse" href="#referee_hint" checked>                                
+                        <label class="btn btn-outline-dark btn-sm" for="hide_referee_hint">
                             <i class="fa-solid fa-newspaper"></i>
                         </label>
                     </div>  
