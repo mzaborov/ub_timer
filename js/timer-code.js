@@ -89,9 +89,12 @@ function blinking(count, step,qty) {
     const b = document.getElementById("Player2Name").value;
 
     document.getElementById("Player1Name").value = b;
-    duelsList[currentDuel].Player1 = b;
     document.getElementById("Player2Name").value = a ;
-    duelsList[currentDuel].Player2 = a;
+    if (duelsList)
+     {
+      duelsList[currentDuel].Player1 = b;
+      duelsList[currentDuel].Player2 = a;
+     } 
     var newPlayer= qty % 2 +1;
     setPlayer (newPlayer);
     highlightPlayer();
@@ -120,12 +123,12 @@ function changePlayer() {
         setTimeout(() => {setPlayer(cur); 
                             if (cur === 1) { 
                                 donut2.setState({ bg: donuttyTrackColor, color: inactiveTimerColor});
-                                donut1.setState({ bg: activePlayerColor, color: activeTimerColor });
+                                donut1.setState({ bg: donuttyTrackColor, color: activeTimerColor });
                             } 
                             else {
                                 donut1.setState({ bg: donuttyTrackColor, color: inactiveTimerColor });
-                                donut2.setState({ bg: activePlayerColor, color: activeTimerColor });     
-                            };            
+                                donut2.setState({ bg: donuttyTrackColor, color: activeTimerColor });     
+                            };           
                         }, 1200);
         lastShiftIsUsed =  true;        
     }
