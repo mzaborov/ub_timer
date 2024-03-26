@@ -22,12 +22,128 @@ var current_round = 0;
 var duelsList;
 var currentDuel;
 var lastShiftIsUsed =  false;
+//  для формы судей
+var duelType ="classic"; 
+var activeReferee =0; 
+var refereeQty =9; 
+var refereeList ;
+const PlayerVoteStyle= ["dark","primary","success"];
 
+
+/*--------------------------инициализирующий код----------------------------*/
 var donut1 = new Donutty(document.getElementById("donut1"), { min: 0, max: game_time, value: game_time, round: false, color: inactiveTimerColor, bg:donuttyTrackColor });
 var donut2 = new Donutty(document.getElementById("donut2"), { min: 0, max: game_time, value: game_time, round: false, color: inactiveTimerColor, bg:donuttyTrackColor });
 var pause_donut = new Donutty(document.getElementById("pause_donut"), { min: 0, max: 60, value: 60, round: false, color: "red", bg:donuttyTrackColor });
 var referee_donut = new Donutty(document.getElementById("referee_donut"), { min: 0, max: 60, value: 60, round: false, color: "red", bg:donuttyTrackColor });
 initTimers();
+document.getElementById("plr1radiolabel").classList.add("btn-outline-"+PlayerVoteStyle[1]);
+document.getElementById("plr2radiolabel").classList.add("btn-outline-"+PlayerVoteStyle[2]);
+document.getElementById("Player1Score").classList.add("text-bg-"+PlayerVoteStyle[1]);
+document.getElementById("Player2Score").classList.add("text-bg-"+PlayerVoteStyle[2]);
+
+
+/*--------------------------Оценки судей ----------------------------*/
+function initRefereeStructure(refQty,dlType)
+{
+ if (refQty!=-1) {refereeQty=refQty;};
+ if (dlType!='current') {
+    duelType=dlType;}
+    ;
+ if (duelType === 'express')
+ {
+    refereeList = [
+        {"Сaption": ""           ,"college":"job" ,"vote":0, "visible":false },
+        {"Сaption": ""           ,"college":"job" ,"vote":0, "visible":false },
+        {"Сaption": ""           ,"college":"job" ,"vote":0, "visible":false },
+        {"Сaption": "Судья&nbsp1","college":"deal","vote":0, "visible":true  },
+        {"Сaption": "Судья&nbsp2","college":"deal" ,"vote":0,"visible":true  },
+        {"Сaption": "Судья&nbsp3","college":"deal" ,"vote":0,"visible":true  },
+        {"Сaption": "Судья&nbsp4","college":"deal" ,"vote":0,"visible":true  },
+        {"Сaption": "Судья&nbsp5","college":"deal" ,"vote":0,"visible":true  },
+        {"Сaption": ""           ,"college":"own"  ,"vote":0,"visible":false },
+        {"Сaption": ""           ,"college":"own"  ,"vote":0,"visible":false },
+        {"Сaption": ""           ,"college":"own"  ,"vote":0,"visible":false },];
+    activeReferee = 3;
+ }
+ else {
+    switch(refereeQty) {
+        case   9 : 
+                refereeList = [
+                    {"Сaption": "Судья&nbsp1","college":"job" ,"vote":0, "visible":true },
+                    {"Сaption": "Судья&nbsp2","college":"job" ,"vote":0, "visible":true },
+                    {"Сaption": "Судья&nbsp3","college":"job" ,"vote":0, "visible":true },
+                    {"Сaption": "           ","college":"deal","vote":0, "visible":false},
+                    {"Сaption": "Судья&nbsp4","college":"deal" ,"vote":0,"visible":true },
+                    {"Сaption": "Судья&nbsp5","college":"deal" ,"vote":0,"visible":true },
+                    {"Сaption": "Судья&nbsp6","college":"deal" ,"vote":0,"visible":true },
+                    {"Сaption": ""           ,"college":"deal" ,"vote":0,"visible":false},
+                    {"Сaption": "Судья&nbsp7","college":"own"  ,"vote":0,"visible":true },
+                    {"Сaption": "Судья&nbsp8","college":"own"  ,"vote":0,"visible":true },
+                    {"Сaption": "Судья&nbsp9","college":"own"  ,"vote":0,"visible":true },]                    
+                activeReferee = 0;
+                break;
+        case   7 : 
+                refereeList = [
+                    {"Сaption": ""           ,"college":"job" ,"vote":0, "visible":false },
+                    {"Сaption": "Судья&nbsp1","college":"job" ,"vote":0, "visible":true  },
+                    {"Сaption": "Судья&nbsp2","college":"job" ,"vote":0, "visible":true  },
+                    {"Сaption": ""           ,"college":"deal","vote":0, "visible":false },
+                    {"Сaption": "Судья&nbsp3","college":"deal" ,"vote":0,"visible":true  },
+                    {"Сaption": "Судья&nbsp4","college":"deal" ,"vote":0,"visible":true  },
+                    {"Сaption": "Судья&nbsp5","college":"deal" ,"vote":0,"visible":true  },
+                    {"Сaption": ""           ,"college":"deal" ,"vote":0,"visible":false },
+                    {"Сaption": "Судья&nbsp6","college":"own"  ,"vote":0,"visible":true  },
+                    {"Сaption": "Судья&nbsp7","college":"own"  ,"vote":0,"visible":true  },
+                    {"Сaption": ""           ,"college":"own"  ,"vote":0,"visible":false },];
+                activeReferee = 1;
+                break; 
+        case   5 : 
+                refereeList = [
+                    {"Сaption": ""           ,"college":"job"  ,"vote":0, "visible":false},
+                    {"Сaption": ""           ,"college":"job"  ,"vote":0, "visible":false},
+                    {"Сaption": "Судья&nbsp1","college":"job"  ,"vote":0, "visible":true },
+                    {"Сaption": ""           ,"college":"deal" ,"vote":0, "visible":false},
+                    {"Сaption": "Судья&nbsp2","college":"deal" ,"vote":0,"visible":true  },
+                    {"Сaption": "Судья&nbsp3","college":"deal" ,"vote":0,"visible":true  },
+                    {"Сaption": "Судья&nbsp4","college":"deal" ,"vote":0,"visible":true  },
+                    {"Сaption": ""           ,"college":"deal" ,"vote":0,"visible":false },
+                    {"Сaption": "Судья&nbsp5","college":"own"  ,"vote":0,"visible":true  },
+                    {"Сaption": ""           ,"college":"own"  ,"vote":0,"visible":false },
+                    {"Сaption": ""           ,"college":"own"  ,"vote":0,"visible":false },];
+                activeReferee = 2;
+                break; 
+    }          
+
+ }
+ highlightReferee ();
+}
+
+function highlightReferee ()
+{
+    for (let i=0; i<11;i++)
+    {
+       if (refereeList[i].visible)
+        {
+         document.getElementById("refBut"+i).style.visibility = "visible";
+         document.getElementById("refBut"+i).innerHTML  = refereeList[i].Сaption;        
+        }
+      else
+       {
+        document.getElementById("refBut"+i).style.visibility = "hidden";        
+       }  
+
+       document.getElementById("refBut"+i).classList.remove("btn-dark", 
+                                                            "btn-"+PlayerVoteStyle[0], "btn-"+PlayerVoteStyle[1], "btn-"+PlayerVoteStyle[2],
+                                                            "btn-outline-"+PlayerVoteStyle[0], "btn-outline-"+PlayerVoteStyle[1], "btn-outline-"+PlayerVoteStyle[2]);
+       var bstyle;                                                     
+       if(activeReferee===i){
+        bstyle= "btn-outline-"+ PlayerVoteStyle[refereeList[i].vote]} 
+        else {
+            bstyle= "btn-"+ PlayerVoteStyle[refereeList[i].vote]
+        } ;                                                   
+       document.getElementById("refBut"+i).classList.add(bstyle);
+    }
+}
 
 /*--------------------------Подсветка игроков----------------------------*/
 
@@ -196,6 +312,7 @@ function stop_duel() {
     refereeTime=60; 
     referee_donut.setState({ value: refereeTime});
     document.getElementById("referee_timer").textContent = formatTime(refereeTime);
+    initRefereeStructure(-1,"current");
     const myModal = new bootstrap.Modal(document.getElementById('finishDuelModal'), {});                
     myModal.show();    
 }
