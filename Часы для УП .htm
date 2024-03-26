@@ -317,19 +317,8 @@
                     </div>                    
                 </div>
                 <div class=" modal-body  justify-content-center ">
-                     <!--div class="row">   Оценивают способность к установлению и поддержанию положительных человеческих контактов, когда на первый план выступает выполнение обещаний, уважение человеческого достоинства делового партнера или подчиненного и другие морально-этические соображения, а также способность руководителя обеспечить материальное и моральное благополучие своих подчиненных. Их не волнует, как понравится участник зрителям. Их волнует, у кого из них им будет лучше работать:
-                        <ul>
-                            <li>не обманет ли их руководитель, пообещав вначале золотые горы насколько комфортную атмосферу установит в коллективе, будет ли заботиться о них, о достойном заработке, об условиях труда, об их перспективе роста, позволит ли проявлять инициативу, не развалит ли фирму, лишив их тем самым заработка</li>
-                            <li>не будет ли идти на поводу у своих подчиненных во вред процветанию фирмы и тем самым этих подчиненных</li>
-                            <li> не даст ли водить себя за нос нечестным людям</li>
-                            <li> не будет ли вечно колебаться и мяться, тянуть с принятием неотложных решений/li>
-                            <li> даст ли повод им гордиться или стыдиться</li>
-                            <li> не будет ли пытаться их втянуть в аморальные поступки или образ жизни</li>
-                            <li> будет ли им защитой и опорой и т. д</li>
-                        </ul>
-                     </div-->
                      <div class="row"> 
-                        <h3 class="text-center"> я бы нанялся на работу к</h3>
+                        <h5 class="text-center"> я бы нанялся на работу к</h5>
                         <div class="btn-group" role="group" aria-label="Basic radio toggle button group">
                             <input type="radio" class="btn-check" name="btnradio" id="btnradio1">
                             <label class="btn btn-outline-primary" for="btnradio1">Игроку №  1 (Шевчук Александр)</label>
@@ -356,12 +345,39 @@
                             <h2 class = "fs-1 text-primary ">2</h2>
                          </div> 
                      </div>
-                 </div>
+                 </div>                 
+                 <div class="modal-body collapse" id="referee_hint">
+                    <p> Судьи <b>Нанимающиеся на работу</b> оценивают способность к установлению и поддержанию положительных человеческих контактов, когда на первый план
+                        выступает выполнение обещаний, уважение человеческого достоинства делового партнера или подчиненного и другие
+                        морально-этические соображения, а также способность руководителя обеспечить материальное и моральное
+                        благополучие своих подчиненных. Их не волнует, как понравится участник зрителям. Их волнует, у кого из них им
+                        будет лучше работать:
+                    <ul>
+                        <li>не обманет ли их руководитель, пообещав вначале золотые горы насколько комфортную атмосферу установит в
+                            коллективе, будет ли заботиться о них, о достойном заработке, об условиях труда, об их перспективе роста,
+                            позволит ли проявлять инициативу, не развалит ли фирму, лишив их тем самым заработка</li>
+                        <li>не будет ли идти на поводу у своих подчиненных во вред процветанию фирмы и тем самым этих подчиненных</li>
+                        <li> не даст ли водить себя за нос нечестным людям</li>
+                        <li> не будет ли вечно колебаться и мяться, тянуть с принятием неотложных решений </li>
+                        <li> даст ли повод им гордиться или стыдиться</li>
+                        <li> не будет ли пытаться их втянуть в аморальные поступки или образ жизни</li>
+                        <li> будет ли им защитой и опорой и т. д</li>                
+                    </ul>
+                    </p>
+                </div>
 
                 <div class="modal-footer justify-content-end align-items-center ">
-                    <button type="button" class="btn btn-primary"  onclick="refereeTimerStart()"  id="finish_duel_timer_start_button">Запустить часы</button>
-                    <button type="button" class="btn btn-primary"  onclick="nextReferee()"  id="finish_duel_next_referee_button">Следующий</button>
-                    <button type="button" class="btn btn-danger" data-bs-dismiss="modal"  id="finish_duel_button" >Завершить поединок</button>
+                    <div class=" d-flex justify-content-start"> 
+                        <input type="checkbox" class="btn-check" id="hide_referee_hint"  data-bs-toggle="collapse" href="#referee_hint" checked>                                
+                        <label class="btn btn-outline-primary" for="hide_referee_hint">
+                            <i class="fa-solid fa-newspaper"></i>
+                        </label>
+                    </div>  
+                    <div class=" d-flex justify-content-end"> 
+                        <button type="button" class="btn btn-primary"  onclick="refereeTimerStart()"  id="finish_duel_timer_start_button">Запустить часы</button>
+                        <button type="button" class="btn btn-primary"  onclick="nextReferee()"  id="finish_duel_next_referee_button">Следующий</button>
+                        <button type="button" class="btn btn-danger" data-bs-dismiss="modal"  id="finish_duel_button" >Завершить поединок</button>
+                  </div>
                 </div>
             </div>
         </div>
