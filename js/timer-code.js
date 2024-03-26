@@ -138,6 +138,9 @@ function changePlayer() {
     current_round++;
     document.getElementById("current_round").textContent = "Раунд №" + current_round;
     document.getElementById("change_player").disabled = true;
+    document.getElementById('Player1Roles').value=-1;
+    document.getElementById('Player2Roles').value=-1;
+
 
 }
 
