@@ -1,3 +1,11 @@
+const activeTimerColor = "blue";
+const inactiveTimerColor = "DarkGray";
+const emergingTimerColor = "OrangeRed";
+const finishingTimerColor = "FireBrick";
+const activePlayerColor = "blue";
+const inactivePlayerColor = "#f8f9fa";
+const donuttyTrackColor = "rgba(70, 130, 180, 0.15)";
+
 game_time = 300;
 var time = [game_time, game_time];
 var current_player = 1;
@@ -6,28 +14,24 @@ var clock_is_active = false;
 var emergingTime = 30
 var finishingTime = 10
 var timerID = 0;
-var pauseTimerID = 0;
-var pauseTime =60;
-
-const activeTimerColor = "blue";
-const inactiveTimerColor = "DarkGray";
-const emergingTimerColor = "OrangeRed";
-const finishingTimerColor = "FireBrick";
-const activePlayerColor = "blue";
-const inactivePlayerColor = "#f8f9fa";
-const donuttyTrackColor = "rgba(70, 130, 180, 0.15)";
 var current_round = 0;
 var duelsList;
 var currentDuel;
 var lastShiftIsUsed =  false;
+
+//  пауза и протест
+var pauseTimerID = 0;
+var pauseTime =60;
+var protest_is_active=false;
+
 //  для формы судей
+const PlayerVoteStyle= ["dark","primary","success"];
 var refereeTimerID = 0;
 var refereeTime =60;
 var duelType ="classic"; 
 var activeReferee =0; 
 var refereeQty =9; 
 var refereeList ;
-const PlayerVoteStyle= ["dark","primary","success"];
 
 
 /*--------------------------инициализирующий код----------------------------*/
@@ -55,8 +59,8 @@ function refereeTimer(regime)
     switch(regime) {
         case   "start" : 
                 refereeTime=60; 
-                referee_donut.setState({ value: pauseTime});
-                document.getElementById("referee_timer").textContent = formatTime(pauseTime);                
+                referee_donut.setState({ value: refereeTime});
+                document.getElementById("referee_timer").textContent = formatTime(refereeTime);                
                 break;
         case   "start_timer" : 
                  refereeTimerID = setInterval(changeRefereeTime, 1000)
@@ -67,8 +71,8 @@ function refereeTimer(regime)
                 clearInterval(refereeTimerID);
                 document.getElementById("finish_duel_timer_start_button").disabled = false;
                 refereeTime=60; 
-                referee_donut.setState({ value: pauseTime});
-                document.getElementById("referee_timer").textContent = formatTime(pauseTime);              
+                referee_donut.setState({ value: refereeTime});
+                document.getElementById("referee_timer").textContent = formatTime(refereeTime);              
                 break;              
       }
 }
@@ -77,8 +81,7 @@ function initRefereeStructure(refQty,dlType)
 {
  if (refQty!=-1) {refereeQty=refQty;};
  if (dlType!='current') {
-    duelType=dlType;}
-    ;
+    duelType=dlType;};
  if (duelType === 'express')
  {
     refereeList = [
@@ -158,6 +161,7 @@ function setReferee(ref)
         document.getElementById("plr2radio").checked=false;
         document.getElementById("plr1radio").disabled=true;
         document.getElementById("plr2radio").disabled=true;
+        document.getElementById("finish_duel_next_referee_button").disabled=true;        
     }
     else
     {
@@ -176,6 +180,7 @@ function setReferee(ref)
         }
         document.getElementById("plr1radio").disabled=false;
         document.getElementById("plr2radio").disabled=false;    
+        document.getElementById("finish_duel_next_referee_button").disabled=false;        
         
         switch (refereeList[activeReferee].college) 
         {
@@ -457,10 +462,9 @@ function stop_duel() {
     duel_is_active = false;
     initTimers();
     // - форма оценок судей 
-    refereeTimer("start");
     initRefereeStructure(-1,"current");
     if (duelsList && duelsList[currentDuel]){
-        document.getElementById(duelsList[currentDuel].Type).checked=true; 
+        document.getElementById(duelType).checked=true; 
         document.getElementById("duel_type_picker").style.visibility = "hidden";
         document.getElementById("ref_qty_picker").style.visibility = "hidden";
         document.getElementById(duelsList[currentDuel].RefereeQty+"ref").checked=true; 
@@ -469,6 +473,7 @@ function stop_duel() {
         document.getElementById("duel_type_picker").style.visibility = "visible";
         document.getElementById("ref_qty_picker").style.visibility = "visible";
     }       
+    refereeTimer("start");
     const myModal = new bootstrap.Modal(document.getElementById('finishDuelModal'), {});                
     myModal.show();    
 }
@@ -482,7 +487,32 @@ function protest(regime)
               break;
       case   "stop" : 
               start_timer();
-              break;              
+              break;     
+     case   "start-stop" : 
+             if (protest_is_active) 
+               {
+                 start_timer();   
+                 document.getElementById("protest").innerText ="Протест (Секундант)";   
+                 document.getElementById("protest").classList.add("btn-light");
+                 document.getElementById("protest").classList.remove("btn-danger");     
+               }
+              else
+               {
+                stop_timer();
+                 document.getElementById("protest").innerText ="Протест обработан";      
+                 document.getElementById("protest").classList.add("btn-danger"); 
+                 document.getElementById("protest").classList.remove("btn-light");     
+                 document.getElementById("protest").disabled = false; 
+                 document.getElementById("protest").classList.add("active");
+                 document.getElementById("protest").classList.remove("disabled");     
+               } 
+               protest_is_active =!protest_is_active;
+               document.getElementById("change_player").disabled = protest_is_active;
+               document.getElementById("start_stop_timer").disabled = protest_is_active; 
+               document.getElementById("pause").disabled = protest_is_active;
+               document.getElementById("start_stop_duel").disabled = protest_is_active;
+             break;     
+                       
     }
 }
 
@@ -508,7 +538,6 @@ function pause(regime)
         
         case   "stop" : 
                 clearInterval(pauseTimerID);
-                start_timer();
                 document.getElementById("pause_timer_start_button").disabled = false;
                 document.getElementById("pause_timer_start_button").classList.remove("btn-secondary");
                 document.getElementById("pause_timer_start_button").classList.add("btn-primary");
