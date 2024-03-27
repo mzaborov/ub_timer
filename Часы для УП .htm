@@ -293,7 +293,7 @@
                 </div>
                 <div class=" justify-content-center ">
                      <div class="row"> 
-                        <h5 class="text-center"> я бы нанялся на работу к</h5>
+                        <h5 class="text-center" id="college_hint"></h5>
                         <div class="btn-group" role="group" aria-label="выбор игрока">
                             <input type="radio" class="btn-check" name="btnradio" id="plr1radio"  onclick="refereeVote(1)">
                             <label class="btn fw-semibold fs-5" for="plr1radio" id="plr1radiolabel" ></label>                          
@@ -320,23 +320,7 @@
                      </div>
                  </div>                 
                  <div class="modal-body collapse"  style="background-color:#f6f6f6 ;" id="referee_hint">
-                    <p > Судьи <b>Нанимающиеся на работу</b> оценивают способность к установлению и поддержанию положительных человеческих контактов, когда на первый план
-                        выступает выполнение обещаний, уважение человеческого достоинства делового партнера или подчиненного и другие
-                        морально-этические соображения, а также способность руководителя обеспечить материальное и моральное
-                        благополучие своих подчиненных. Их не волнует, как понравится участник зрителям. Их волнует, у кого из них им
-                        будет лучше работать:
-                    <ul class="font-size-sm line-height-sm">
-                        <li>не обманет ли их руководитель, пообещав вначале золотые горы насколько комфортную атмосферу установит в
-                            коллективе, будет ли заботиться о них, о достойном заработке, об условиях труда, об их перспективе роста,
-                            позволит ли проявлять инициативу, не развалит ли фирму, лишив их тем самым заработка</li>
-                        <li>не будет ли идти на поводу у своих подчиненных во вред процветанию фирмы и тем самым этих подчиненных</li>
-                        <li> не даст ли водить себя за нос нечестным людям</li>
-                        <li> не будет ли вечно колебаться и мяться, тянуть с принятием неотложных решений </li>
-                        <li> даст ли повод им гордиться или стыдиться</li>
-                        <li> не будет ли пытаться их втянуть в аморальные поступки или образ жизни</li>
-                        <li> будет ли им защитой и опорой и т. д</li>                
-                    </ul>
-                    </p>
+                  
                 </div>
 
                 <div class="modal-footer align-items-center ">                    
@@ -344,7 +328,7 @@
                         <div class="row">
                             <div class="col-6">
                                 <div class="btn-group" role="group" aria-label="скрыть подсказку" id="hide_referee_hint_grp"> 
-                                    <input type="checkbox" class="btn-check btn-sm"" id="hide_referee_hint"  data-bs-toggle="collapse" href="#referee_hint" checked>                                
+                                    <input type="checkbox" class="btn-check btn-sm"" id="hide_referee_hint"  data-bs-toggle="collapse" href="#referee_hint">                                
                                     <label class="btn btn-outline-dark btn-sm" for="hide_referee_hint">
                                         <i class="fa-solid fa-newspaper"></i>
                                     </label>

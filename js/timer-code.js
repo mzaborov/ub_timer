@@ -93,7 +93,7 @@ function initRefereeStructure(refQty,dlType)
         {"Сaption": ""           ,"college":"own"  ,"vote":0,"visible":false },
         {"Сaption": ""           ,"college":"own"  ,"vote":0,"visible":false },
         {"Сaption": ""           ,"college":"own"  ,"vote":0,"visible":false },];
-    activeReferee = 3;
+    setReferee(3);
  }
  else {
     switch(refereeQty) {
@@ -110,7 +110,7 @@ function initRefereeStructure(refQty,dlType)
                     {"Сaption": "Судья&nbsp7","college":"own"  ,"vote":0,"visible":true },
                     {"Сaption": "Судья&nbsp8","college":"own"  ,"vote":0,"visible":true },
                     {"Сaption": "Судья&nbsp9","college":"own"  ,"vote":0,"visible":true },]                    
-                activeReferee = 0;
+                setReferee(0);
                 break;
         case   7 : 
                 refereeList = [
@@ -125,7 +125,7 @@ function initRefereeStructure(refQty,dlType)
                     {"Сaption": "Судья&nbsp6","college":"own"  ,"vote":0,"visible":true  },
                     {"Сaption": "Судья&nbsp7","college":"own"  ,"vote":0,"visible":true  },
                     {"Сaption": ""           ,"college":"own"  ,"vote":0,"visible":false },];
-                activeReferee = 1;
+                setReferee(1);
                 break; 
         case   5 : 
                 refereeList = [
@@ -140,7 +140,7 @@ function initRefereeStructure(refQty,dlType)
                     {"Сaption": "Судья&nbsp5","college":"own"  ,"vote":0,"visible":true  },
                     {"Сaption": ""           ,"college":"own"  ,"vote":0,"visible":false },
                     {"Сaption": ""           ,"college":"own"  ,"vote":0,"visible":false },];
-                activeReferee = 2;
+                setReferee(2);
                 break; 
     }          
 
@@ -175,7 +175,49 @@ function setReferee(ref)
                     break;
         }
         document.getElementById("plr1radio").disabled=false;
-        document.getElementById("plr2radio").disabled=false;              
+        document.getElementById("plr2radio").disabled=false;    
+        
+        switch (refereeList[activeReferee].college) 
+        {
+        case  "job":
+                    document.getElementById("college_hint").textContent=  "я бы нанялся на работу к";
+                    if (duelsList &&duelsList[currentDuel])
+                    {
+                      document.getElementById("plr1radiolabel").textContent = "Игроку №1 (" +duelsList[currentDuel].Player1+")";
+                      document.getElementById("plr2radiolabel").textContent = "Игроку №2 (" +duelsList[currentDuel].Player2+")"; }
+                    else
+                    {
+                        document.getElementById("plr1radiolabel").textContent = "Игроку №1";
+                        document.getElementById("plr2radiolabel").textContent = "Игроку №2" ;   
+                    }    
+                    document.getElementById("referee_hint").innerHTML = " <p> Судьи <b>Нанимающиеся на работу</b> оценивают способность к установлению и поддержанию положительных человеческих контактов, когда на первый план                     выступает выполнение обещаний, уважение человеческого достоинства делового партнера или подчиненного и другие морально-этические соображения, а также способность руководителя обеспечить материальное и моральное благополучие своих подчиненных. Их не волнует, как понравится участник зрителям. Их волнует, у кого из них им будет лучше работать:<ul class=\"font-size-sm line-height-sm\"> <li>не обманет ли их руководитель, пообещав вначале золотые горы насколько комфортную атмосферу установит в коллективе, будет ли заботиться о них, о достойном заработке, об условиях труда, об их перспективе роста,позволит ли проявлять инициативу, не развалит ли фирму, лишив их тем самым заработка</li>  <li>не будет ли идти на поводу у своих подчиненных во вред процветанию фирмы и тем самым этих подчиненных</li> <li> не даст ли водить себя за нос нечестным людям</li>  <li> не будет ли вечно колебаться и мяться, тянуть с принятием неотложных решений </li> <li> даст ли повод им гордиться или стыдиться</li> <li> не будет ли пытаться их втянуть в аморальные поступки или образ жизни</li> <li> будет ли им защитой и опорой и т. д</li> </ul></p>"  
+                    break;
+        case  "deal":
+                    document.getElementById("college_hint").textContent=  "я бы отправил вместо себя на переговоры";
+                    if (duelsList &&duelsList[currentDuel])
+                    {
+                      document.getElementById("plr1radiolabel").textContent = "Игрока №1 (" +duelsList[currentDuel].Player1+")";
+                      document.getElementById("plr2radiolabel").textContent = "Игрока №2 (" +duelsList[currentDuel].Player2+")"; }
+                    else
+                    {
+                        document.getElementById("plr1radiolabel").textContent = "Игрока №1";
+                        document.getElementById("plr2radiolabel").textContent = "Игрока №2"; }  
+                        document.getElementById("referee_hint").innerHTML = " <p>  Судьи <b>Отправляющие на переговоры </b> cмотрят на происходящее с точки зрения человека, которому необходимо доверить провести переговоры одному из коллег. Они оценивают способность к перехвату и удержанию управления, когда на первый план выступает умение продвинуть вперед защищаемые интересы, не вступив при этом в серьезный конфликт с другой стороной переговоров. Их волнует, насколько участники сильны как переговорщики, готовы ли они к ведению переговоров в жесткой и конфликтной ситуации:<ul class=\"font-size-sm line-height-sm\"> <li>умеет ли руководитель строить адекватную картину мира, эффективно воздействовать на картину мира партнера</li><li>достаточно ли этически совершенен</li><li>умеет ли вести позиционную борьбу и располагаться на выгодной местности </li><li>умеет ли различать пустое и твердое , находить уязвимые места в позиции другого</li><li>способен ли вести деловую борьбу «здесь и сейчас» с достаточной психологической силой, скоростью, точностью</li><li>способен ли обходить ловушки, не поддаваться страстям и разглядывать победу</li><li>можно ли ему доверить ведение переговоров в жестких условиях</li><li>умеет ли держать свою цель и т. д.</li></ul></p>"     
+                    break;
+        case  "own": 
+                    document.getElementById("college_hint").textContent=  "я бы доверил свою собственность";
+                    if (duelsList &&duelsList[currentDuel])
+                    {
+                      document.getElementById("plr1radiolabel").textContent = "Игроку №1 (" +duelsList[currentDuel].Player1+")";
+                      document.getElementById("plr2radiolabel").textContent = "Игроку №2 (" +duelsList[currentDuel].Player2+")"; }
+                    else
+                    {
+                        document.getElementById("plr1radiolabel").textContent = "Игроку №1";
+                        document.getElementById("plr2radiolabel").textContent = "Игроку №2"; }                     
+                    document.getElementById("referee_hint").innerHTML = " <p> Судьи <b>Доверяющие собственость</b> смотрят на происходящее с точки зрения человека, которому необходимо доверить свою собственность (денежные средства, др. ресурсы) одному из участников. Они оценивают способность к сохранению и приумножению капитала и иной собственности, когда на первый план выступает умение получить в итоге, «в сухом остатке», положительный для дела результат. Их волнует, что произойдет, если они инвестируют свои средства в подразделение этого руководителя или доверят управление своей собственностью именно ему:<ul class=\"font-size-sm line-height-sm\"><li>будет ли приумножаться собственность</li><li>будет ли она приумножаться энергично или фактически лишь на уровне инфляции</li><li>не даст ли ее растащить</li><li>не пустится ли в авантюры</li><li>не украдет ли сам</li><li>не уподобится ли «собаке на сене» или Плюшкину, отчего собственность придет в упадок</li><li>не восстановит ли против себя сотрудников, клиентов или общественность до такой степени, что собственность будет просто уничтожена</li><li>не войдет ли в конфликт с законом или государственными органами и т. д.</li></ul></p>"     
+                    break;
+        }
+        
     }
     refereeTimer("stop_timer");
 }
@@ -418,16 +460,12 @@ function stop_duel() {
     refereeTimer("start");
     initRefereeStructure(-1,"current");
     if (duelsList && duelsList[currentDuel]){
-        document.getElementById("plr1radiolabel").textContent = "Игроку №1 (" +duelsList[currentDuel].Player1+")";
-        document.getElementById("plr2radiolabel").textContent = "Игроку №2 (" +duelsList[currentDuel].Player2+")";
-        document.getElementById(duelType).checked=true; 
+        document.getElementById(duelsList[currentDuel].Type).checked=true; 
         document.getElementById("duel_type_picker").style.visibility = "hidden";
         document.getElementById("ref_qty_picker").style.visibility = "hidden";
         document.getElementById(duelsList[currentDuel].RefereeQty+"ref").checked=true; 
      }
     else {
-        document.getElementById("plr1radiolabel").textContent = "Игроку №1";
-        document.getElementById("plr2radiolabel").textContent = "Игроку №2";
         document.getElementById("duel_type_picker").style.visibility = "visible";
         document.getElementById("ref_qty_picker").style.visibility = "visible";
     }       
