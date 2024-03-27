@@ -141,7 +141,7 @@
                             <button class="btn btn-primary btn-sm active mb-1" onclick="changePlayer()"   id="change_player" style="visibility: hidden; display: block ">Переход хода</button>
                             <button class="btn btn-light btn-sm active mb-1" onclick="start_stop_timer()" id="start_stop_timer" style="visibility: hidden; display: block">Возобновить</button>
                             <button class="btn btn-light btn-sm active mb-1" data-bs-toggle="modal" data-bs-target="#pauseModal"  onclick="pause('start')" id="pause" style="visibility: hidden; display: block">Пауза (Секундант)</button>
-                            <button class="btn btn-light btn-sm active mb-1" data-bs-toggle="modal" data-bs-target="#protestModal" onclick="protest('start')" id="protest" style="visibility: hidden; display: block">Протест (Секундант)</button>
+                            <button class="btn btn-light btn-sm active mb-1"  onclick="protest('start-stop')" id="protest" style="visibility: hidden; display: block">Протест (Секундант)</button>
                             <button class="btn btn-primary btn-sm active" onclick="start_stop_duel()"  id="start_stop_duel" style="visibility: visible; display: block ">Начать поединок</button>
                         </div>
                     </div>
@@ -219,21 +219,7 @@
     <!-- *****  -->
     <!-- *****  -->
 
-     <!-- протест -->
-    <div class="modal fade" id="protestModal" tabindex="-1" aria-labelledby="protestModalLabel" aria-hidden="true"  data-bs-backdrop="static" data-bs-keyboard="false" >
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="protestModalLabel">Секундант заявил протекст</h1>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-success" data-bs-dismiss="modal"  onclick="protest('stop')">Протест удволетворен</button>
-                    <button type="button" class="btn btn-danger" data-bs-dismiss="modal"  onclick="protest('stop')">Протест отклонен</button>
-                </div>
-            </div>
-        </div>
-    </div>
-     
+    
     <!-- пауза -->
     <div class="modal fade" id="pauseModal" tabindex="-1" aria-labelledby="pauseModalLabel" aria-hidden="true"  data-bs-backdrop="static" data-bs-keyboard="false">
         <div class="modal-dialog modal-dialog-centered">
