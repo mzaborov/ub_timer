@@ -529,7 +529,11 @@ function changePauseTime() {
 /*---------------------часы---------------------------------*/
 
 function formatTime(time_in_sec) {
-    return String(Math.floor(time_in_sec / 60)).padStart(2, "0") + ":" + String(time_in_sec % 60).padStart(2, "0");
+    if (time_in_sec>=0)
+          return String(Math.floor(time_in_sec / 60)).padStart(2, "0") + ":" + String(time_in_sec % 60).padStart(2, "0");
+       else 
+         return "-"+String(Math.floor(Math.abs(time_in_sec) / 60)).padStart(2, "0") + ":" + String(Math.abs(time_in_sec) % 60).padStart(2, "0");
+
 }
 
 
