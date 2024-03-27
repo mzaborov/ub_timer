@@ -8,8 +8,6 @@ var finishingTime = 10
 var timerID = 0;
 var pauseTimerID = 0;
 var pauseTime =60;
-var refereeTimerID = 0;
-var refereeTime =60;
 
 const activeTimerColor = "blue";
 const inactiveTimerColor = "DarkGray";
@@ -23,6 +21,8 @@ var duelsList;
 var currentDuel;
 var lastShiftIsUsed =  false;
 //  для формы судей
+var refereeTimerID = 0;
+var refereeTime =60;
 var duelType ="classic"; 
 var activeReferee =0; 
 var refereeQty =9; 
@@ -43,6 +43,36 @@ document.getElementById("Player2Score").classList.add("text-bg-"+PlayerVoteStyle
 
 
 /*--------------------------Оценки судей ----------------------------*/
+
+function changeRefereeTime() {
+    refereeTime--;
+    referee_donut.setState({ value: refereeTime});
+    document.getElementById("referee_timer").textContent = formatTime(refereeTime);
+}
+
+function refereeTimer(regime)
+{
+    switch(regime) {
+        case   "start" : 
+                refereeTime=60; 
+                referee_donut.setState({ value: pauseTime});
+                document.getElementById("referee_timer").textContent = formatTime(pauseTime);                
+                break;
+        case   "start_timer" : 
+                 refereeTimerID = setInterval(changeRefereeTime, 1000)
+                 document.getElementById("finish_duel_timer_start_button").disabled = true;
+                 break;              
+        
+        case   "stop_timer" : 
+                clearInterval(refereeTimerID);
+                document.getElementById("finish_duel_timer_start_button").disabled = false;
+                refereeTime=60; 
+                referee_donut.setState({ value: pauseTime});
+                document.getElementById("referee_timer").textContent = formatTime(pauseTime);              
+                break;              
+      }
+}
+
 function initRefereeStructure(refQty,dlType)
 {
  if (refQty!=-1) {refereeQty=refQty;};
@@ -118,6 +148,80 @@ function initRefereeStructure(refQty,dlType)
  highlightReferee ();
 }
 
+function setReferee(ref)
+{
+    activeReferee=ref;
+    highlightReferee();
+    if (activeReferee===-1)
+    {
+        document.getElementById("plr1radio").checked=false;
+        document.getElementById("plr2radio").checked=false;
+        document.getElementById("plr1radio").disabled=true;
+        document.getElementById("plr2radio").disabled=true;
+    }
+    else
+    {
+        switch (refereeList[activeReferee].vote) 
+        {
+        case  0:
+                    document.getElementById("plr1radio").checked=false;
+                    document.getElementById("plr2radio").checked=false;
+                    break;
+        case  1:
+                    document.getElementById("plr1radio").checked=true;                
+                    break;
+        case  2: 
+                    document.getElementById("plr2radio").checked=true;                
+                    break;
+        }
+        document.getElementById("plr1radio").disabled=false;
+        document.getElementById("plr2radio").disabled=false;              
+    }
+    refereeTimer("stop_timer");
+}
+
+
+
+function nextReferee()
+{
+ var ar=-1;
+ var i=activeReferee+1;
+ while (ar===-1 && i<11)
+ {
+    if (refereeList[i].visible && refereeList[i].vote===0){ar=i};
+    i++;
+ }
+ i=0;
+ while (ar===-1 && i<activeReferee)
+ {
+    if (refereeList[i].visible && refereeList[i].vote===0)  {ar=i};
+    i++;
+ }
+ setReferee(ar);
+ highlightReferee();
+ 
+}
+
+function refereeVote(vt)
+{
+    refereeList[activeReferee].vote= vt;
+    highlightReferee();
+}
+
+function calcAndShowScore()
+{
+  var score=[0,0,0];  
+    for (let i=0; i<11;i++)
+    {
+       if (refereeList[i].visible)
+        {
+           score[refereeList[i].vote]++;
+        }
+    }    
+    document.getElementById("Player1Score").innerHTML = "&nbsp"+score[1]+"&nbsp";
+    document.getElementById("Player2Score").innerHTML = "&nbsp"+score[2]+"&nbsp";
+}
+
 function highlightReferee ()
 {
     for (let i=0; i<11;i++)
@@ -143,6 +247,7 @@ function highlightReferee ()
         } ;                                                   
        document.getElementById("refBut"+i).classList.add(bstyle);
     }
+    calcAndShowScore();
 }
 
 /*--------------------------Подсветка игроков----------------------------*/
@@ -309,10 +414,23 @@ function stop_duel() {
     document.getElementById("start_stop_duel").classList.add("btn-primary");
     duel_is_active = false;
     initTimers();
-    refereeTime=60; 
-    referee_donut.setState({ value: refereeTime});
-    document.getElementById("referee_timer").textContent = formatTime(refereeTime);
+    // - форма оценок судей 
+    refereeTimer("start");
     initRefereeStructure(-1,"current");
+    if (duelsList && duelsList[currentDuel]){
+        document.getElementById("plr1radiolabel").textContent = "Игроку №1 (" +duelsList[currentDuel].Player1+")";
+        document.getElementById("plr2radiolabel").textContent = "Игроку №2 (" +duelsList[currentDuel].Player2+")";
+        document.getElementById(duelType).checked=true; 
+        document.getElementById("duel_type_picker").style.visibility = "hidden";
+        document.getElementById("ref_qty_picker").style.visibility = "hidden";
+        document.getElementById(duelsList[currentDuel].RefereeQty+"ref").checked=true; 
+     }
+    else {
+        document.getElementById("plr1radiolabel").textContent = "Игроку №1";
+        document.getElementById("plr2radiolabel").textContent = "Игроку №2";
+        document.getElementById("duel_type_picker").style.visibility = "visible";
+        document.getElementById("ref_qty_picker").style.visibility = "visible";
+    }       
     const myModal = new bootstrap.Modal(document.getElementById('finishDuelModal'), {});                
     myModal.show();    
 }
@@ -329,6 +447,7 @@ function protest(regime)
               break;              
     }
 }
+
 function pause(regime)
 {
     switch(regime) {
@@ -526,7 +645,8 @@ function duelChoosed(currentDuelRef) {
             RolesText += "<br><b>" + duel.SituationRoles[i].Role + "</b> - " + duel.SituationRoles[i].Goals;
         };
         document.getElementById("Duel_Roles").innerHTML = RolesText;
-
+        refereeQty= duel.RefereeQty;
+        if (duel.Type=== "Классика") { duelType="classic"; }  else  { duelType="express";};        
     }
 
 }
