@@ -52,7 +52,7 @@
                         <div class="col">
                             <div class="dropdown" id="duel-chooser-href">
                                 <button type="button" class="btn btn-primary the-button" data-bs-toggle="dropdown"
-                                    aria-expanded="false" data-bs-auto-close="outside" id="Choose_Duel_Button">
+                                    aria-expanded="false"  id="Choose_Duel_Button">
                                     <i class="fa-solid fa-user-group"></i>
                                     <span id="players-name">Выберите поединок</span>
                                 </button>
@@ -132,9 +132,6 @@
                                 <div class="d-inline-block" style="width: 200px; height: 200px;" id="donut1"></div>
                                 <div class="position-absolute top-0 start-0 text-center fs-1"
                                     style="width: 200px; height: 200px; line-height: 200px" id="timer1"></div>
-                                <div class="position-absolute top-0 start-0 text-center fs-1"
-                                     style="width: 200px; height: 200px; line-height: 200px;
-                                        border-radius: 100px; background: red; opacity: 50%;"></div>
                             </div>
                         </div>
                     </div>
@@ -166,16 +163,15 @@
                 <div class="centered wrap-inner-text">
                     <div class="row">
                         <div class="col-5 text-start">
-                            <span><b>Интересы</b></span><br>
-                            <div class="interests__left-text" id="Player1RoleGoal">
-                            </div>
+                            <span id="Player1RoleGoallabel" class=" fw-bold">Интересы:</span>
+                            <br>
+                            <div class="interests__left-text" id="Player1RoleGoal">  </div>
                         </div>
                         <div class="col-2"></div>
                         <div class="col-5 text-end">
-                            <b>Интересы</b>
-                            <br />
-                            <div class="interests__right-text" id="Player2RoleGoal">
-                            </div>
+                            <span id="Player2RoleGoallabel" class=" fw-bold">Интересы:</span>
+                            <br>
+                            <div class="interests__right-text" id="Player2RoleGoal"> </div>
                         </div>
                     </div>
                 </div>
@@ -299,8 +295,10 @@
                         <div class = "col" id="refereeDonutGroup">
                             <div class="d-inline-block position-relative">
                                 <div class="d-inline-block" style="width: 200px; height: 200px;" id="referee_donut"></div>
-                                <div class="position-absolute top-0 start-0 text-center fs-1"
-                                    style="width: 200px; height: 200px; line-height: 200px" id="referee_timer"></div>
+                                <div class="position-absolute top-0 start-0 text-center fs-1"  style="width: 200px; height: 200px; line-height: 200px" id="referee_timer"></div>
+                                <div class="position-absolute top-0 start-0 text-center fs-1 pulsing"  id="referee_donut_bg"
+                                    style="width: 200px; height: 200px; line-height: 200px; border-radius: 100px; background: #ff6600; opacity: 50%; visibility:hidden">
+                                </div>
                             </div>
                         </div>
                         <div class = "col d-flex justify-content-end align-items-center">
@@ -346,7 +344,7 @@
                             <div class="col" id="duel_end_buttons_grp"> 
                                 <button type="button" class="btn btn-primary"  onclick="refereeTimer('start_timer')"  id="finish_duel_timer_start_button">Запустить часы</button>
                                 <button type="button" class="btn btn-primary"  onclick="nextReferee()"  id="finish_duel_next_referee_button">Следующий</button>
-                                <button type="button" class="btn btn-danger"   data-bs-dismiss="modal"  id="finish_duel_button" >Завершить поединок</button>
+                                <button type="button" class="btn btn-danger"   data-bs-dismiss="modal"  onclick="refereeTimer('stop_timer')"  id="finish_duel_button" >Завершить поединок</button>
                             </div>
                         </div>   
                     </div>        

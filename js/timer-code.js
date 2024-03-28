@@ -59,6 +59,8 @@ function changeRefereeTime() {
     document.getElementById("referee_timer").textContent = formatTime(refereeTime);
     if (refereeTime <= finishingTime) { 
         referee_donut.setState({ color: finishingTimerColor }); 
+        document.getElementById("referee_donut_bg").style.visibility="visible";
+        document.getElementById('referee_donut_bg').classList.add('pulsing');
         if (soundsEnabled) {audioTicking.play(); }
     }
 }
@@ -69,6 +71,8 @@ function refereeTimer(regime)
         case   "start" : 
                 refereeTime=60; 
                 referee_donut.setState({ value: refereeTime,  color: secondaryTimerColor});
+                document.getElementById("referee_donut_bg").style.visibility="hidden";
+                document.getElementById('referee_donut_bg').classList.remove('pulsing');
                 document.getElementById("referee_timer").textContent = formatTime(refereeTime);
                 stopAudio(audioTicking);            
                 break;
@@ -81,6 +85,8 @@ function refereeTimer(regime)
                 clearInterval(refereeTimerID);
                 document.getElementById("finish_duel_timer_start_button").disabled = false;
                 refereeTime=60; 
+                document.getElementById("referee_donut_bg").style.visibility="hidden";
+                document.getElementById('referee_donut_bg').classList.remove('pulsing');
                 referee_donut.setState({ value: refereeTime,  color: secondaryTimerColor});
                 document.getElementById("referee_timer").textContent = formatTime(refereeTime);              
                 stopAudio(audioTicking);
@@ -417,8 +423,21 @@ function changePlayer() {
     current_round++;
     document.getElementById("current_round").textContent = "Раунд №" + current_round;
     document.getElementById("change_player").disabled = true;
-    document.getElementById('Player1Roles').value=-1;
-    document.getElementById('Player2Roles').value=-1;
+    if (duelType==="classic")
+     {
+      document.getElementById('Player1Roles').value=-1;
+      document.getElementById('Player2Roles').value=-1;
+     }
+     else
+     {
+        if (duelsList && duelsList[currentDuel]) { 
+
+           document.getElementById('Player1Roles').options[0].innerHTML = duelsList[currentDuel].SituationRoles[1].Role;
+           document.getElementById('Player2Roles').options[0].innerHTML = duelsList[currentDuel].SituationRoles[0].Role;
+           document.getElementById("Player1RoleGoal").innerHTML ="";
+           document.getElementById("Player2RoleGoal").innerHTML =duelsList[currentDuel].SituationRoles[0].Phrase;
+        }
+     }
 
 
 }
@@ -472,6 +491,13 @@ function stop_duel() {
     document.getElementById("start_stop_duel").classList.add("btn-primary");
     duel_is_active = false;
     initTimers();
+    if (duelType==="express" && duelsList && duelsList[currentDuel]) { 
+
+          document.getElementById('Player1Roles').options[0].innerHTML = duelsList[currentDuel].SituationRoles[0].Role;
+          document.getElementById('Player2Roles').options[0].innerHTML = duelsList[currentDuel].SituationRoles[1].Role;
+          document.getElementById("Player1RoleGoal").innerHTML =duelsList[currentDuel].SituationRoles[0].Phrase;       
+          document.getElementById("Player2RoleGoal").innerHTML ="";
+    }
     // - форма оценок судей 
     initRefereeStructure(-1,"current");
     if (duelsList && duelsList[currentDuel]){
@@ -595,12 +621,22 @@ function start_timer() {
     timerID = setInterval(changeTime, 1000)
     document.getElementById("start_stop_timer").innerText = "Остановить часы";
     clock_is_active = true;
-    document.getElementById("pause").classList.add("active");
-    document.getElementById("pause").classList.remove("disabled");
-    document.getElementById("protest").classList.add("active");
-    document.getElementById("protest").classList.remove("disabled");
-    if(!lastShiftIsUsed){ document.getElementById("change_player").disabled = false;}
-}
+    if (duelType==="classic"){
+        document.getElementById("pause").classList.add("active");
+        document.getElementById("pause").classList.remove("disabled");
+        document.getElementById("protest").classList.add("active");
+        document.getElementById("protest").classList.remove("disabled");
+        document.getElementById("start_stop_timer").disabled = false;
+        if((!lastShiftIsUsed) ){ document.getElementById("change_player").disabled = false;} }
+    else {
+       document.getElementById("pause").classList.add("disabled");
+      document.getElementById("pause").classList.remove("active");
+      document.getElementById("protest").classList.add("disabled");
+      document.getElementById("protest").classList.remove("active"); 
+      document.getElementById("start_stop_timer").disabled = true;     
+      document.getElementById("change_player").disabled = (current_player===2);
+    }
+}    
 
 function stop_timer() {
     stopAudio(audioTicking);
@@ -611,7 +647,7 @@ function stop_timer() {
     document.getElementById("pause").classList.remove("active");
     document.getElementById("protest").classList.add("disabled");
     document.getElementById("protest").classList.remove("active");
-
+    document.getElementById("start_stop_timer").disabled = false;
 }
 
 
@@ -717,6 +753,15 @@ function loadFile(event) {
     }
 }
 
+function createOption(key,text, slctd)
+{
+    var opt = document.createElement('option');
+    opt.value = key;
+    opt.innerHTML = text;
+    opt.selected = slctd;
+    return opt;
+}
+
 function duelChoosed(currentDuelRef) {
     currentDuel = currentDuelRef;
     if (currentDuel != "-1") {
@@ -728,44 +773,54 @@ function duelChoosed(currentDuelRef) {
         document.getElementById("Duel_Text").innerHTML = duel.SituationDescription;
         var select1 = document.getElementById('Player1Roles');
         var select2 = document.getElementById('Player2Roles');
-        clearSelectOptions('Player1Roles');
-        clearSelectOptions('Player2Roles');
+        select1.innerHTML="";
+        select2.innerHTML="";
         setDuelTime(duel.DuelMinutesLength*60);
-        document.getElementById(duel.DuelMinutesLength+"min").checked = true;
-        var RolesText = "<b>Роли и интересы:</b>";
-        for (var i in duel.SituationRoles) {
-            var sitRoles = duel.SituationRoles[i];
-            var opt1 = document.createElement('option');
-            var opt2 = document.createElement('option');
-            opt1.value = i;
-            opt2.value = i;
-            opt1.innerHTML = sitRoles.Role;
-            opt2.innerHTML = sitRoles.Role;
-            select1.appendChild(opt1);
-            select2.appendChild(opt2);
-            RolesText += "<br><b>" + duel.SituationRoles[i].Role + "</b> - " + duel.SituationRoles[i].Goals;
-        };
-        document.getElementById("Duel_Roles").innerHTML = RolesText;
         refereeQty= duel.RefereeQty;
-        if (duel.Type=== "Классика") { duelType="classic"; }  else  { duelType="express";};        
+        document.getElementById(duel.DuelMinutesLength+"min").checked = true;
+        if (duel.Type=== "Классика") { 
+            duelType="classic"; 
+            var RolesText = "<b>Роли и интересы:</b>";
+            select1.appendChild(createOption("-1", "Выберите Роль...",true));
+            select2.appendChild(createOption("-1", "Выберите Роль...",true));
+            for (var i in duel.SituationRoles) {
+                select1.appendChild(createOption(i, duel.SituationRoles[i].Role, false));
+                select2.appendChild(createOption(i, duel.SituationRoles[i].Role, false));
+                RolesText += "<br><b>" + duel.SituationRoles[i].Role + "</b> - " + duel.SituationRoles[i].Goals;
+                select1.disabled=false;
+                select2.disabled=false;
+            };
+            document.getElementById("Duel_Roles").innerHTML = RolesText;            
+            document.getElementById("Player1RoleGoallabel").innerHTML="Интересы:";
+            document.getElementById("Player2RoleGoallabel").innerHTML="Интересы:";
+            document.getElementById("Player1RoleGoal").innerHTML ="";
+            document.getElementById("Player2RoleGoal").innerHTML ="";
+         }  else  { 
+            select1.appendChild(createOption(0, duel.SituationRoles[0].Role,true));
+            select2.appendChild(createOption(0, duel.SituationRoles[1].Role,true));
+            select1.disabled=true;
+            select2.disabled=true;
+            document.getElementById("Player1RoleGoallabel").innerHTML="Агрессивная фраза:";
+            document.getElementById("Player2RoleGoallabel").innerHTML="Агрессивная фраза:";
+            document.getElementById("Player1RoleGoal").innerHTML =duel.SituationRoles[0].Phrase;
+            document.getElementById("Duel_Roles").innerHTML = "";            
+            duelType="express";
+        };        
+        
     }
 
 }
 function roleChoosed(player) {
     var role = document.getElementById("Player" + player + "Roles").value;
     document.getElementById("Player" + player + "RoleGoal").innerHTML = duelsList[currentDuel].SituationRoles[role].Goals;
-}
-
-
-function clearSelectOptions(selectName) {
-    var selectElement = document.getElementById(selectName);
-
-    for (var i = selectElement.options.length - 1; i > 0; i--) {
-        if (selectElement.options[i].value !== '-1') {
-            selectElement.remove(i);
-        }
+    othrPlayer = player%2+1;
+    var select = document.getElementById("Player" + othrPlayer+"Roles");
+    for (var i = 0; i < select.options.length; i++) {
+        select.options[i].disabled = (select.options[i].value===role);    
     }
+    
 }
+
 
 /*---------------------Кнопки тулбара ---------------------------------*/
 
