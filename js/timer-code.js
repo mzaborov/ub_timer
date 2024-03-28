@@ -19,6 +19,7 @@ var current_round = 0;
 var duelsList;
 var currentDuel;
 var lastShiftIsUsed =  false;
+var duelType ="classic"; 
 
 //  пауза и протест
 var pauseTimerID = 0;
@@ -29,7 +30,6 @@ var protest_is_active=false;
 const PlayerVoteStyle= ["dark","primary","success"];
 var refereeTimerID = 0;
 var refereeTime =60;
-var duelType ="classic"; 
 var activeReferee =0; 
 var refereeQty =9; 
 var refereeList ;
@@ -94,13 +94,11 @@ function refereeTimer(regime)
       }
 }
 
-function initRefereeStructure(refQty,dlType)
+function initRefereeStructure(refQty)
 {
- if (refQty!=-1) {refereeQty=refQty;};
- if (dlType!='current') {
-    duelType=dlType;};
  if (duelType === 'express')
  {
+    refereeQty=5;
     refereeList = [
         {"Сaption": ""           ,"college":"job" ,"vote":0, "visible":false },
         {"Сaption": ""           ,"college":"job" ,"vote":0, "visible":false },
@@ -116,6 +114,7 @@ function initRefereeStructure(refQty,dlType)
     setReferee(3);
  }
  else {
+    if (refQty!=-1) {refereeQty=refQty;};
     switch(refereeQty) {
         case   9 : 
                 refereeList = [
@@ -455,15 +454,21 @@ function enable_disable_duel_options_conrols(visibility, disabled) {
     document.getElementById("change_player").style.visibility = visibility;
     document.getElementById("protest").style.visibility = visibility;
     document.getElementById("pause").style.visibility = visibility;
-    document.getElementById("Player1Name").disabled = disabled;
-    document.getElementById("Player2Name").disabled = disabled;
     document.getElementById("Choose_File_Button").disabled = disabled;
     document.getElementById("Choose_Duel_Button").disabled = disabled;
-    document.getElementById("duel_time_picker").disabled = disabled;
-    document.getElementById("5min").disabled = disabled;
-    document.getElementById("4min").disabled = disabled;
-    document.getElementById("1min").disabled = disabled;
     document.getElementById("dice_button").disabled = disabled;
+    if (!(duelsList && duelsList[currentDuel]))
+      {
+       document.getElementById("Player1Name").disabled = disabled;
+       document.getElementById("Player2Name").disabled = disabled; 
+       document.getElementById("classic").disabled = disabled;
+       document.getElementById("express").disabled = disabled;
+       document.getElementById("duel_time_picker").disabled = disabled;
+       document.getElementById("5min").disabled = disabled;
+       document.getElementById("4min").disabled = disabled;
+       document.getElementById("1min").disabled = disabled;
+      }
+    
 
 
 }
@@ -499,16 +504,13 @@ function stop_duel() {
           document.getElementById("Player2RoleGoal").innerHTML ="";
     }
     // - форма оценок судей 
-    initRefereeStructure(-1,"current");
+    initRefereeStructure(-1);
     if (duelsList && duelsList[currentDuel]){
-        document.getElementById(duelType).checked=true; 
-        document.getElementById("duel_type_picker").style.visibility = "hidden";
         document.getElementById("ref_qty_picker").style.visibility = "hidden";
         document.getElementById(duelsList[currentDuel].RefereeQty+"ref").checked=true; 
      }
     else {
-        document.getElementById("duel_type_picker").style.visibility = "visible";
-        document.getElementById("ref_qty_picker").style.visibility = "visible";
+        document.getElementById("ref_qty_picker").style.visibility = (duelType ==="classic" ? 'visible' : 'hidden');
     }       
     refereeTimer("start");
     const myModal = new bootstrap.Modal(document.getElementById('finishDuelModal'), {});                
@@ -762,6 +764,27 @@ function createOption(key,text, slctd)
     return opt;
 }
 
+
+function changeDuelType(type)
+{
+    duelType=type;
+    if (type==="express")
+     {
+        document.getElementById("5min").disabled = true;
+        document.getElementById("4min").disabled = true;
+        document.getElementById("1min").checked = true;   
+        setDuelTime(60); 
+     }
+    else
+     {
+        document.getElementById("5min").disabled = false;
+        document.getElementById("4min").disabled = false;
+        document.getElementById("5min").checked = true;
+        setDuelTime(300);
+     } 
+
+}
+
 function duelChoosed(currentDuelRef) {
     currentDuel = currentDuelRef;
     if (currentDuel != "-1") {
@@ -769,6 +792,8 @@ function duelChoosed(currentDuelRef) {
         document.getElementById("players-name").innerHTML = `Ситуация №${duel.SituationNum} ${duel.SituationName}`;
         document.getElementById("Player1Name").value = duel.Player1;
         document.getElementById("Player2Name").value = duel.Player2;
+        document.getElementById("Player1Name").disabled = true;
+        document.getElementById("Player2Name").disabled = true;  
         document.getElementById("Duel_Num").textContent = "Ситуация №" + duel.SituationNum +" (" +duel.Type +"). \"" + duel.SituationName + "\"";
         document.getElementById("Duel_Text").innerHTML = duel.SituationDescription;
         var select1 = document.getElementById('Player1Roles');
@@ -777,7 +802,10 @@ function duelChoosed(currentDuelRef) {
         select2.innerHTML="";
         setDuelTime(duel.DuelMinutesLength*60);
         refereeQty= duel.RefereeQty;
-        document.getElementById(duel.DuelMinutesLength+"min").checked = true;
+        document.getElementById(duel.DuelMinutesLength+"min").checked = true;     
+        document.getElementById("5min").disabled = true;
+        document.getElementById("4min").disabled = true;
+        document.getElementById("1min").disabled = true;       
         if (duel.Type=== "Классика") { 
             duelType="classic"; 
             var RolesText = "<b>Роли и интересы:</b>";
@@ -806,7 +834,9 @@ function duelChoosed(currentDuelRef) {
             document.getElementById("Duel_Roles").innerHTML = "";            
             duelType="express";
         };        
-        
+        document.getElementById("classic").disabled = true;
+        document.getElementById("express").disabled = true;
+        document.getElementById(duelType).checked =true;
     }
 
 }
