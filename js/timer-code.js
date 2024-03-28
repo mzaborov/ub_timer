@@ -2,6 +2,7 @@ const activeTimerColor = "blue";
 const inactiveTimerColor = "DarkGray";
 const emergingTimerColor = "OrangeRed";
 const finishingTimerColor = "FireBrick";
+const secondaryTimerColor = "red";
 const activePlayerColor = "blue";
 const inactivePlayerColor = "#f8f9fa";
 const donuttyTrackColor = "rgba(70, 130, 180, 0.15)";
@@ -37,8 +38,8 @@ var refereeList ;
 /*--------------------------инициализирующий код----------------------------*/
 var donut1 = new Donutty(document.getElementById("donut1"), { min: 0, max: game_time, value: game_time, round: false, color: inactiveTimerColor, bg:donuttyTrackColor });
 var donut2 = new Donutty(document.getElementById("donut2"), { min: 0, max: game_time, value: game_time, round: false, color: inactiveTimerColor, bg:donuttyTrackColor });
-var pause_donut = new Donutty(document.getElementById("pause_donut"), { min: 0, max: 60, value: 60, round: false, color: "red", bg:donuttyTrackColor });
-var referee_donut = new Donutty(document.getElementById("referee_donut"), { min: 0, max: 60, value: 60, round: false, color: "red", bg:donuttyTrackColor });
+var pause_donut = new Donutty(document.getElementById("pause_donut"), { min: 0, max: 60, value: 60, round: false, color: secondaryTimerColor, bg:donuttyTrackColor });
+var referee_donut = new Donutty(document.getElementById("referee_donut"), { min: 0, max: 60, value: 60, round: false, color: secondaryTimerColor, bg:donuttyTrackColor });
 initTimers();
 document.getElementById("plr1radiolabel").classList.add("btn-outline-"+PlayerVoteStyle[1]);
 document.getElementById("plr2radiolabel").classList.add("btn-outline-"+PlayerVoteStyle[2]);
@@ -52,6 +53,7 @@ function changeRefereeTime() {
     refereeTime--;
     referee_donut.setState({ value: refereeTime});
     document.getElementById("referee_timer").textContent = formatTime(refereeTime);
+    if (refereeTime <= finishingTime) { referee_donut.setState({ color: finishingTimerColor }); }
 }
 
 function refereeTimer(regime)
@@ -59,7 +61,7 @@ function refereeTimer(regime)
     switch(regime) {
         case   "start" : 
                 refereeTime=60; 
-                referee_donut.setState({ value: refereeTime});
+                referee_donut.setState({ value: refereeTime,  color: secondaryTimerColor});
                 document.getElementById("referee_timer").textContent = formatTime(refereeTime);                
                 break;
         case   "start_timer" : 
@@ -523,7 +525,7 @@ function pause(regime)
                 stop_timer();
                 document.getElementById("pauseModalLabel").textContent = "Секундант Игрока №"+current_player+" взял паузу";
                 pauseTime=60; 
-                pause_donut.setState({ value: pauseTime});
+                pause_donut.setState({ value: pauseTime, color: secondaryTimerColor});
                 document.getElementById("pause_timer").textContent = formatTime(pauseTime);                
                 break;
         case   "start_timer" : 
@@ -553,6 +555,7 @@ function changePauseTime() {
     pauseTime--;
     pause_donut.setState({ value: pauseTime});
     document.getElementById("pause_timer").textContent = formatTime(pauseTime);
+    if (pauseTime <= finishingTime) { pause_donut.setState({ color: finishingTimerColor }); }
 }
 
 /*---------------------часы---------------------------------*/
