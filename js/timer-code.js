@@ -46,6 +46,10 @@ document.getElementById("plr2radiolabel").classList.add("btn-outline-"+PlayerVot
 document.getElementById("Player1Score").classList.add("text-bg-"+PlayerVoteStyle[1]);
 document.getElementById("Player2Score").classList.add("text-bg-"+PlayerVoteStyle[2]);
 
+var soundsEnabled = true;
+var audioGong = new Audio("assets\\Sound\\Gong.mp3");
+var audioGudok= new Audio("assets\\Sound\\Gudok.mp3");
+var audioTicking= new Audio("assets\\Sound\\clock_ticking.mp3");
 
 /*--------------------------Оценки судей ----------------------------*/
 
@@ -53,7 +57,10 @@ function changeRefereeTime() {
     refereeTime--;
     referee_donut.setState({ value: refereeTime});
     document.getElementById("referee_timer").textContent = formatTime(refereeTime);
-    if (refereeTime <= finishingTime) { referee_donut.setState({ color: finishingTimerColor }); }
+    if (refereeTime <= finishingTime) { 
+        referee_donut.setState({ color: finishingTimerColor }); 
+        if (soundsEnabled) {audioTicking.play(); }
+    }
 }
 
 function refereeTimer(regime)
@@ -62,7 +69,8 @@ function refereeTimer(regime)
         case   "start" : 
                 refereeTime=60; 
                 referee_donut.setState({ value: refereeTime,  color: secondaryTimerColor});
-                document.getElementById("referee_timer").textContent = formatTime(refereeTime);                
+                document.getElementById("referee_timer").textContent = formatTime(refereeTime);
+                stopAudio(audioTicking);            
                 break;
         case   "start_timer" : 
                  refereeTimerID = setInterval(changeRefereeTime, 1000)
@@ -75,7 +83,8 @@ function refereeTimer(regime)
                 refereeTime=60; 
                 referee_donut.setState({ value: refereeTime});
                 document.getElementById("referee_timer").textContent = formatTime(refereeTime);              
-                break;              
+                stopAudio(audioTicking);
+                break;                              
       }
 }
 
@@ -527,6 +536,7 @@ function pause(regime)
                 pauseTime=60; 
                 pause_donut.setState({ value: pauseTime, color: secondaryTimerColor});
                 document.getElementById("pause_timer").textContent = formatTime(pauseTime);                
+                stopAudio(audioTicking);
                 break;
         case   "start_timer" : 
                  pauseTimerID = setInterval(changePauseTime, 1000)
@@ -546,8 +556,8 @@ function pause(regime)
                 document.getElementById("pause_timer_start_button").style.visibility = "visible";
                 document.getElementById("pause_continue_duel_button").classList.remove("btn-primary");
                 document.getElementById("pause_continue_duel_button").classList.add("btn-secondary");
-
-                 break;              
+                stopAudio(audioTicking);
+                break;              
       }
 }
 
@@ -587,6 +597,7 @@ function start_timer() {
 }
 
 function stop_timer() {
+    stopAudio(audioTicking);
     clearInterval(timerID);
     document.getElementById("start_stop_timer").innerText = "Запустить часы";
     clock_is_active = false;
@@ -604,12 +615,20 @@ function timeTicker(donaty) {
     document.getElementById("timer" + current_player).textContent = formatTime(time[current_player - 1]);
     donaty.setState({ value: time[current_player - 1] });
     if (time[current_player - 1] === 0) {
+        if (soundsEnabled) {audioGong.play(); }
         stop_timer();
-        if (time[current_player % 2] === 0) stop_duel();
-        else changePlayer();
+        if (time[current_player % 2] === 0) { 
+            stop_duel();
+           if (soundsEnabled) {audioGudok.play(); }
+        } else {
+        changePlayer();
+        }
     }
-    if (time[current_player - 1] <= emergingTime) { donaty.setState({ color: emergingTimerColor }); }
-    if (time[current_player - 1] <= finishingTime) { donaty.setState({ color: finishingTimerColor }); }
+    if (time[current_player - 1] <= emergingTime) { 
+        donaty.setState({ color: emergingTimerColor }); 
+        }
+    if (time[current_player - 1] <= finishingTime) { donaty.setState({ color: finishingTimerColor }); 
+        if (soundsEnabled) {audioTicking.play(); }  }
 }
 
 
@@ -760,16 +779,25 @@ function ShowHideSituationInfo() {
 
 }
 
+/*---------------------звукт ---------------------------------*/
+
+function stopAudio(a)
+{
+    a.pause();
+    a.currentTime = 0;
+}
+
 function toggeSound()
 {
     if (document.getElementById("sound").checked) {
         document.getElementById("sound_icon").classList.add("fa-volume-high");
         document.getElementById("sound_icon").classList.remove("fa-volume-xmark");
+        soundsEnabled=true;
     }
     else
     {
         document.getElementById("sound_icon").classList.add("fa-volume-xmark");
         document.getElementById("sound_icon").classList.remove("fa-volume-high");
-        
+        soundsEnabled=false;
     }
 }
