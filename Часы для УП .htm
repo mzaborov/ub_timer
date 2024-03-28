@@ -15,7 +15,7 @@
 </head>
 
 <body>
-    <input type="file" class="form-control" onchange="loadFile(Event)" id="File_Loader" accept=".xlsx, .json"
+    <input type="file" class="form-control" onchange="loadFile(Event)" id="File_Loader" accept=".xlsx"
         style="display: none;">
 
     <div class="body">
@@ -24,17 +24,29 @@
         <div class="header">
             <div class="centered">
                 <div class="row justify-content-around">
-                    <div class="col">
+                    <div class="col text-start">
                         <img class="header-logo" src="assets\Img\ciocdo_logo.png" />
                     </div>
                     <div class="col text-end">
-                        <div class="col mb-1">
-                            <button type="button" class="btn btn-primary the-button" for="duel_chooser"
-                                onclick="triggerClick()" id="Choose_File_Button">
+                        <div class="col">
+                            <button type="button" class="btn btn-primary the-button inline" for="duel_chooser"   onclick="triggerClick()" id="Choose_File_Button">
                                 <i class="fa-solid fa-arrow-up-from-bracket"></i>
                                 <span id="file-name">Выберите файл</span>
                             </button>
-
+                            <div class="dropdown inline" id="duel-chooser-href">
+                                <button type="button" class="btn btn-primary the-button" data-bs-toggle="dropdown"
+                                    aria-expanded="false"  id="Choose_Duel_Button">
+                                    <i class="fa-solid fa-user-group"></i>
+                                    <span id="players-name">Выберите поединок</span>
+                                </button>
+                                <form class="dropdown-menu p-4 m-2" style="width:500px">
+                                    <div id="duel-chooser">
+                                        нет данных
+                                    </div>
+                                </form>                             
+                            </div>
+                        </div>
+                        <div class="col">
                             <div class="btn-group" role="group" aria-label="время поединка" id="duel_time_picker">
                                 <input type="radio" class="btn-check" onclick="setDuelTime(300)" name="dueltime"
                                     id="5min" checked>
@@ -48,30 +60,24 @@
                                     id="1min">
                                 <label class="btn btn-outline-primary" for="1min">1 мин.</label>
                             </div>
-                        </div>
-                        <div class="col">
-                            <div class="dropdown" id="duel-chooser-href">
-                                <button type="button" class="btn btn-primary the-button" data-bs-toggle="dropdown"
-                                    aria-expanded="false"  id="Choose_Duel_Button">
-                                    <i class="fa-solid fa-user-group"></i>
-                                    <span id="players-name">Выберите поединок</span>
-                                </button>
-                                <form class="dropdown-menu p-4 m-2" style="width:500px">
-                                    <div id="duel-chooser">
-                                        нет данных
-                                    </div>
-                                </form>
-                                <input type="checkbox" class="btn-check" id="hide_text"   onclick="ShowHideSituationInfo()" checked>                                
-                                <label class="btn btn-outline-primary" for="hide_text">
-                                    <i class="fa-solid fa-newspaper"></i>
+                            <div class="btn-group" role="group" aria-label="тип поединка" id="duel_type_picker">
+                                <input type="radio" class="btn-check" onclick="changeDuelType('classic')" name="duel_type" id="classic" checked>
+                                <label class="btn btn-outline-primary" for="classic">
+                                    <i class="fa-solid fa-landmark"></i>
                                 </label>
-                                <input type="checkbox" class="btn-check" id="sound"   onclick="toggeSound()" checked>
-                                <label class="btn btn-outline-primary" for="sound">
-                                    <i class="fa-solid fa-volume-high"  id="sound_icon"></i>
-                                </label>                               
-                                
-
+                                <input type="radio" class="btn-check" onclick="changeDuelType('express')" name="duel_type" id="express">
+                                <label class="btn btn-outline-primary" for="express">
+                                    <i class="fa-solid fa-bolt-lightning"></i>
+                                </label>
                             </div>
+                            <input type="checkbox" class="btn-check" id="hide_text"   onclick="ShowHideSituationInfo()" checked>                                
+                            <label class="btn btn-outline-primary" for="hide_text">
+                                <i class="fa-solid fa-newspaper"></i>
+                            </label>
+                            <input type="checkbox" class="btn-check" id="sound"   onclick="toggeSound()" checked>
+                            <label class="btn btn-outline-primary" for="sound">
+                                <i class="fa-solid fa-volume-high"  id="sound_icon"></i>
+                            </label>                               
                         </div>
                     </div>
                 </div>
@@ -320,23 +326,12 @@
                                         <i class="fa-solid fa-newspaper"></i>
                                     </label>
                                 </div>  
-                                <div class="btn-group" role="group" aria-label="тип поединка" id="duel_type_picker">
-                                    <input type="radio" class="btn-check btn-sm" onclick="initRefereeStructure(-1,'classic')" name="duel_type" id="classic" checked>
-                                    <label class="btn btn-outline-dark btn-sm" for="classic">
-                                        <i class="fa-solid fa-landmark"></i>
-                                    </label>
-                                    <input type="radio" class="btn-check" onclick="initRefereeStructure(-1,'express')" name="duel_type" id="express">
-                                    <label class="btn btn-outline-dark btn-sm" for="express">
-                                        <i class="fa-solid fa-bolt-lightning"></i>
-                                    </label>
-                                </div>
-
-                                <div class="btn-group" role="group" aria-label="время поединка" id="ref_qty_picker">
-                                    <input type="radio" class="btn-check btn-sm" onclick="initRefereeStructure(9,'current')" name="ref_qty" id="9ref" checked>
+                                <div class="btn-group" role="group" aria-label="количество судей" id="ref_qty_picker">
+                                    <input type="radio" class="btn-check btn-sm" onclick="initRefereeStructure(9)" name="ref_qty" id="9ref" checked>
                                     <label class="btn btn-outline-dark btn-sm" for="9ref">9</label>
-                                    <input type="radio" class="btn-check btn-sm " onclick="initRefereeStructure(7,'current')" name="ref_qty" id="7ref">
+                                    <input type="radio" class="btn-check btn-sm " onclick="initRefereeStructure(7)" name="ref_qty" id="7ref">
                                     <label class="btn btn-outline-dark btn-sm" for="7ref">7</label>
-                                    <input type="radio" class="btn-check btn-sm" onclick="initRefereeStructure(5,'current')" name="ref_qty" id="5ref">
+                                    <input type="radio" class="btn-check btn-sm" onclick="initRefereeStructure(5)" name="ref_qty" id="5ref">
                                     <label class="btn btn-outline-dark btn-sm" for="5ref">5</label>
                                 </div>
 
