@@ -615,13 +615,13 @@ function timeTicker(donaty) {
     document.getElementById("timer" + current_player).textContent = formatTime(time[current_player - 1]);
     donaty.setState({ value: time[current_player - 1] });
     if (time[current_player - 1] === 0) {
-        if (soundsEnabled) {audioGong.play(); }
         stop_timer();
         if (time[current_player % 2] === 0) { 
-            stop_duel();
            if (soundsEnabled) {audioGudok.play(); }
+           stop_duel();
         } else {
-        changePlayer();
+            if (soundsEnabled) {audioGong.play(); }
+            changePlayer();
         }
     }
     if (time[current_player - 1] <= emergingTime) { 
