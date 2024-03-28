@@ -81,7 +81,7 @@ function refereeTimer(regime)
                 clearInterval(refereeTimerID);
                 document.getElementById("finish_duel_timer_start_button").disabled = false;
                 refereeTime=60; 
-                referee_donut.setState({ value: refereeTime});
+                referee_donut.setState({ value: refereeTime,  color: secondaryTimerColor});
                 document.getElementById("referee_timer").textContent = formatTime(refereeTime);              
                 stopAudio(audioTicking);
                 break;                              
@@ -565,7 +565,13 @@ function changePauseTime() {
     pauseTime--;
     pause_donut.setState({ value: pauseTime});
     document.getElementById("pause_timer").textContent = formatTime(pauseTime);
-    if (pauseTime <= finishingTime) { pause_donut.setState({ color: finishingTimerColor }); }
+    if (pauseTime <= finishingTime) {
+          pause_donut.setState({ color: finishingTimerColor }); 
+          if (soundsEnabled) {audioTicking.play(); }          
+        }
+    if (pauseTime===0) {
+        if (soundsEnabled) {audioGong.play();}
+    }
 }
 
 /*---------------------часы---------------------------------*/
@@ -627,8 +633,10 @@ function timeTicker(donaty) {
     if (time[current_player - 1] <= emergingTime) { 
         donaty.setState({ color: emergingTimerColor }); 
         }
-    if (time[current_player - 1] <= finishingTime) { donaty.setState({ color: finishingTimerColor }); 
-        if (soundsEnabled) {audioTicking.play(); }  }
+    if (time[current_player - 1] <= finishingTime) { 
+        donaty.setState({ color: finishingTimerColor }); 
+    //    if (soundsEnabled) {audioTicking.play(); }  
+    }
 }
 
 
@@ -799,5 +807,8 @@ function toggeSound()
         document.getElementById("sound_icon").classList.add("fa-volume-xmark");
         document.getElementById("sound_icon").classList.remove("fa-volume-high");
         soundsEnabled=false;
+        stopAudio(audioTicking);
+        stopAudio(audioGong);
+        stopAudio(audioGudok);
     }
 }
