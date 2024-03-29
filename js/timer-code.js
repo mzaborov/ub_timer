@@ -5,7 +5,7 @@ const finishingTimerColor = "FireBrick";
 const secondaryTimerColor = "red";
 const activePlayerColor = "blue";
 const inactivePlayerColor = "#f8f9fa";
-const donuttyTrackColor = "rgba(70, 130, 180, 0.15)";
+const donuttyTrackColor = "rgba(70, 130, 180, 0.15)";  
 
 game_time = 300;
 var time = [game_time, game_time];
