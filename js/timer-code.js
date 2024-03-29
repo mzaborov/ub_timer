@@ -26,7 +26,7 @@ var pauseTimerID = 0;
 var pauseTime =60;
 var protest_is_active=false;
 
-//  для формы судей
+//  для формы судей  
 const PlayerVoteStyle= ["dark","primary","success"];
 var refereeTimerID = 0;
 var refereeTime =60;
