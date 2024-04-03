@@ -7,12 +7,13 @@
   100%{ opacity: 0; transform: scale(1);}
 }
 
-.inline {
-  display: inline-block;
-}
 
 .pulsing {
   animation: pulse 1s infinite;
+}
+
+.inline {
+  display: inline-block;
 }
 
 .timer {
@@ -72,8 +73,8 @@ html, body {
 }
 
 .centered {
-  width: 1000px;
-  max-width: 1000px;
+  width: 1200px;
+  max-width: 1200px;
   margin: auto;
 }
 
