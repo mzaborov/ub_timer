@@ -135,7 +135,7 @@ html, body {
   border-radius: 10px;
   margin-top: 10px;
   font-size: 14px;
-  text-align: center;
+  text-align: justify;
 }
 
 .interests__right-text {
@@ -146,7 +146,7 @@ html, body {
   border-radius: 10px;
   margin-top: 10px;
   font-size: 14px;
-  text-align: center
+  text-align: justify
 }
 
 /* block carousel */
