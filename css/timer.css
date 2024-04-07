@@ -128,25 +128,27 @@ html, body {
 }
 
 .interests__left-text {
-  margin-left: -70px;
-  width: 300px;
+  /* margin-left: -70px; */
+  /* width: 300px; */
   background: #ffffff;
   padding: 10px;
   border-radius: 10px;
-  margin-top: 10px;
+  /* margin-top: 10px; */
   font-size: 14px;
   text-align: justify;
+  margin-right: 20px;
 }
 
 .interests__right-text {
-  margin-left: 222px;
-  width: 300px;
+  /* margin-left: 222px; */
+  /* width: 300px; */
   background: #ffffff;
   padding: 10px;
   border-radius: 10px;
-  margin-top: 10px;
+  /* margin-top: 10px; */
   font-size: 14px;
-  text-align: justify
+  text-align: justify;
+  margin-left: 20px;
 }
 
 /* block carousel */
