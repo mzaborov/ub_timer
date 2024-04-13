@@ -405,8 +405,17 @@ function changePlayer() {
     document.getElementById("change_player").disabled = true;
     if (duelType==="classic")
      {
+      //Очищаем Роли  
       document.getElementById('Player1Roles').value=-1;
       document.getElementById('Player2Roles').value=-1;
+      document.getElementById("Player1RoleGoal").innerHTML ="";
+      document.getElementById("Player2RoleGoal").innerHTML ="";
+      for (var i=1;i<3;i++)
+       {var select = document.getElementById("Player"+i+"Roles");
+        for (var j = 0; j < select.options.length; j++) { 
+             select.options[j].disabled = false;
+            }
+       }
      }
      else
      {
