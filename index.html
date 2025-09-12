@@ -3,9 +3,9 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Часы для управленческих поединков </title>
-    <meta name="keywords" content="часы, управленческий поединок, поединок, шахматные часы"/>
+    <title>Часы для управленческих поединков</title>  
     <meta name="description" content="Часы для проведения управленческих поединков Онлайн "/>
+    <meta name="keywords" content="часы, управленческий поединок, поединок, шахматные часы"/>
     <link rel="shortcut icon" href="assets/Img/favicon.png" type="image/x-icon">
     <link rel="stylesheet" href="fontawesome/css/fontawesome.css">
     <link rel="stylesheet" href="fontawesome/css/all.css">
@@ -20,6 +20,22 @@
 </head>
 
 <body>
+    <!-- Yandex.Metrika counter -->
+   <script type="text/javascript" >
+        (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+        m[i].l=1*new Date();
+        for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+        k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
+        (window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
+
+        ym(97038299, "init", {
+                clickmap:true,
+                trackLinks:true,
+                accurateTrackBounce:true
+        });
+    </script>
+<noscript><div><img src="https://mc.yandex.ru/watch/97038299" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+<!-- /Yandex.Metrika counter -->
     <input type="file" class="form-control" onchange="loadFile(Event)" id="File_Loader" accept=".xlsx"
         style="display: none;">
 
@@ -180,22 +196,15 @@
                 </div>
             </div>
 
-            <!--Интересы Игроков -->
+          <!--Интересы Игроков -->
             <div class="interests" id="PlayersInterests">
-                <div class="centered wrap-inner-text">
-                    <div class="row">
-                        <div class="col-3 text-start d-flex flex-column align-items-center">
-                            <span id="Player1RoleGoallabel" class=" fw-bold">Интересы:</span>
-                            <br>
-                            <div class="interests__left-text" id="Player1RoleGoal"> </div>
-                        </div>
-                        <div class="col-6"></div>
-                        <div class="col-3 text-end text-start d-flex flex-column align-items-center">
-                            <span id="Player2RoleGoallabel" class=" fw-bold">Интересы:</span>
-                            <br>
-                            <div class="interests__right-text" id="Player2RoleGoal"> </div>
-                        </div>
-                    </div>
+                <div class="interests__container interests__left-container">
+                    <span id="Player1RoleGoallabel" class="fw-bold">Интересы:</span>
+                    <div class="interests__left-text" id="Player1RoleGoal"></div>
+                </div>
+                <div class="interests__container interests__right-container">
+                    <span id="Player2RoleGoallabel" class="fw-bold">Интересы:</span>
+                    <div class="interests__right-text" id="Player2RoleGoal"></div>
                 </div>
             </div>
         </div>
