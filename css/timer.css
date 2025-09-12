@@ -116,41 +116,50 @@ html, body {
   padding-bottom: 20px;
   background-color: #f6f6f6;
   position: relative;
+  z-index: 5; /* ← ТАЙМЕРЫ НАВЕРХУ — ВИДНЫ И КЛИКАБЕЛЬНЫ */  
 }
 
-/* block interests */
 
-.interests{
+/* block interests */
+.interests {
   position: absolute;
   left: 0;
   right: 0;
   top: 0;
+  display: flex;
+  justify-content: center; /* ← Распределяет блоки по центру */
+  padding: 0 20px; /* Отступы по бокам */
+  z-index: 10;
+ gap: 650px; /* ← НОВОЕ: расстояние между левым и правым блоком */
 }
 
-.interests__left-text {
-  /* margin-left: -70px; */
-  /* width: 300px; */
-  background: #ffffff;
-  padding: 10px;
-  border-radius: 10px;
-  /* margin-top: 10px; */
-  font-size: 14px;
-  text-align: justify;
-  margin-right: 20px;
-}
-
+.interests__left-text,
 .interests__right-text {
-  /* margin-left: 222px; */
-  /* width: 300px; */
   background: #ffffff;
   padding: 10px;
   border-radius: 10px;
-  /* margin-top: 10px; */
   font-size: 14px;
   text-align: justify;
-  margin-left: 20px;
+  width: 500px; 
+  flex-shrink: 0;
+  margin: 0 10px; /* Маленький отступ между блоками */
 }
 
+/* --------------------- ЦЕНТРИРОВАНИЕ И ФИКСАЦИЯ НАДПИСЕЙ "Интересы:" --------------------- */
+.interests__container {
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* ← Центрирует содержимое по горизонтали */
+  width: 100%;         /* ← Гарантирует, что контейнер занимает всю доступную ширину */
+}
+
+.interests__container > span {
+  margin-bottom: 8px;     /* ← Отступ между надписью и текстом */
+  text-align: center;     /* ← Центрирует текст внутри span */
+  font-weight: bold;
+  white-space: nowrap;    /* ← Не дает переноситься (опционально, но красиво) */
+  width: 100%;            /* ← Заставляет span растягиваться на всю ширину контейнера */
+}
 /* block carousel */
 
 .carousel-block{
