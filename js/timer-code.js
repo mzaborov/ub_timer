@@ -1,4 +1,4 @@
-// deploy-version: 5
+// deploy-version: 6
 const activeTimerColor = "blue";
 const inactiveTimerColor = "DarkGray";
 const emergingTimerColor = "OrangeRed";
@@ -390,11 +390,19 @@ function finishDice() {
         stopAudio(audioIntro);
         audioIntro = null;
     }
-    var whoStarts = Math.random() < 0.5 ? 1 : 2;
+    initTimers();
+    var whoStarts;
+    if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+        var u = new Uint32Array(1);
+        crypto.getRandomValues(u);
+        whoStarts = (u[0] % 2 === 0) ? 1 : 2;
+    } else {
+        whoStarts = Math.random() < 0.5 ? 1 : 2;
+    }
     setPlayer(whoStarts);
     highlightPlayer();
-    initTimers();
-    document.getElementById("dice_button").disabled = false;
+    document.getElementById("dice_button").classList.remove("dice-busy");
+    document.getElementById("dice_button").disabled = duel_is_active;
 }
 
 function blinkingIntroStep(qty) {
@@ -417,7 +425,7 @@ function dice() {
         finishDice();
         return;
     }
-    document.getElementById("dice_button").disabled = true;
+    document.getElementById("dice_button").classList.add("dice-busy");
     var list = introTracksList.length > 0 ? introTracksList : introTracksListFallback;
     var trackFile = (!selectedIntroTrack || selectedIntroTrack === "random") && list.length > 0
         ? list[Math.floor(Math.random() * list.length)]
