@@ -723,9 +723,17 @@ function loadFile(event) {
                 var worksheet = workbook.Sheets[first_sheet_name];
                 duelsList = XLSX.utils.sheet_to_json(worksheet, { raw: true });
                 for (var i in duelsList) {
-                    var duel = duelsList[i];
-                    duel.SituationRoles = JSON.parse(duel.SituationRoles.trim().replace(/^"(.*)"$/, '$1'));
-                };
+                      var duel = duelsList[i];
+                    // Пропускаем пустые строки (где нет обязательных полей)
+                    if (!duel.DuelNum && !duel.SituationNum && !duel.SituationRoles) {
+                        continue;
+                    }
+    
+                    // Обрабатываем только строки с данными
+                    if (duel.SituationRoles && typeof duel.SituationRoles === 'string') {
+                        duel.SituationRoles = JSON.parse(duel.SituationRoles.trim().replace(/^"(.*)"$/, '$1'));
+                    }
+               };
                 processDuelsJson(file);
             };
             reader.readAsArrayBuffer(file);
