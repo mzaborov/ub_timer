@@ -7,7 +7,12 @@
     <title>Часы для управленческих поединков</title>  
     <meta name="description" content="Часы для проведения управленческих поединков Онлайн "/>
     <meta name="keywords" content="часы, управленческий поединок, поединок, шахматные часы"/>
-    <link rel="shortcut icon" href="assets/Img/favicon.png" type="image/x-icon">
+    <link rel="shortcut icon" href="assets/Img/favicon.png" type="image/x-icon" id="favicon">
+    <script>
+      (function(){ var h = location.hostname; if (h !== 'timer.zaborov.ru' && h !== 'www.timer.zaborov.ru') {
+        document.getElementById('favicon').href = 'assets/Img/favicon-local.png';
+      }})();
+    </script>
     <link rel="stylesheet" href="fontawesome/css/fontawesome.css?v=2">
     <link rel="stylesheet" href="fontawesome/css/all.css?v=2">
     <link rel="stylesheet" href="css/timer.css?v=2">
@@ -373,6 +378,15 @@
                                     name="ref_qty" id="5ref">
                                 <label class="btn btn-outline-dark btn-sm" for="5ref">5</label>
                             </div>
+                            <div class="btn-group" role="group" aria-label="звуки завершения" id="finish_duel_sound_grp">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="playDrumRoll()"
+                                    id="finish_duel_drum_btn"
+                                    title="Барабанная дробь (равный счёт, ждём оценку последнего судьи)" aria-label="Барабанная дробь">
+                                    <i class="fa-solid fa-drum"></i></button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="playApplause()"
+                                    title="Аплодисменты (все судьи проголосовали, рефери объявляет результат)" aria-label="Аплодисменты">
+                                    <i class="fa-solid fa-hands-clapping"></i></button>
+                            </div>
 
                         </div>
                         <div class="col" id="duel_end_buttons_grp">
@@ -380,8 +394,9 @@
                                 id="finish_duel_timer_start_button">Запустить часы</button>
                             <button type="button" class="btn btn-primary" onclick="nextReferee()"
                                 id="finish_duel_next_referee_button">Следующий</button>
-                            <button type="button" class="btn btn-danger" data-bs-dismiss="modal"
-                                onclick="refereeTimer('stop_timer')" id="finish_duel_button">Завершить поединок</button>
+                            <button type="button" class="btn btn-danger" onclick="finishDuelAndClose(event)"
+                                title="Завершить поединок. По умолчанию — с аплодисментами; Shift+клик — без звука"
+                                id="finish_duel_button">Завершить поединок</button>
                         </div>
                     </div>
                 </div>

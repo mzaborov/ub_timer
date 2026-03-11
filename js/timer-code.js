@@ -51,6 +51,8 @@ var soundsEnabled = true;
 var audioGong = new Audio("assets\\Sound\\Gong.mp3");
 var audioGudok= new Audio("assets\\Sound\\Gudok.mp3");
 var audioTicking= new Audio("assets\\Sound\\clock_ticking.mp3");
+var audioDrumRoll = new Audio("assets/Sound/Drum_roll.mp3");
+var audioApplause = new Audio("assets/Sound/applause.mp3");
 
 /*--------------------------Оценки судей ----------------------------*/
 
@@ -255,16 +257,25 @@ function refereeVote(vt)
 
 function calcAndShowScore()
 {
-  var score=[0,0,0];  
+  var score=[0,0,0];
+  var unvotedCount = 0;
     for (let i=0; i<11;i++)
     {
        if (refereeList[i].visible)
         {
            score[refereeList[i].vote]++;
+           if (refereeList[i].vote === 0) unvotedCount++;
         }
-    }    
+    }
     document.getElementById("Player1Score").innerHTML = "&nbsp"+score[1]+"&nbsp";
     document.getElementById("Player2Score").innerHTML = "&nbsp"+score[2]+"&nbsp";
+    var drumBtn = document.getElementById("finish_duel_drum_btn");
+    if (drumBtn) {
+        var equalScore = (score[1] === score[2]);
+        var waitingLastJudge = equalScore && (unvotedCount === 1);
+        drumBtn.classList.remove("btn-outline-secondary", "btn-warning");
+        drumBtn.classList.add(waitingLastJudge ? "btn-warning" : "btn-outline-secondary");
+    }
 }
 
 function highlightReferee ()
@@ -1007,12 +1018,37 @@ function ShowHideSituationInfo() {
 
 }
 
-/*---------------------звукт ---------------------------------*/
+/*---------------------звук ---------------------------------*/
 
 function stopAudio(a)
 {
     a.pause();
     a.currentTime = 0;
+}
+
+function playDrumRoll() {
+    if (soundsEnabled) {
+        stopAudio(audioApplause);
+        audioDrumRoll.play();
+    }
+}
+
+function playApplause() {
+    if (soundsEnabled) {
+        stopAudio(audioDrumRoll);
+        audioApplause.play();
+    }
+}
+
+function finishDuelAndClose(ev) {
+    refereeTimer("stop_timer");
+    if (!ev.shiftKey && soundsEnabled) {
+        stopAudio(audioDrumRoll);
+        audioApplause.play();
+    }
+    var modalEl = document.getElementById("finishDuelModal");
+    var modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal) modal.hide();
 }
 
 function toggeSound()
@@ -1030,5 +1066,7 @@ function toggeSound()
         stopAudio(audioTicking);
         stopAudio(audioGong);
         stopAudio(audioGudok);
+        stopAudio(audioDrumRoll);
+        stopAudio(audioApplause);
     }
 }
