@@ -1,4 +1,4 @@
-// deploy-version: 6
+// deploy-version: 7
 const activeTimerColor = "blue";
 const inactiveTimerColor = "DarkGray";
 const emergingTimerColor = "OrangeRed";
@@ -34,6 +34,12 @@ var refereeTime =60;
 var activeReferee =0; 
 var refereeQty =9; 
 var refereeList ;
+
+// протокол онлайна: длительность раундов по игровому времени (бублики), без пауз
+var scheduleFileName = "";
+var roundStartRemaining = [0, 0]; // остаток времени игрока 1 и 2 на старте текущего сегмента
+var roundDurations = [];
+var PROTOCOL_STORAGE_KEY = "ub-timer-online-state";
 
 
 /*--------------------------инициализирующий код----------------------------*/
@@ -520,6 +526,11 @@ function changePlayer() {
     else {
         setPlayer(newPlayer);
     }
+    // Сохраняем длительность сегмента при переходе хода (по игровому времени, без пауз)
+    var durationSec = roundStartRemaining[current_player - 1] - time[current_player - 1];
+    if (durationSec > 0) roundDurations.push(durationSec);
+    roundStartRemaining[current_player - 1] = time[current_player - 1];
+    roundStartRemaining[newPlayer - 1] = time[newPlayer - 1];
     current_round++;
     document.getElementById("current_round").textContent = "Раунд №" + current_round;
     document.getElementById("change_player").disabled = true;
@@ -564,7 +575,10 @@ function enable_disable_duel_options_conrols(visibility, disabled) {
     document.getElementById("change_player").style.visibility = visibility;
     document.getElementById("protest").style.visibility = visibility;
     document.getElementById("pause").style.visibility = visibility;
-    document.getElementById("Choose_File_Button").disabled = disabled;
+    var btnFile = document.getElementById("Choose_File_Button");
+    if (btnFile) btnFile.disabled = disabled;
+    var btnFileDrop = document.getElementById("Choose_File_Button_Dropdown");
+    if (btnFileDrop) btnFileDrop.disabled = disabled;
     document.getElementById("Choose_Duel_Button").disabled = disabled;
     document.getElementById("dice_button").disabled = disabled;
     if (!(duelsList && duelsList[currentDuel]))
@@ -592,6 +606,9 @@ function start_duel() {
     setPlayer(1);
     start_timer();
     current_round = 1;
+    roundStartRemaining[0] = time[0];
+    roundStartRemaining[1] = time[1];
+    roundDurations = [];
     document.getElementById("current_round").textContent = "Раунд №" + current_round;
     duel_is_active = true;
    lastShiftIsUsed =  false;
@@ -600,6 +617,9 @@ function start_duel() {
 function stop_duel() {
     enable_disable_duel_options_conrols("hidden", false);
     stop_timer();
+    // Сохраняем длительность последнего сегмента при завершении поединка
+    var durationSec = roundStartRemaining[current_player - 1] - time[current_player - 1];
+    if (durationSec > 0) roundDurations.push(durationSec);
     document.getElementById("current_round").textContent = '\xa0';
     document.getElementById("start_stop_duel").textContent = "Начать поединок";
     document.getElementById("start_stop_duel").classList.remove("btn-danger");
@@ -896,11 +916,54 @@ function showLoadDiagnostics(fileName, errors, warnings, summary) {
     }
 }
 
+function saveProtocolStateToLocalStorage() {
+    try {
+        if (!scheduleFileName && (!duelsList || duelsList.length === 0)) return;
+        var payload = { scheduleFileName: scheduleFileName || "", duelsList: duelsList || [] };
+        localStorage.setItem(PROTOCOL_STORAGE_KEY, JSON.stringify(payload));
+    } catch (e) { console.warn("saveProtocolStateToLocalStorage", e); }
+}
+
+function switchToFileDropdown() {
+    var simple = document.getElementById("file-button-simple");
+    var dropdown = document.getElementById("file-button-dropdown");
+    if (simple) simple.style.display = "none";
+    if (dropdown) dropdown.style.display = "";
+}
+
+function restoreProtocolStateFromLocalStorage() {
+    try {
+        var raw = localStorage.getItem(PROTOCOL_STORAGE_KEY);
+        if (!raw) return false;
+        var data = JSON.parse(raw);
+        if (!data.duelsList || !Array.isArray(data.duelsList) || data.duelsList.length === 0) return false;
+        scheduleFileName = data.scheduleFileName || "";
+        duelsList = data.duelsList;
+        var fileNameEl = document.getElementById("file-name");
+        if (fileNameEl) fileNameEl.innerHTML = scheduleFileName || "Восстановлено";
+        var duelChooser = document.getElementById("duel-chooser");
+        if (duelChooser) {
+            duelChooser.innerHTML = "";
+            duelsList.forEach(function (duel, index) {
+                var figure = document.createElement("figure");
+                figure.innerHTML = "<a class=\"icon-link\" href=\"#\" onclick='duelChoosed(\"" + index + "\")'>" +
+                    "<blockquote class=\"blockquote\"><p>№" + (duel.DuelNum || (index + 1)) + " :: " + (duel.SituationName || "") + "</p></blockquote></a>" +
+                    "<figcaption class=\"blockquote-footer\">" + (duel.Player1 || "") + " VS " + (duel.Player2 || "") + "</figcaption>";
+                duelChooser.appendChild(figure);
+            });
+        }
+        switchToFileDropdown();
+        hideRestoreProtocolBanner();
+        return true;
+    } catch (e) { console.warn("restoreProtocolStateFromLocalStorage", e); return false; }
+}
+
 function processDuelsJson(file) {
     const fileName = document.getElementById('file-name');
     const duelChooser = document.getElementById('duel-chooser');
 
-    fileName.innerHTML = file.name.split('.').slice(0, -1).join('')
+    fileName.innerHTML = file.name.split('.').slice(0, -1).join('');
+    scheduleFileName = (file && file.name) ? file.name.replace(/\.(xlsx|json)$/i, '') : '';
 
     duelChooser.innerHTML = ''
     duelsList.forEach((duel, index) => {
@@ -917,7 +980,10 @@ function processDuelsJson(file) {
             </figcaption>
         `
         duelChooser.appendChild(figure);
-    })
+    });
+    saveProtocolStateToLocalStorage();
+    switchToFileDropdown();
+    hideRestoreProtocolBanner();
 }
 
 function loadFile(event) {
@@ -1154,6 +1220,27 @@ function finishDuelAndClose(ev) {
         stopAudio(audioDrumRoll);
         audioApplause.play();
     }
+    var score = [0, 0, 0];
+    var judgeVotes = [];
+    if (refereeList) {
+        for (var i = 0; i < refereeList.length; i++) {
+            if (refereeList[i].visible) {
+                score[refereeList[i].vote]++;
+                judgeVotes.push(refereeList[i].vote);
+            }
+        }
+    }
+    var p1Name = document.getElementById("Player1Name") && document.getElementById("Player1Name").value ? document.getElementById("Player1Name").value.trim() : "";
+    var p2Name = document.getElementById("Player2Name") && document.getElementById("Player2Name").value ? document.getElementById("Player2Name").value.trim() : "";
+    var winner = "";
+    if (score[1] > score[2]) winner = p1Name;
+    else if (score[2] > score[1]) winner = p2Name;
+    if (duelsList && currentDuel !== undefined && currentDuel !== null && duelsList[currentDuel]) {
+        duelsList[currentDuel].Winner = winner;
+        duelsList[currentDuel].JudgeVotes = judgeVotes.slice();
+        duelsList[currentDuel].RoundDurations = roundDurations.slice();
+    }
+    saveProtocolStateToLocalStorage();
     var modalEl = document.getElementById("finishDuelModal");
     var modal = bootstrap.Modal.getInstance(modalEl);
     if (modal) modal.hide();
@@ -1179,3 +1266,80 @@ function toggeSound()
         if (audioIntro) { stopAudio(audioIntro); }
     }
 }
+
+/*--------------------------Протокол онлайна----------------------------*/
+function formatDurationSec(sec) {
+    if (sec == null || sec === "" || isNaN(sec)) return "";
+    var s = parseInt(sec, 10);
+    var m = Math.floor(s / 60);
+    var r = s % 60;
+    return m + ":" + (r < 10 ? "0" : "") + r;
+}
+
+function buildProtocolAndDownload() {
+    if (!duelsList || duelsList.length === 0) {
+        alert("Сначала загрузите расписание поединков.");
+        return;
+    }
+    var name = (scheduleFileName && scheduleFileName.trim()) ? scheduleFileName.trim() : "Протокол онлайна";
+    var maxRef = 0;
+    for (var d = 0; d < duelsList.length; d++) {
+        var q = duelsList[d].RefereeQty;
+        maxRef = Math.max(maxRef, q === 9 || q === 7 || q === 5 ? q : 9);
+    }
+    if (maxRef === 0) maxRef = 9;
+    var headers = [""];
+    for (var c = 0; c < duelsList.length; c++) headers.push("Поединок " + (c + 1));
+    var rows = [headers];
+    var rowLabels = ["Игрок 1", "Игрок 2", "Победитель"];
+    for (var j = 1; j <= maxRef; j++) rowLabels.push("Судья " + j);
+    rowLabels.push("Длительность Раунд 1", "Длительность Раунд 2", "Длительность Раунд 3");
+    for (var r = 0; r < rowLabels.length; r++) {
+        var label = rowLabels[r];
+        var arr = [label];
+        for (var col = 0; col < duelsList.length; col++) {
+            var duel = duelsList[col];
+            var val = "";
+            if (r === 0) val = duel.Player1 != null ? String(duel.Player1) : "";
+            else if (r === 1) val = duel.Player2 != null ? String(duel.Player2) : "";
+            else if (r === 2) val = duel.Winner != null ? String(duel.Winner) : "";
+            else if (r >= 3 && r < 3 + maxRef) {
+                var voteIdx = r - 3;
+                var votes = duel.JudgeVotes;
+                if (votes && voteIdx < (duel.RefereeQty || 9)) {
+                    var v = votes[voteIdx];
+                    if (v === 1 || v === 2) val = v;
+                }
+            } else if (r === 3 + maxRef) val = formatDurationSec(duel.RoundDurations && duel.RoundDurations[0]);
+            else if (r === 4 + maxRef) val = formatDurationSec(duel.RoundDurations && duel.RoundDurations[1]);
+            else if (r === 5 + maxRef) val = formatDurationSec(duel.RoundDurations && duel.RoundDurations[2]);
+            arr.push(val);
+        }
+        rows.push(arr);
+    }
+    var wb = XLSX.utils.book_new();
+    var ws = XLSX.utils.aoa_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, "Протокол");
+    XLSX.writeFile(wb, "Протокол " + name + ".xlsx");
+}
+
+function showRestoreProtocolBanner() {
+    var el = document.getElementById("restore-protocol-banner");
+    if (el) el.style.display = "";
+}
+
+function hideRestoreProtocolBanner() {
+    var el = document.getElementById("restore-protocol-banner");
+    if (el) el.style.display = "none";
+}
+
+(function checkRestoreProtocolOnLoad() {
+    try {
+        var raw = localStorage.getItem(PROTOCOL_STORAGE_KEY);
+        if (!raw) return;
+        var data = JSON.parse(raw);
+        if (!data.duelsList || !Array.isArray(data.duelsList) || data.duelsList.length === 0) return;
+        if (duelsList && duelsList.length > 0) return;
+        showRestoreProtocolBanner();
+    } catch (e) {}
+})();
