@@ -1,8 +1,9 @@
 # Деплой на Masterhost: сравнение с сервером и загрузка только изменённых файлов.
-# Запуск: .\deploy.ps1              — сравнение и загрузка изменённых
-#         .\deploy.ps1 -TestConnection — только проверить связь
-#         .\deploy.ps1 -CompareOnly   — сравнить репу и прод, вывести отчёт (ничего не заливать)
-# Требует: secrets.env с FTP_HOST, FTP_USER, FTP_PASSWORD, FTP_REMOTE_DIR
+# Запуск из корня репо: .\scripts\deploy.ps1
+#         .\scripts\deploy.ps1 -TestConnection   — только проверить связь
+#         .\scripts\deploy.ps1 -CompareOnly     — сравнить репу и прод
+# Требует: secrets.env в корне репо (FTP_HOST, FTP_USER, FTP_PASSWORD, FTP_REMOTE_DIR)
+# Опционально: DEPLOY_EXCLUDE_ROOTS, DEPLOY_EXCLUDE_FILES — см. secrets.env.example
 
 param(
     [switch]$TestConnection,
@@ -11,9 +12,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Работа всегда из корня репозитория (secrets.env и пути к файлам)
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+Set-Location $repoRoot
+
 # Загрузка переменных из secrets.env
 if (-not (Test-Path "secrets.env")) {
-    Write-Host "Ошибка: файл secrets.env не найден. Создайте его по образцу и укажите FTP-доступы." -ForegroundColor Red
+    Write-Host "Ошибка: файл secrets.env не найден в корне репо. Создайте его по образцу." -ForegroundColor Red
     exit 1
 }
 Get-Content "secrets.env" | ForEach-Object {
@@ -35,11 +40,14 @@ if (-not $hostFtp -or -not $userFtp -or -not $passFtp) {
 }
 if (-not $remoteDir) { $remoteDir = "timer.zaborov.ru/www" }
 
+# Исключения из выкладки: из env или значения по умолчанию
+$defaultExcludeRoots = '.git', 'secrets.env', 'scripts', '.gitignore', '.cursor', 'node_modules', 'History.log', '.vscode', 'git_hint.txt', 'Таблицы для онлайнов'
+$defaultExcludeFiles = 'secrets.env', '.gitignore', 'History.log', 'git_hint.txt', 'Макет часов.vsdx'
+$excludeRoot = if ($env:DEPLOY_EXCLUDE_ROOTS) { $env:DEPLOY_EXCLUDE_ROOTS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' } } else { $defaultExcludeRoots }
+$excludeFiles = if ($env:DEPLOY_EXCLUDE_FILES) { $env:DEPLOY_EXCLUDE_FILES -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' } } else { $defaultExcludeFiles }
+
 $rootUri = "ftp://$hostFtp"
 $remoteBase = $remoteDir.TrimEnd('/')
-
-# Элементы в корне, которые не выкладываем (остальное, включая assets/, css/, js/, fontawesome/, — заливаем)
-$excludeRoot = @('.git', 'secrets.env', 'deploy.ps1', 'commit_session.ps1', '.gitignore', '.cursor', 'node_modules', 'History.log', '.vscode', 'git_hint.txt', 'Таблицы для онлайнов')
 
 function Get-FtpListingRecursive {
     param([string]$baseUri, [PSCredential]$cred, [string]$path, [string]$prefix, [switch]$Silent)
@@ -134,7 +142,7 @@ Get-ChildItem -Path $root -Recurse -File | ForEach-Object {
     $relParts = $rel -split '/'
     if ($relParts[0] -in $excludeRoot) { return }
     if ($relParts -contains '.git' -or $relParts -contains 'node_modules' -or $relParts -contains '.cursor') { return }
-    if ($rel -in @('secrets.env', 'deploy.ps1', 'commit_session.ps1', '.gitignore', 'History.log', 'git_hint.txt', 'Макет часов.vsdx')) { return }
+    if ($rel -in $excludeFiles) { return }
     $size = $_.Length
     $remoteSize = $remoteNormalized[$rel]
     if ($null -eq $remoteSize -or $remoteSize -ne $size) {
@@ -149,7 +157,7 @@ Get-ChildItem -Path $root -Recurse -File | ForEach-Object {
     $relParts = $rel -split '/'
     if ($relParts[0] -in $excludeRoot) { return }
     if ($relParts -contains '.git' -or $relParts -contains 'node_modules' -or $relParts -contains '.cursor') { return }
-    if ($rel -in @('secrets.env', 'deploy.ps1', 'commit_session.ps1', '.gitignore', 'History.log', 'git_hint.txt', 'Макет часов.vsdx')) { return }
+    if ($rel -in $excludeFiles) { return }
     $localPaths[$rel] = $_.Length
 }
 
@@ -164,7 +172,7 @@ if ($CompareOnly) {
     Write-Host "`nТолько в репе / изменены (будут залиты при деплое): $($onlyLocal.Count)" -ForegroundColor Yellow
     if ($onlyLocal.Count -gt 0) { $onlyLocal | Select-Object -First 30 | ForEach-Object { Write-Host "  $_" }; if ($onlyLocal.Count -gt 30) { Write-Host "  ... и ещё $($onlyLocal.Count - 30)" } }
     Write-Host "`nСовпадают (размер тот же): $($same.Count)" -ForegroundColor Green
-    Write-Host "`nДля загрузки изменённых выполните: .\deploy.ps1" -ForegroundColor Gray
+    Write-Host "`nДля загрузки выполните: .\scripts\deploy.ps1" -ForegroundColor Gray
     exit 0
 }
 
@@ -172,6 +180,25 @@ Write-Host "К загрузке: $($toUpload.Count) файл(ов)" -ForegroundC
 if ($toUpload.Count -eq 0) {
     Write-Host "`nДеплой не требуется — всё совпадает." -ForegroundColor Green
     exit 0
+}
+
+# Перед загрузкой обновляем версию в index.html (дата выкладки), чтобы на проде видеть свежесть и сбросить кэш
+$indexPath = Join-Path $root "index.html"
+if (Test-Path $indexPath) {
+    $content = Get-Content $indexPath -Raw -Encoding UTF8
+    if ($content -match 'deploy-version:\s*(\d{8})') {
+        $oldVer = $matches[1]
+        $newVer = Get-Date -Format "yyyyMMdd"
+        if ($oldVer -ne $newVer) {
+            $content = $content -replace [regex]::Escape($oldVer), $newVer
+            $content | Set-Content $indexPath -NoNewline -Encoding UTF8
+            Write-Host "Версия в index.html обновлена: $oldVer -> $newVer" -ForegroundColor Cyan
+            $idxInUpload = $toUpload | Where-Object { $_.RelativePath -eq "index.html" }
+            if (-not $idxInUpload) {
+                $toUpload += [PSCustomObject]@{ LocalPath = $indexPath; RelativePath = "index.html"; Size = (Get-Item $indexPath).Length }
+            }
+        }
+    }
 }
 
 # Загрузка через curl (создаём каталоги при необходимости)
