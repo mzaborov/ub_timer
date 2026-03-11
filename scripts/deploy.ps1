@@ -135,6 +135,17 @@ foreach ($k in $remoteFiles.Keys) {
 
 Write-Host "`n=== Сравнение с локальными файлами ===" -ForegroundColor Cyan
 $root = Get-Location
+
+# Сгенерировать assets/Sound/intro/list.json по списку *.mp3 в папке intro (для жребия)
+$introDir = Join-Path $root "assets/Sound/intro"
+$listJsonPath = Join-Path $introDir "list.json"
+if (Test-Path $introDir) {
+    $mp3List = @(Get-ChildItem -Path $introDir -Filter "*.mp3" -File | Sort-Object Name | ForEach-Object { $_.Name })
+    $jsonContent = ($mp3List | ConvertTo-Json -Compress)
+    $jsonContent | Set-Content $listJsonPath -NoNewline -Encoding UTF8
+    Write-Host "  list.json обновлён ($($mp3List.Count) треков)" -ForegroundColor Gray
+}
+
 $toUpload = @()
 Get-ChildItem -Path $root -Recurse -File | ForEach-Object {
     $full = $_.FullName
@@ -206,6 +217,14 @@ foreach ($rel in $versionedFiles) {
         $content = $content -replace '\?v=\d+', "?v=$newVer"
         $content = $content -replace '(Версия: )\d+', "`${1}$newVer"
         $content = $content -replace '(v )\d+(\s*</div>)', "`${1}$newVer`$2"
+        if (Test-Path $listJsonPath) {
+            $introJson = Get-Content $listJsonPath -Raw -Encoding UTF8
+            if ($introJson) {
+                $repl = "`${1}" + $introJson.Trim() + "`$2"
+                $content = $content -replace '(?s)(<script type="application/json" id="intro-tracks-json">).*?(</script>)', $repl
+                $changed = $true
+            }
+        }
         $changed = $true
     }
     if ($changed) {
