@@ -1,4 +1,4 @@
-// deploy-version: 4
+// deploy-version: 5
 const activeTimerColor = "blue";
 const inactiveTimerColor = "DarkGray";
 const emergingTimerColor = "OrangeRed";
@@ -53,6 +53,27 @@ var audioGudok= new Audio("assets\\Sound\\Gudok.mp3");
 var audioTicking= new Audio("assets\\Sound\\clock_ticking.mp3");
 var audioDrumRoll = new Audio("assets/Sound/Drum_roll.mp3");
 var audioApplause = new Audio("assets/Sound/applause.mp3");
+
+// Жребий с интро: список треков из встроенного в HTML script#intro-tracks-json (при деплое подставляется из list.json)
+var introTracksList = [];
+var selectedIntroTrack = "";
+var introBlinkTimeoutId = null;
+var introFinishTimeoutId = null;
+var audioIntro = null;
+
+(function() {
+    var el = document.getElementById("intro-tracks-json");
+    if (el && el.textContent) {
+        try {
+            var arr = JSON.parse(el.textContent.trim());
+            if (Array.isArray(arr) && arr.length > 0) introTracksList = arr;
+        } catch (e) {}
+    }
+    if (introTracksList.length === 0) {
+        introTracksList = ["Bad_To_The_Bone.mp3","Baba_O_Riley.mp3","Cant_Stop.mp3","Deutschland.mp3","Eye_Of_The_Tiger.mp3","Jamming.mp3","Masha_i_medvedi.mp3","Misirlou.mp3","Peremen.mp3","Stop_the_Rock.mp3","Sweet_Home_Alabama.mp3","Tatarskaya_plyasovaya.mp3"];
+    }
+})();
+var introTracksListFallback = introTracksList.slice();
 
 /*--------------------------Оценки судей ----------------------------*/
 
@@ -356,32 +377,111 @@ function initTimers() {
 
 /*---------------------Dice ---------------------------------*/
 
-function dice() {
-    var qty=1;
-    blinking(1600 + Math.ceil(Math.random() * 1000), 200,qty)
-}
-
-function blinking(count, step,qty) {
-    const a = document.getElementById("Player1Name").value;
-    const b = document.getElementById("Player2Name").value;
-
-    document.getElementById("Player1Name").value = b;
-    document.getElementById("Player2Name").value = a ;
-    if (duelsList)
-     {
-      duelsList[currentDuel].Player1 = b;
-      duelsList[currentDuel].Player2 = a;
-     } 
-    var newPlayer= qty % 2 +1;
-    setPlayer (newPlayer);
+function finishDice() {
+    if (introBlinkTimeoutId !== null) {
+        clearTimeout(introBlinkTimeoutId);
+        introBlinkTimeoutId = null;
+    }
+    if (introFinishTimeoutId !== null) {
+        clearTimeout(introFinishTimeoutId);
+        introFinishTimeoutId = null;
+    }
+    if (audioIntro) {
+        stopAudio(audioIntro);
+        audioIntro = null;
+    }
+    var whoStarts = Math.random() < 0.5 ? 1 : 2;
+    setPlayer(whoStarts);
     highlightPlayer();
-    count = count - step; 
-        qty++;
-        if (count > 0) {
-        setTimeout(() => {blinking(count, step,qty)}, step);
-        }
-        else { initTimers();  }
+    initTimers();
+    document.getElementById("dice_button").disabled = false;
 }
+
+function blinkingIntroStep(qty) {
+    var a = document.getElementById("Player1Name").value;
+    var b = document.getElementById("Player2Name").value;
+    document.getElementById("Player1Name").value = b;
+    document.getElementById("Player2Name").value = a;
+    if (duelsList && duelsList[currentDuel]) {
+        duelsList[currentDuel].Player1 = b;
+        duelsList[currentDuel].Player2 = a;
+    }
+    var newPlayer = (qty % 2) + 1;
+    setPlayer(newPlayer);
+    highlightPlayer();
+    introBlinkTimeoutId = setTimeout(function() { blinkingIntroStep(qty + 1); }, 200);
+}
+
+function dice() {
+    if (introBlinkTimeoutId !== null || (audioIntro && !audioIntro.paused)) {
+        finishDice();
+        return;
+    }
+    document.getElementById("dice_button").disabled = true;
+    var list = introTracksList.length > 0 ? introTracksList : introTracksListFallback;
+    var trackFile = (!selectedIntroTrack || selectedIntroTrack === "random") && list.length > 0
+        ? list[Math.floor(Math.random() * list.length)]
+        : selectedIntroTrack;
+    if (soundsEnabled && trackFile) {
+        var path = "assets/Sound/intro/" + trackFile;
+        audioIntro = new Audio(path);
+        audioIntro.addEventListener("ended", function onEnded() {
+            audioIntro.removeEventListener("ended", onEnded);
+            finishDice();
+        });
+        audioIntro.play().catch(function() { finishDice(); });
+        blinkingIntroStep(1);
+    } else {
+        var duration = 1600 + Math.ceil(Math.random() * 1000);
+        blinkingIntroStep(1);
+        introFinishTimeoutId = setTimeout(finishDice, duration);
+    }
+}
+
+document.getElementById("dice_button").addEventListener("contextmenu", function(ev) {
+    ev.preventDefault();
+    var menu = document.getElementById("dice_intro_menu");
+    menu.innerHTML = "";
+    var list = introTracksList.length > 0 ? introTracksList : introTracksListFallback;
+    var li0 = document.createElement("li");
+    var a0 = document.createElement("a");
+    a0.className = "dropdown-item";
+    a0.href = "#";
+    a0.textContent = "Случайный";
+    a0.dataset.track = "random";
+    li0.appendChild(a0);
+    menu.appendChild(li0);
+    for (var i = 0; i < list.length; i++) {
+        var f = list[i];
+        var li = document.createElement("li");
+        var a = document.createElement("a");
+        a.className = "dropdown-item";
+        a.href = "#";
+        a.textContent = f.replace(/\.mp3$/i, "");
+        a.dataset.track = f;
+        li.appendChild(a);
+        menu.appendChild(li);
+    }
+    menu.style.left = "0";
+    menu.style.top = "100%";
+    menu.classList.add("show");
+    function chooseTrack(track) {
+        selectedIntroTrack = track;
+        menu.classList.remove("show");
+        document.removeEventListener("click", closeMenu);
+    }
+    function closeMenu() {
+        menu.classList.remove("show");
+        document.removeEventListener("click", closeMenu);
+    }
+    menu.querySelectorAll(".dropdown-item").forEach(function(el) {
+        el.addEventListener("click", function(e) {
+            e.preventDefault();
+            chooseTrack(el.dataset.track);
+        });
+    });
+    setTimeout(function() { document.addEventListener("click", closeMenu); }, 0);
+});
 
 
 
@@ -1068,5 +1168,6 @@ function toggeSound()
         stopAudio(audioGudok);
         stopAudio(audioDrumRoll);
         stopAudio(audioApplause);
+        if (audioIntro) { stopAudio(audioIntro); }
     }
 }
