@@ -42,7 +42,7 @@ if (-not $remoteDir) { $remoteDir = "timer.zaborov.ru/www" }
 
 # Исключения из выкладки: из env или значения по умолчанию
 $defaultExcludeRoots = '.git', 'secrets.env', 'scripts', '.gitignore', '.cursor', 'node_modules', 'History.log', '.vscode', 'git_hint.txt', 'Таблицы для онлайнов'
-$defaultExcludeFiles = 'secrets.env', '.gitignore', 'History.log', 'git_hint.txt', 'Макет часов.vsdx'
+$defaultExcludeFiles = 'secrets.env', 'secrets.env.example', '.gitignore', 'History.log', 'git_hint.txt', 'Макет часов.vsdx'
 $excludeRoot = if ($env:DEPLOY_EXCLUDE_ROOTS) { $env:DEPLOY_EXCLUDE_ROOTS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' } } else { $defaultExcludeRoots }
 $excludeFiles = if ($env:DEPLOY_EXCLUDE_FILES) { $env:DEPLOY_EXCLUDE_FILES -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' } } else { $defaultExcludeFiles }
 
@@ -182,21 +182,38 @@ if ($toUpload.Count -eq 0) {
     exit 0
 }
 
-# Перед загрузкой обновляем версию в index.html (дата выкладки), чтобы на проде видеть свежесть и сбросить кэш
-$indexPath = Join-Path $root "index.html"
-if (Test-Path $indexPath) {
-    $content = Get-Content $indexPath -Raw -Encoding UTF8
-    if ($content -match 'deploy-version:\s*(\d{8})') {
-        $oldVer = $matches[1]
-        $newVer = Get-Date -Format "yyyyMMdd"
-        if ($oldVer -ne $newVer) {
-            $content = $content -replace [regex]::Escape($oldVer), $newVer
-            $content | Set-Content $indexPath -NoNewline -Encoding UTF8
-            Write-Host "Версия в index.html обновлена: $oldVer -> $newVer" -ForegroundColor Cyan
-            $idxInUpload = $toUpload | Where-Object { $_.RelativePath -eq "index.html" }
-            if (-not $idxInUpload) {
-                $toUpload += [PSCustomObject]@{ LocalPath = $indexPath; RelativePath = "index.html"; Size = (Get-Item $indexPath).Length }
-            }
+# Перед загрузкой увеличиваем счётчик версии и подставляем во все файлы с кодом
+$versionFile = Join-Path $root "version.txt"
+$currentVer = 0
+if (Test-Path $versionFile) {
+    $currentVer = [int](Get-Content $versionFile -Raw).Trim()
+}
+$newVer = $currentVer + 1
+Set-Content $versionFile -Value ([string]$newVer) -NoNewline -Encoding UTF8
+Write-Host "Версия выкладки: $newVer" -ForegroundColor Cyan
+
+$versionedFiles = @("index.html", "js/timer-code.js", "css/timer.css")
+foreach ($rel in $versionedFiles) {
+    $fp = Join-Path $root $rel
+    if (-not (Test-Path $fp)) { continue }
+    $content = Get-Content $fp -Raw -Encoding UTF8
+    $changed = $false
+    if ($content -match 'deploy-version:\s*\d+') {
+        $content = $content -replace '(deploy-version:\s*)\d+', "`${1}$newVer"
+        $changed = $true
+    }
+    if ($rel -eq "index.html") {
+        $content = $content -replace '\?v=\d+', "?v=$newVer"
+        $content = $content -replace '(Версия: )\d+', "`${1}$newVer"
+        $content = $content -replace '(v )\d+(\s*</div>)', "`${1}$newVer`$2"
+        $changed = $true
+    }
+    if ($changed) {
+        $content | Set-Content $fp -NoNewline -Encoding UTF8
+        Write-Host "  $rel -> $newVer" -ForegroundColor Gray
+        $inUpload = $toUpload | Where-Object { $_.RelativePath -eq $rel }
+        if (-not $inUpload) {
+            $toUpload += [PSCustomObject]@{ LocalPath = $fp; RelativePath = $rel; Size = (Get-Item $fp).Length }
         }
     }
 }
