@@ -1,4 +1,4 @@
-/* deploy-version: 5 */
+/* deploy-version: 6 */
 @keyframes pulse {
   0%  { opacity: 0;  transform: scale(0.2);}
   20% { opacity: 0.3; transform: scale(0.4);}
@@ -103,6 +103,11 @@ html, body {
   color:  #6468ff;
   font-size: 36px;
   text-align: center;
+}
+
+#dice_button.dice-busy {
+  opacity: 0.6;
+  cursor: pointer;
 }
 
 #name-and-role__icon {
