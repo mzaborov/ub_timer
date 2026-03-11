@@ -1,12 +1,15 @@
-# Скрипт для коммита изменений сессии.
-# Сообщение коммита передаётся параметром -Message или первым позиционным аргументом.
-# Пример: .\commit_session.ps1 -Message "Описание изменений"
-#         .\commit_session.ps1 "Краткое описание"
+# Коммит изменений сессии (сообщение — обязательно).
+# Запуск из корня репо: .\scripts\commit_session.ps1 "Описание изменений"
+#         .\scripts\commit_session.ps1 -Message "Описание"
 
 param(
     [Parameter(Mandatory = $true, Position = 0)]
     [string]$Message
 )
+
+$ErrorActionPreference = "Stop"
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+Set-Location $repoRoot
 
 Write-Host "=== Проверка изменений ===" -ForegroundColor Cyan
 git status --short
