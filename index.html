@@ -7,11 +7,18 @@
     <title>Часы для управленческих поединков</title>  
     <meta name="description" content="Часы для проведения управленческих поединков Онлайн "/>
     <meta name="keywords" content="часы, управленческий поединок, поединок, шахматные часы"/>
-    <link rel="shortcut icon" href="assets/Img/favicon.png" type="image/x-icon" id="favicon">
+    <!-- Иконка: красная = тест/локально, чёрная = прод (и во вкладке, и в закладках) -->
+    <link rel="shortcut icon" href="assets/Img/favicon-local.png" type="image/x-icon" id="favicon">
     <script>
-      (function(){ var h = location.hostname; if (h !== 'timer.zaborov.ru' && h !== 'www.timer.zaborov.ru') {
-        document.getElementById('favicon').href = 'assets/Img/favicon-local.png';
-      }})();
+      (function(){
+        var f = document.getElementById('favicon');
+        var h = location.hostname;
+        if (h === 'timer.zaborov.ru' || h === 'www.timer.zaborov.ru') {
+          f.href = 'assets/Img/favicon.png';
+        } else if (location.protocol === 'file:') {
+          f.href = new URL('assets/Img/favicon-local.png', location.href).href;
+        }
+      })();
     </script>
     <link rel="stylesheet" href="fontawesome/css/fontawesome.css?v=3">
     <link rel="stylesheet" href="fontawesome/css/all.css?v=3">
