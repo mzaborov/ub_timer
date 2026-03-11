@@ -1,3 +1,4 @@
 .vscode/
 git_hint.txt
 .gitignore
+secrets.env

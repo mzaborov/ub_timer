@@ -679,6 +679,103 @@ function triggerClick() {
     JSON_File.click()
 }
 
+/** По первой строке листа строит карту: имя заголовка → буква столбца (A, B, …, Z, AA, …). */
+function getHeaderToColumnMap(worksheet) {
+    var map = {};
+    for (var key in worksheet) {
+        if (!worksheet.hasOwnProperty(key) || key[0] === '!') continue;
+        var match = key.match(/^([A-Z]+)(\d+)$/i);
+        if (!match) continue;
+        var colLetters = match[1];
+        var rowNum = parseInt(match[2], 10);
+        if (rowNum !== 1) continue;
+        var cell = worksheet[key];
+        var header = (cell && (cell.v != null)) ? String(cell.v).trim() : '';
+        if (header) map[header] = colLetters.toUpperCase();
+    }
+    return map;
+}
+
+/** Адрес ячейки в формате "Лист1!F5". rowIndex — индекс строки в массиве (0 = вторая строка в Excel). */
+function getCellAddress(sheetName, headerToColumn, headerName, rowIndex) {
+    var col = headerToColumn[headerName];
+    var excelRow = rowIndex + 2;
+    if (!col) return sheetName + '!?' + excelRow + ' (столбец "' + headerName + '")';
+    return sheetName + '!' + col + excelRow;
+}
+
+/** Из сообщения SyntaxError извлекает позицию, например "position 416" → 416. */
+function getJsonErrorPosition(err) {
+    if (!err || !err.message) return null;
+    var m = err.message.match(/position\s+(\d+)/i) || err.message.match(/позици[яи]\s+(\d+)/i);
+    return m ? parseInt(m[1], 10) : null;
+}
+
+/** Возвращает фрагмент строки вокруг позиции ошибки с пометкой «▼». radius — символов до/после. Переносы в выводе заменяются на пробел. */
+function getSnippetAroundPosition(str, pos, radius) {
+    if (str == null || str === '') return '(пустая строка)';
+    var s = String(str);
+    var r = (radius == null || radius < 0) ? 35 : radius;
+    var posVal = (pos == null || pos < 0) ? 0 : Math.min(pos, s.length);
+    var start = Math.max(0, posVal - r);
+    var end = Math.min(s.length, posVal + r + 1);
+    var before = s.slice(start, posVal).replace(/\r\n?|\n/g, ' ');
+    var after = s.slice(posVal, end).replace(/\r\n?|\n/g, ' ');
+    var left = start > 0 ? '…' : '';
+    var right = end < s.length ? '…' : '';
+    return left + before + '▼' + after + right;
+}
+
+/** Показывает блок диагностики загрузки (ошибки/предупреждения). */
+function showLoadDiagnostics(fileName, errors, warnings, summary) {
+    var block = document.getElementById('load-diagnostics');
+    if (!block) return;
+    block.style.display = 'none';
+    block.innerHTML = '';
+    if (!errors.length && !warnings.length) return;
+    block.style.display = 'block';
+    block.classList.remove('alert-success', 'alert-warning', 'alert-danger');
+    if (errors.length) block.classList.add('alert-danger');
+    else if (warnings.length) block.classList.add('alert-warning');
+    else block.classList.add('alert-success');
+    var title = document.createElement('strong');
+    title.textContent = 'Диагностика загрузки: ' + fileName;
+    block.appendChild(title);
+    block.appendChild(document.createElement('br'));
+    if (summary) {
+        var p = document.createElement('p');
+        p.className = 'mb-1 mt-1';
+        p.textContent = summary;
+        block.appendChild(p);
+    }
+    if (errors.length) {
+        var errTitle = document.createElement('strong');
+        errTitle.textContent = 'Ошибки:';
+        block.appendChild(errTitle);
+        var ul = document.createElement('ul');
+        ul.className = 'mb-1 mt-1';
+        errors.forEach(function (text) {
+            var li = document.createElement('li');
+            li.textContent = text;
+            ul.appendChild(li);
+        });
+        block.appendChild(ul);
+    }
+    if (warnings.length) {
+        var warnTitle = document.createElement('strong');
+        warnTitle.textContent = 'Предупреждения:';
+        block.appendChild(warnTitle);
+        var ul = document.createElement('ul');
+        ul.className = 'mb-1 mt-1';
+        warnings.forEach(function (text) {
+            var li = document.createElement('li');
+            li.textContent = text;
+            ul.appendChild(li);
+        });
+        block.appendChild(ul);
+    }
+}
+
 function processDuelsJson(file) {
     const fileName = document.getElementById('file-name');
     const duelChooser = document.getElementById('duel-chooser');
@@ -708,48 +805,86 @@ function loadFile(event) {
     //var file = event.target.files[0];
     if (file) {
         var reader = new FileReader();
-        duelsList = {};
+        duelsList = [];
         var fileExtension = file.name.split('.').pop();
         if (fileExtension === 'xlsx') {
             reader.onload = function handleFileLoad() {
-                var arrayBuffer = this.result,
-                    array = new Uint8Array(arrayBuffer),
-                    binaryString = String.fromCharCode.apply(null, array);
-                /* Call XLSX */
-                var workbook = XLSX.read(binaryString, { type: "binary" });
-                /* DO SOMETHING WITH workbook HERE */
-                var first_sheet_name = workbook.SheetNames[0];
-                /* Get worksheet */
-                var worksheet = workbook.Sheets[first_sheet_name];
-                duelsList = XLSX.utils.sheet_to_json(worksheet, { raw: true });
-                for (var i in duelsList) {
-                      var duel = duelsList[i];
-                    // Пропускаем пустые строки (где нет обязательных полей)
-                    if (!duel.DuelNum && !duel.SituationNum && !duel.SituationRoles) {
-                        continue;
+                var errors = [], warnings = [];
+                try {
+                    var arrayBuffer = this.result,
+                        array = new Uint8Array(arrayBuffer),
+                        binaryString = String.fromCharCode.apply(null, array);
+                    var workbook = XLSX.read(binaryString, { type: "binary" });
+                    var first_sheet_name = workbook.SheetNames[0];
+                    var worksheet = workbook.Sheets[first_sheet_name];
+                    var headerToColumn = getHeaderToColumnMap(worksheet);
+                    duelsList = XLSX.utils.sheet_to_json(worksheet, { raw: true });
+                    var validRows = [];
+                    for (var i = 0; i < duelsList.length; i++) {
+                        var duel = duelsList[i];
+                        if (!duel.DuelNum && !duel.SituationNum && !duel.SituationRoles) continue;
+                        if (duel.SituationRoles && typeof duel.SituationRoles === 'string') {
+                            var rawRoles = duel.SituationRoles;
+                            try {
+                                duel.SituationRoles = JSON.parse(rawRoles.trim().replace(/^"(.*)"$/, '$1'));
+                            } catch (parseErr) {
+                                var cellAddr = getCellAddress(first_sheet_name, headerToColumn, 'SituationRoles', i);
+                                var pos = getJsonErrorPosition(parseErr);
+                                var duelNum = duel.DuelNum != null ? duel.DuelNum : (i + 1);
+                                var situationPart = (duel.SituationName && duel.SituationName.toString().trim()) ? ' «' + String(duel.SituationName).trim() + '»' : (duel.SituationNum != null ? ' №' + duel.SituationNum : '');
+                                var playersPart = (duel.Player1 || duel.Player2) ? (String(duel.Player1 || '').trim() + ' / ' + String(duel.Player2 || '').trim()) : '';
+                                var msg = 'Поединок ' + duelNum + '. Ситуация:' + (situationPart || ' —') + (playersPart ? '. Игроки: ' + playersPart : '') + '. Роли в ячейке ' + cellAddr + ': невалидный JSON.';
+                                if (pos != null) msg += ' Позиция в строке: ' + pos + '.';
+                                msg += ' Фрагмент: «' + getSnippetAroundPosition(rawRoles, pos, 30) + '»';
+                                errors.push(msg);
+                                console.error('loadFile xlsx: ' + msg, parseErr);
+                                continue;
+                            }
+                        }
+                        validRows.push(duel);
                     }
-    
-                    // Обрабатываем только строки с данными
-                    if (duel.SituationRoles && typeof duel.SituationRoles === 'string') {
-                        duel.SituationRoles = JSON.parse(duel.SituationRoles.trim().replace(/^"(.*)"$/, '$1'));
-                    }
-               };
-                processDuelsJson(file);
+                    duelsList = validRows;
+                    var summary = 'Загружено дуэлей: ' + duelsList.length + '.';
+                    if (errors.length) summary += ' Ошибок: ' + errors.length + '.';
+                    if (warnings.length) summary += ' Предупреждений: ' + warnings.length + '.';
+                    showLoadDiagnostics(file.name, errors, warnings, summary);
+                    if (errors.length) console.warn('Диагностика xlsx:', { errors: errors, warnings: warnings });
+                    processDuelsJson(file);
+                } catch (e) {
+                    errors.push('Не удалось прочитать файл как xlsx: ' + (e.message || e));
+                    showLoadDiagnostics(file.name, errors, warnings, null);
+                    console.error('loadFile xlsx', e);
+                }
             };
             reader.readAsArrayBuffer(file);
         }
         else if (fileExtension === 'json') {
             reader.onload = function handleFileLoad(evt) {
-                duelsList = JSON.parse(evt.target.result);
-                processDuelsJson(file);
-            }
+                var errors = [], warnings = [];
+                try {
+                    duelsList = JSON.parse(evt.target.result);
+                    showLoadDiagnostics(file.name, [], [], 'Файл JSON загружен. Дуэлей: ' + (duelsList ? duelsList.length : 0) + '.');
+                    processDuelsJson(file);
+                } catch (e) {
+                    var pos = getJsonErrorPosition(e);
+                    var msg = 'Файл не является валидным JSON: ' + (e.message || e);
+                    if (pos != null) msg += ' (позиция в файле: ' + pos + ')';
+                    errors.push(msg);
+                    showLoadDiagnostics(file.name, errors, warnings, null);
+                    console.error('loadFile json', e);
+                }
+            };
             reader.readAsText(file, "UTF-8");
         }
         else {
             alert('Unsupported file format. Please select a .xlsx or .json file.');
         }
 
-        reader.onerror = function (evt) { console.error(evt); }
+        reader.onerror = function (evt) {
+            var msg = 'Не удалось прочитать файл с диска.';
+            showLoadDiagnostics((file && file.name) || 'файл', [msg], [], null);
+            console.error('loadFile reader error', evt);
+        };
     }
 }
 
