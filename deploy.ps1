@@ -39,7 +39,7 @@ $rootUri = "ftp://$hostFtp"
 $remoteBase = $remoteDir.TrimEnd('/')
 
 # Элементы в корне, которые не выкладываем (остальное, включая assets/, css/, js/, fontawesome/, — заливаем)
-$excludeRoot = @('.git', 'secrets.env', 'deploy.ps1', 'commit_session.ps1', '.gitignore', '.cursor', 'node_modules', 'History.log', '.vscode', 'git_hint.txt')
+$excludeRoot = @('.git', 'secrets.env', 'deploy.ps1', 'commit_session.ps1', '.gitignore', '.cursor', 'node_modules', 'History.log', '.vscode', 'git_hint.txt', 'Таблицы для онлайнов')
 
 function Get-FtpListingRecursive {
     param([string]$baseUri, [PSCredential]$cred, [string]$path, [string]$prefix, [switch]$Silent)
@@ -134,7 +134,7 @@ Get-ChildItem -Path $root -Recurse -File | ForEach-Object {
     $relParts = $rel -split '/'
     if ($relParts[0] -in $excludeRoot) { return }
     if ($relParts -contains '.git' -or $relParts -contains 'node_modules' -or $relParts -contains '.cursor') { return }
-    if ($rel -in @('secrets.env', 'deploy.ps1', 'commit_session.ps1', '.gitignore', 'History.log', 'git_hint.txt')) { return }
+    if ($rel -in @('secrets.env', 'deploy.ps1', 'commit_session.ps1', '.gitignore', 'History.log', 'git_hint.txt', 'Макет часов.vsdx')) { return }
     $size = $_.Length
     $remoteSize = $remoteNormalized[$rel]
     if ($null -eq $remoteSize -or $remoteSize -ne $size) {
@@ -149,7 +149,7 @@ Get-ChildItem -Path $root -Recurse -File | ForEach-Object {
     $relParts = $rel -split '/'
     if ($relParts[0] -in $excludeRoot) { return }
     if ($relParts -contains '.git' -or $relParts -contains 'node_modules' -or $relParts -contains '.cursor') { return }
-    if ($rel -in @('secrets.env', 'deploy.ps1', 'commit_session.ps1', '.gitignore', 'History.log', 'git_hint.txt')) { return }
+    if ($rel -in @('secrets.env', 'deploy.ps1', 'commit_session.ps1', '.gitignore', 'History.log', 'git_hint.txt', 'Макет часов.vsdx')) { return }
     $localPaths[$rel] = $_.Length
 }
 
