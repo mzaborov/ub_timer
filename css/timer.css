@@ -1,4 +1,4 @@
-/* deploy-version: 8 */
+/* deploy-version: 9 */
 @keyframes pulse {
   0%  { opacity: 0;  transform: scale(0.2);}
   20% { opacity: 0.3; transform: scale(0.4);}
@@ -57,6 +57,19 @@ body {
 html, body {
   width: 100%;
   height: 100%;
+  overflow: hidden;
+}
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+body > #restore-protocol-banner {
+  flex-shrink: 0;
+}
+body > .body {
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 
@@ -71,6 +84,7 @@ html, body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .centered {
@@ -83,10 +97,11 @@ html, body {
 
 .header {
   padding-top: 20px;
+  flex-shrink: 0;
 }
 
 .header-logo {
-  width:300px; 
+  width: 300px;
   margin-top: -25px;
 }
 
@@ -97,6 +112,7 @@ html, body {
   margin-top: 20px; 
   padding-bottom: 20px;
   background-color: #f6f6f6;
+  flex-shrink: 0;
 }
 
 .name-and-role__dice {
@@ -128,7 +144,8 @@ body.dice-blink-active #Player2Label {
   padding-bottom: 20px;
   background-color: #f6f6f6;
   position: relative;
-  z-index: 5; /* ← ТАЙМЕРЫ НАВЕРХУ — ВИДНЫ И КЛИКАБЕЛЬНЫ */  
+  z-index: 5; /* ← ТАЙМЕРЫ НАВЕРХУ — ВИДНЫ И КЛИКАБЕЛЬНЫ */
+  flex-shrink: 0;
 }
 
 
@@ -173,11 +190,122 @@ body.dice-blink-active #Player2Label {
 }
 /* block carousel */
 
-.carousel-block{
-  flex-basis: 100%;
+.carousel-block {
+  flex: 1 1 0;
+  min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+/* Элементы с классом mobile-only по умолчанию скрыты; на мобильном показываются в timer-mobile.css */
+.mobile-only {
+  display: none;
 }
 
-.carousel-inner {
- 
+/* ========== ДЕСКТОП (≥993px): всё с классом .mobile-only не показываем. Десктоп не трогаем при правках мобилки. ========== */
+@media (min-width: 993px) {
+  .mobile-only {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    position: absolute !important;
+    left: -9999px !important;
+  }
+  .carousel-block {
+    display: flex !important;
+  }
+  body.situation-fullscreen .body > .carousel-block {
+    display: flex !important;
+  }
+}
+
+.carousel-block > div {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.carousel-block .carousel-inner {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Подсказка «Поверните устройство» — по умолчанию скрыта, показывается в мобильном CSS при портрете */
+.rotate-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #2c2c2c;
+  color: #fff;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  box-sizing: border-box;
+}
+.rotate-overlay__icon {
+  position: relative;
+  color: rgba(255,255,255,0.9);
+}
+.rotate-overlay__arrows {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: rgba(255,255,255,0.6);
+  animation: rotate-overlay-spin 2s ease-in-out infinite;
+}
+@keyframes rotate-overlay-spin {
+  0%, 100% { transform: translate(-50%, -50%) rotate(-90deg); }
+  50% { transform: translate(-50%, -50%) rotate(0deg); }
+}
+.rotate-overlay__text {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+.rotate-overlay__hint {
+  font-size: 0.9rem;
+  opacity: 0.85;
+  margin: 0;
+  text-align: center;
+}
+
+/* Скрытый блок с кредитом — не занимает место в потоке */
+.credit-hidden {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  clip: rect(0, 0, 0, 0);
+}
+
+/* Модалка «Поединок завершен»: блок с кнопками судей шире, кнопки компактные */
+#finishDuelModal .modal-body:has(.referee-categories-row) {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+#finishDuelModal .referee-category .btn-group .btn {
+  min-width: 6rem;
+  padding: 0.35rem 0.6rem;
+}
+
+/* Номер версии выкладки — малозаметно в углу */
+.app-version {
+  position: fixed;
+  bottom: 4px;
+  right: 8px;
+  font-size: 0.7rem;
+  opacity: 0.65;
+  color: #999;
+  z-index: 1000;
+  pointer-events: none;
+  margin: 0;
 }

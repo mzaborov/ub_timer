@@ -1,4 +1,4 @@
-// deploy-version: 8
+// deploy-version: 9
 const activeTimerColor = "blue";
 const inactiveTimerColor = "DarkGray";
 const emergingTimerColor = "OrangeRed";
@@ -1230,6 +1230,21 @@ function ShowHideSituationInfo() {
         document.getElementById("SituationText").style.visibility = 'visible';
     }
 
+    // Мобилка: по чекбоксу газеты прятать/показывать кнопку «Показать ситуацию»
+    var bar = document.getElementById("situation-toggle-bar");
+    if (bar && window.matchMedia("(max-width: 992px)").matches) {
+        bar.classList.toggle("situation-toggle-bar-hidden", !document.getElementById("hide_text").checked);
+    }
+}
+
+/** Открыть текст ситуации на весь экран (мобильная вёрстка). «Показать ситуацию» вызывает это. */
+function openSituationFullscreen() {
+    document.body.classList.add('situation-fullscreen');
+}
+
+/** Закрыть полноэкранный режим текста ситуации (мобильная вёрстка). */
+function closeSituationFullscreen() {
+    document.body.classList.remove('situation-fullscreen');
 }
 
 /*---------------------звук ---------------------------------*/
@@ -1361,6 +1376,10 @@ function buildProtocolAndDownload() {
     var ws = XLSX.utils.aoa_to_sheet(rows);
     XLSX.utils.book_append_sheet(wb, ws, "Протокол");
     XLSX.writeFile(wb, "Протокол " + name + ".xlsx");
+    try {
+        localStorage.removeItem(PROTOCOL_STORAGE_KEY);
+    } catch (e) {}
+    hideRestoreProtocolBanner();
 }
 
 function showRestoreProtocolBanner() {
@@ -1373,12 +1392,35 @@ function hideRestoreProtocolBanner() {
     if (el) el.style.display = "none";
 }
 
+function clearProtocolStateAndHideBanner() {
+    try {
+        localStorage.removeItem(PROTOCOL_STORAGE_KEY);
+    } catch (e) {}
+    hideRestoreProtocolBanner();
+}
+
+function hasProtocolRealData(duels) {
+    if (!duels || !Array.isArray(duels)) return false;
+    for (var i = 0; i < duels.length; i++) {
+        var d = duels[i];
+        if (d.Winner != null && String(d.Winner).trim() !== "") return true;
+        if (d.RoundDurations && d.RoundDurations.length > 0) return true;
+        if (d.JudgeVotes && Array.isArray(d.JudgeVotes)) {
+            for (var j = 0; j < d.JudgeVotes.length; j++) {
+                if (d.JudgeVotes[j] === 1 || d.JudgeVotes[j] === 2) return true;
+            }
+        }
+    }
+    return false;
+}
+
 (function checkRestoreProtocolOnLoad() {
     try {
         var raw = localStorage.getItem(PROTOCOL_STORAGE_KEY);
         if (!raw) return;
         var data = JSON.parse(raw);
         if (!data.duelsList || !Array.isArray(data.duelsList) || data.duelsList.length === 0) return;
+        if (!hasProtocolRealData(data.duelsList)) return;
         if (duelsList && duelsList.length > 0) return;
         showRestoreProtocolBanner();
     } catch (e) {}

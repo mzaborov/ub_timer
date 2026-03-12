@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: 8 — счётчик выкладок, обновляется скриптом -->
+<!-- deploy-version: 9 — счётчик выкладок, обновляется скриптом -->
 <html lang="en">
 
 <head>
@@ -20,10 +20,11 @@
         }
       })();
     </script>
-    <link rel="stylesheet" href="fontawesome/css/fontawesome.css?v=8">
-    <link rel="stylesheet" href="fontawesome/css/all.css?v=8">
-    <link rel="stylesheet" href="css/timer.css?v=8">
-    <script src="js/donutty.js?v=8"></script>
+    <link rel="stylesheet" href="fontawesome/css/fontawesome.css?v=9">
+    <link rel="stylesheet" href="fontawesome/css/all.css?v=9">
+    <link rel="stylesheet" href="css/timer.css?v=9">
+    <link rel="stylesheet" href="css/timer-mobile.css?v=9" media="(max-width: 992px)">
+    <script src="js/donutty.js?v=9"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
         integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
@@ -33,6 +34,24 @@
 </head>
 
 <body>
+    <!-- Подсказка при портретной ориентации на мобильном: только альбомная -->
+    <div id="rotate-device-overlay" class="rotate-overlay" aria-hidden="true">
+        <div class="rotate-overlay__icon" aria-hidden="true">
+            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+                <path d="M12 18h.01"/>
+                <path d="M9 6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v0"/>
+            </svg>
+            <svg class="rotate-overlay__arrows" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1 6.74-2.74L21 16"/>
+                <path d="M21 21v-5h-5"/>
+            </svg>
+        </div>
+        <p class="rotate-overlay__text">Поверните устройство</p>
+        <p class="rotate-overlay__hint">Для работы таймера нужна альбомная ориентация</p>
+    </div>
     <!-- Yandex.Metrika counter -->
    <script type="text/javascript" >
         (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
@@ -56,6 +75,7 @@
         Восстановить последний онлайн?
         <button type="button" class="btn btn-sm btn-primary ms-2" onclick="restoreProtocolStateFromLocalStorage()">Да</button>
         <button type="button" class="btn btn-sm btn-outline-secondary ms-1" onclick="hideRestoreProtocolBanner()">Нет</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary ms-1" onclick="clearProtocolStateAndHideBanner()">Очистить</button>
     </div>
     <div class="body">
 
@@ -242,9 +262,14 @@
             </div>
         </div>
 
+        <!-- Мобильная вёрстка: «Показать ситуацию» = сразу на весь экран; только 2 режима: скрыт и на весь экран -->
+        <div class="situation-toggle-bar mobile-only" id="situation-toggle-bar">
+            <button type="button" class="btn btn-outline-primary btn-sm" onclick="openSituationFullscreen()">Показать ситуацию</button>
+        </div>
 
         <!-- текст ситуации -->
         <div class="carousel-block" id="SituationText">
+            <button type="button" class="btn btn-outline-secondary btn-sm situation-fullscreen-close mobile-only" onclick="closeSituationFullscreen()" title="Закрыть">Закрыть</button>
             <div style="height: 100%;" id="carouselControls" class="carousel slide " data-bs-theme="dark"
                 data-bs-interval="false">
                 <div style="height: 100%; overflow: auto; padding: 20px 0;" class="carousel-inner">
@@ -318,29 +343,33 @@
                 <div class="modal-header justify-content-center ">
                     <h1 class="modal-title fs-5" id="finishDuelModalLabel">Поединок завершен</h1>
                 </div>
-                <div class="modal-body  justify-content-center">
-                    <div class="row">
-                        <div class="col text-center fw-semibold">Нанимающиеся на работу</div>
-                        <div class="col text-center fw-semibold">Отправляющие на переговоры</div>
-                        <div class="col text-center fw-semibold">Доверяющие собственность</div>
-                    </div>
-                    <div class="btn-toolbar row text-center" role="toolbar" title="Судьи">
-                        <div class="btn-group col me-2" role="group" title="Нанимающиеся на работу">
-                            <button type="button" class="btn  btn-sm" id="refBut0" onclick="setReferee(0)"></button>
-                            <button type="button" class="btn btn-sm" id="refBut1" onclick="setReferee(1)"></button>
-                            <button type="button" class="btn btn-sm" id="refBut2" onclick="setReferee(2)"> </button>
+                <div class="modal-body justify-content-center">
+                    <div class="row referee-categories-row text-center" role="toolbar" title="Судьи">
+                        <div class="col referee-category" title="Нанимающиеся на работу">
+                            <div class="fw-semibold referee-category-label">Нанимающиеся на работу</div>
+                            <div class="btn-group mt-1" role="group">
+                                <button type="button" class="btn btn-sm" id="refBut0" onclick="setReferee(0)"></button>
+                                <button type="button" class="btn btn-sm" id="refBut1" onclick="setReferee(1)"></button>
+                                <button type="button" class="btn btn-sm" id="refBut2" onclick="setReferee(2)"></button>
+                            </div>
                         </div>
-                        <div class="btn-group col me-2" role="group" title="Отправляющие на переговоры">
-                            <button type="button" class="btn btn-sm" id="refBut3" onclick="setReferee(3)"></button>
-                            <button type="button" class="btn btn-sm" id="refBut4" onclick="setReferee(4)"></button>
-                            <button type="button" class="btn btn-sm" id="refBut5" onclick="setReferee(5)"></button>
-                            <button type="button" class="btn btn-sm" id="refBut6" onclick="setReferee(6)"></button>
-                            <button type="button" class="btn btn-sm" id="refBut7" onclick="setReferee(7)"></button>
+                        <div class="col referee-category" title="Отправляющие на переговоры">
+                            <div class="fw-semibold referee-category-label">Отправляющие на переговоры</div>
+                            <div class="btn-group mt-1" role="group">
+                                <button type="button" class="btn btn-sm" id="refBut3" onclick="setReferee(3)"></button>
+                                <button type="button" class="btn btn-sm" id="refBut4" onclick="setReferee(4)"></button>
+                                <button type="button" class="btn btn-sm" id="refBut5" onclick="setReferee(5)"></button>
+                                <button type="button" class="btn btn-sm" id="refBut6" onclick="setReferee(6)"></button>
+                                <button type="button" class="btn btn-sm" id="refBut7" onclick="setReferee(7)"></button>
+                            </div>
                         </div>
-                        <div class="btn-group col" role="group" title="Доверяющие собственность">
-                            <button type="button" class="btn btn-sm" id="refBut8" onclick="setReferee(8)"></button>
-                            <button type="button" class="btn btn-sm" id="refBut9" onclick="setReferee(9)"></button>
-                            <button type="button" class="btn btn-sm" id="refBut10" onclick="setReferee(10)"></button>
+                        <div class="col referee-category" title="Доверяющие собственность">
+                            <div class="fw-semibold referee-category-label">Доверяющие собственность</div>
+                            <div class="btn-group mt-1" role="group">
+                                <button type="button" class="btn btn-sm" id="refBut8" onclick="setReferee(8)"></button>
+                                <button type="button" class="btn btn-sm" id="refBut9" onclick="setReferee(9)"></button>
+                                <button type="button" class="btn btn-sm" id="refBut10" onclick="setReferee(10)"></button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -431,10 +460,10 @@
 
     </div>
     </div>
-    <div style="visibility: hidden;"> Исходный код доступен на: https://github.com/mzaborov/ub_timer/ | Версия: 8</div>
-    <div class="text-end small text-muted me-2 mb-1" title="Версия выкладки">v 8</div>
+    <div class="credit-hidden" aria-hidden="true">Исходный код доступен на: https://github.com/mzaborov/ub_timer/ | Версия: 9</div>
+    <div class="app-version text-end small text-muted me-2 mb-1" title="Версия выкладки">v 9</div>
     <script type="application/json" id="intro-tracks-json">["Baba_O_Riley.mp3","Bad_To_The_Bone.mp3","Cant_Stop.mp3","Deutschland.mp3","Eye_Of_The_Tiger.mp3","Jamming.mp3","Masha_i_medvedi.mp3","Misirlou.mp3","Peremen.mp3","Stop_the_Rock.mp3","Sweet_Home_Alabama.mp3","Tatarskaya_plyasovaya.mp3"]</script>
-    <script type="text/javascript" src="js/timer-code.js?v=8"></script>
+    <script type="text/javascript" src="js/timer-code.js?v=9"></script>
 </body>
 
 </html>
