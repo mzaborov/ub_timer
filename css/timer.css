@@ -1,4 +1,4 @@
-/* deploy-version: 7 */
+/* deploy-version: 8 */
 @keyframes pulse {
   0%  { opacity: 0;  transform: scale(0.2);}
   20% { opacity: 0.3; transform: scale(0.4);}
@@ -108,6 +108,12 @@ html, body {
 #dice_button.dice-busy {
   opacity: 0.6;
   cursor: pointer;
+}
+
+/* во время жеребьёвки плашки переключаются мгновенно, в одном действии с донатами */
+body.dice-blink-active #Player1Label,
+body.dice-blink-active #Player2Label {
+  transition: none;
 }
 
 #name-and-role__icon {
