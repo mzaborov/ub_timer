@@ -1,0 +1,449 @@
+/* Мобильная вёрстка: переопределения при max-width 992px (телефон портрет/ландшафт и планшет).
+   ДЕСКТОП НЕ ТРОГАЕМ: правки только здесь и в разметке с классом .mobile-only — десктоп ретестить не нужно. */
+
+/* Портрет на мобильном: показываем подсказку «только альбомная» */
+@media (max-width: 992px) and (orientation: portrait) {
+  .rotate-overlay {
+    display: flex !important;
+  }
+}
+@media (max-width: 992px) and (orientation: landscape) {
+  .rotate-overlay {
+    display: none !important;
+  }
+}
+
+@media (max-width: 992px) {
+  html, body {
+    overflow: hidden;
+    height: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  body {
+    min-width: 0;
+  }
+  .body {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* Хидер поджат; без серого фона у name-and-role и timer */
+  .header {
+    padding-top: 6px;
+    padding-bottom: 4px;
+  }
+  .header .the-button,
+  .header .btn-group .btn,
+  .header .btn-group label.btn {
+    min-height: 2.25rem;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.8rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .header .the-button span,
+  .header .btn-group .btn {
+    font-size: 0.8rem;
+  }
+  .name-and-role {
+    padding-top: 4px;
+    margin-top: 4px;
+    padding-bottom: 4px;
+    background-color: transparent;
+  }
+  .name-and-role .wrap-round {
+    background-color: transparent !important;
+  }
+  .name-and-role .input-group,
+  .name-and-role .form-select {
+    font-size: 0.875rem;
+  }
+  .timer {
+    padding-top: 4px;
+    padding-bottom: 4px;
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background-color: transparent;
+  }
+  .timer .centered {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .centered {
+    width: 100%;
+    max-width: 100%;
+    padding-left: 10px;
+    padding-right: 10px;
+    box-sizing: border-box;
+  }
+
+  /* Тулбар: логотип меньше; на узком — столбик, на широком (ландшафт) — кнопки в ряд */
+  .header .centered .row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+  }
+  .header .centered .col-2 {
+    width: auto;
+    max-width: none;
+    flex: 0 0 auto;
+    text-align: center;
+  }
+  .header .centered .row > .col-2:first-child {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .header .centered .col {
+    width: auto;
+    max-width: none;
+    flex: 1 1 auto;
+    text-align: center;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  /* Логотип 200px по ширине, высота 80px, по центру ячейки, без искажения букв */
+  .header-logo {
+    width: 200px;
+    height: auto;
+    max-height: 80px;
+    object-fit: contain;
+    object-position: center;
+    vertical-align: middle;
+    display: block;
+  }
+
+  /* Имена и роли: на узком — столбик, на широком — в ряд */
+  .name-and-role .row {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .name-and-role .row > .col-5 {
+    flex: 1 1 140px;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .name-and-role .row > .col-2 {
+    flex: 0 0 auto;
+    max-width: 100%;
+    text-align: center;
+  }
+  /* Кнопка с кубиком (жребий) — компактнее */
+  .name-and-role__dice {
+    font-size: 1.25rem;
+  }
+  #dice_button {
+    padding: 0.25rem;
+    line-height: 1;
+  }
+  #dice_button .name-and-role__icon {
+    font-size: 1.25rem;
+  }
+
+  /* Блок часов: ряд ограничен по ширине — бублики реально ближе; кнопки с нормальным отступом */
+  .timer .centered .row {
+    flex-wrap: nowrap;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    max-width: 440px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .timer .centered .row > .col-5 {
+    flex: 0 0 auto;
+    max-width: none;
+  }
+  .timer .centered .row > .col-5:first-child {
+    justify-content: flex-end;
+  }
+  .timer .centered .row > .col-5:last-child {
+    justify-content: flex-start;
+  }
+  .timer .centered .row > .col-2 {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 100px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  .timer .centered .row > .col-2 .row {
+    margin: 0;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+  .timer .centered .row > .col-2 .btn {
+    white-space: nowrap;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.4rem;
+    margin: 0 !important;
+  }
+  /* Интересы сбоку от бубликов — ряд выше 172px, бублики крупнее */
+  .timer .centered .row {
+    margin-top: 0;
+    min-height: 200px;
+  }
+  #donut1,
+  #donut2 {
+    width: 155px !important;
+    height: 155px !important;
+  }
+  #timer1,
+  #timer2 {
+    width: 155px !important;
+    height: 155px !important;
+    line-height: 155px !important;
+    font-size: 1.5rem;
+  }
+
+  /* Ряд с бубликами и кнопками — выше блока «Интересы», чтобы кнопки между бубликами были видны и кликабельны */
+  .timer .centered {
+    position: relative;
+    z-index: 2;
+  }
+  /* Интересы сбоку от бубликов, большое расстояние между блоками */
+  .interests {
+    z-index: 1;
+    top: 50%;
+    transform: translateY(-50%);
+    justify-content: space-between;
+    gap: 3.5rem;
+    padding: 0 8px;
+    box-sizing: border-box;
+  }
+  .interests__container {
+    max-width: 25%;
+    min-width: 0;
+  }
+  .interests__container > span {
+    overflow: visible;
+    white-space: nowrap;
+    text-align: center;
+  }
+  .interests__left-container,
+  .interests__right-container {
+    justify-content: center;
+    text-align: center;
+    align-items: center;
+  }
+  .interests__left-container > span,
+  .interests__right-container > span {
+    text-align: center;
+  }
+  .interests__left-text,
+  .interests__right-text {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    font-size: 11px;
+    padding: 4px;
+    min-height: 5rem;
+    max-height: 10rem;
+    overflow-y: auto;
+    background-color: #f6f6f6;
+  }
+  /* Текст ситуации: 2 режима — скрыт и на весь экран. «Показать ситуацию» открывает сразу на весь экран. */
+  .carousel-block {
+    display: none !important;
+  }
+  .situation-toggle-bar {
+    display: block !important;
+    text-align: center;
+    padding: 0 8px;
+    flex-shrink: 0;
+    line-height: 1;
+    margin-top: auto;
+  }
+  .situation-toggle-bar.situation-toggle-bar-hidden {
+    display: none !important;
+  }
+  .situation-toggle-bar .btn {
+    margin: 0;
+    vertical-align: middle;
+  }
+  body.situation-fullscreen .situation-toggle-bar {
+    display: none !important;
+  }
+  .carousel-block {
+    position: relative;
+  }
+  .carousel-block .situation-fullscreen-close {
+    display: none;
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 10;
+  }
+  body.situation-fullscreen .body > .header,
+  body.situation-fullscreen .body > .name-and-role,
+  body.situation-fullscreen .body > .timer {
+    display: none !important;
+  }
+  body.situation-fullscreen .body > .carousel-block {
+    display: flex !important;
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9998;
+    background: #fff;
+  }
+  body.situation-fullscreen .carousel-block .situation-fullscreen-close {
+    display: inline-block !important;
+  }
+
+  /* Модалки: донат паузы и рефери тоже меньше */
+  #pause_donut {
+    width: 120px !important;
+    height: 120px !important;
+  }
+  #pause_timer {
+    width: 120px !important;
+    height: 120px !important;
+    line-height: 120px !important;
+  }
+  #referee_donut {
+    width: 120px !important;
+    height: 120px !important;
+  }
+  #referee_timer {
+    width: 120px !important;
+    height: 120px !important;
+    line-height: 120px !important;
+  }
+  #referee_donut_bg {
+    width: 120px !important;
+    height: 120px !important;
+    line-height: 120px !important;
+    border-radius: 60px !important;
+  }
+
+  /* Модалка «Поединок завершен»: как на десктопе, просто масштаб. У кнопок судей — меньшая ширина. */
+  #finishDuelModal .modal-dialog {
+    max-width: 100%;
+    margin: 0.5rem;
+    width: 100%;
+  }
+  #finishDuelModal .modal-content {
+    width: 640px;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    zoom: min(1, calc(100vw / 640));
+    max-height: calc(100dvh - 1rem);
+    overflow: auto;
+  }
+  /* Строка со счётом и бубликом — по центру модалки; счёт в колонках по центру */
+  #finishDuelModal .modal-body.d-flex .row {
+    margin-left: auto;
+    margin-right: auto;
+  }
+  #finishDuelModal .modal-body.d-flex .row .col {
+    display: flex;
+    justify-content: center !important;
+    align-items: center;
+  }
+  #finishDuelModal .referee-category-label {
+    font-size: 0.65rem;
+    line-height: 1.2;
+  }
+  #finishDuelModal .referee-category .btn-group .btn {
+    min-width: 2.5rem;
+    padding: 0.25rem 0.4rem;
+    font-size: 0.7rem;
+  }
+  /* Футер модалки: строка — одна линия, колонки не переносим; правая колонка шире */
+  #finishDuelModal .modal-footer .container-fluid .row {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+  #finishDuelModal .modal-footer .row .col-6 {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    flex-shrink: 0;
+  }
+  #finishDuelModal .modal-footer .row .col:last-child {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: visible;
+    min-width: 55%;
+    padding-right: 2rem;
+  }
+  #finishDuelModal #duel_end_buttons_grp {
+    overflow: visible;
+  }
+  /* Кнопки справа снизу в один ряд: Запустить часы, Следующий, Завершить поединок */
+  #finishDuelModal #duel_end_buttons_grp {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.35rem;
+  }
+  #finishDuelModal #duel_end_buttons_grp .btn {
+    font-size: 0.75rem;
+    padding: 0.35rem 0.6rem;
+    white-space: nowrap;
+    width: auto;
+    max-width: 100%;
+  }
+
+  /* Узкий портрет: тулбар и блок игроков — столбиком; кнопки остаются между бубликами */
+  @media (max-width: 576px) {
+    .header .centered .row {
+      flex-direction: column;
+    }
+    .header .centered .col {
+      width: 100%;
+      flex: 0 0 auto;
+    }
+    .name-and-role .row > .col-5 {
+      flex: 0 0 100%;
+    }
+    .name-and-role .row > .col-2 {
+      flex: 0 0 100%;
+    }
+    /* Кнопки не переносим вниз — оставляем между бубликами; уменьшаем размеры, чтобы влезло в один ряд */
+    .timer .centered .row {
+      flex-wrap: nowrap;
+      justify-content: space-between;
+    }
+    .timer .centered .row > .col-2 {
+      flex: 0 0 auto;
+      min-width: 90px;
+    }
+    #donut1,
+    #donut2 {
+      width: 100px !important;
+      height: 100px !important;
+    }
+    #timer1,
+    #timer2 {
+      width: 100px !important;
+      height: 100px !important;
+      line-height: 100px !important;
+      font-size: 1.35rem;
+    }
+  }
+}
