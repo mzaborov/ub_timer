@@ -352,6 +352,35 @@
     max-height: calc(100dvh - 1rem);
     overflow: auto;
   }
+  /* Меньше по высоте: заголовок, подсказка, кнопки Игрок 1 | Игрок 2 */
+  #finishDuelModal .modal-header {
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+  }
+  #finishDuelModal .modal-title {
+    font-size: 0.95rem !important;
+  }
+  #finishDuelModal .modal-body.justify-content-center {
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+  }
+  #finishDuelModal .justify-content-center > .row {
+    gap: 0.25rem;
+    margin-bottom: 0;
+  }
+  #finishDuelModal #college_hint {
+    font-size: 0.8rem !important;
+    margin-bottom: 0.2rem !important;
+    line-height: 1.2;
+  }
+  #finishDuelModal .justify-content-center:has(#college_hint) {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+  }
+  #finishDuelModal .justify-content-center .btn-group label.btn {
+    font-size: 0.85rem !important;
+    padding: 0.3rem 0.5rem;
+  }
   /* Строка со счётом и бубликом — по центру модалки; счёт в колонках по центру */
   #finishDuelModal .modal-body.d-flex .row {
     margin-left: auto;
@@ -366,9 +395,15 @@
     font-size: 0.65rem;
     line-height: 1.2;
   }
+  /* Кнопки судей поджимаются при нехватке места */
+  #finishDuelModal .referee-category .btn-group {
+    min-width: 0;
+    flex: 1 1 0;
+  }
   #finishDuelModal .referee-category .btn-group .btn {
-    min-width: 2.5rem;
-    padding: 0.25rem 0.4rem;
+    min-width: 0;
+    flex: 1 1 auto;
+    padding: 0.25rem 0.35rem;
     font-size: 0.7rem;
   }
   /* Футер модалки: строка — одна линия, колонки не переносим; правая колонка шире */
