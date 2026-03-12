@@ -1,4 +1,4 @@
-// deploy-version: 7
+// deploy-version: 8
 const activeTimerColor = "blue";
 const inactiveTimerColor = "DarkGray";
 const emergingTimerColor = "OrangeRed";
@@ -407,8 +407,44 @@ function finishDice() {
     }
     setPlayer(whoStarts);
     highlightPlayer();
+    donut1.$donut.style.transition = donut1.options.transition || "";
+    donut1.$bg.style.transition = donut1.options.transition || "";
+    donut2.$donut.style.transition = donut2.options.transition || "";
+    donut2.$bg.style.transition = donut2.options.transition || "";
+    document.body.classList.remove("dice-blink-active");
     document.getElementById("dice_button").classList.remove("dice-busy");
     document.getElementById("dice_button").disabled = duel_is_active;
+}
+
+function setDiceBlinkHighlight(playerNum) {
+    current_player = playerNum;
+    if (playerNum === 1) {
+        donut1.state.color = activeTimerColor;
+        donut1.state.bg = activePlayerColor;
+        donut2.state.color = inactiveTimerColor;
+        donut2.state.bg = donuttyTrackColor;
+        donut1.$donut.setAttribute("stroke", activeTimerColor);
+        donut1.$bg.setAttribute("stroke", activePlayerColor);
+        donut2.$donut.setAttribute("stroke", inactiveTimerColor);
+        donut2.$bg.setAttribute("stroke", donuttyTrackColor);
+        document.getElementById("Player1Label").style.backgroundColor = activePlayerColor;
+        document.getElementById("Player1Label").style.color = "white";
+        document.getElementById("Player2Label").style.backgroundColor = inactivePlayerColor;
+        document.getElementById("Player2Label").style.color = "black";
+    } else {
+        donut1.state.color = inactiveTimerColor;
+        donut1.state.bg = donuttyTrackColor;
+        donut2.state.color = activeTimerColor;
+        donut2.state.bg = activePlayerColor;
+        donut1.$donut.setAttribute("stroke", inactiveTimerColor);
+        donut1.$bg.setAttribute("stroke", donuttyTrackColor);
+        donut2.$donut.setAttribute("stroke", activeTimerColor);
+        donut2.$bg.setAttribute("stroke", activePlayerColor);
+        document.getElementById("Player1Label").style.backgroundColor = inactivePlayerColor;
+        document.getElementById("Player1Label").style.color = "black";
+        document.getElementById("Player2Label").style.backgroundColor = activePlayerColor;
+        document.getElementById("Player2Label").style.color = "white";
+    }
 }
 
 function blinkingIntroStep(qty) {
@@ -421,8 +457,7 @@ function blinkingIntroStep(qty) {
         duelsList[currentDuel].Player2 = a;
     }
     var newPlayer = (qty % 2) + 1;
-    setPlayer(newPlayer);
-    highlightPlayer();
+    setDiceBlinkHighlight(newPlayer);
     introBlinkTimeoutId = setTimeout(function() { blinkingIntroStep(qty + 1); }, 200);
 }
 
@@ -432,6 +467,11 @@ function dice() {
         return;
     }
     document.getElementById("dice_button").classList.add("dice-busy");
+    document.body.classList.add("dice-blink-active");
+    donut1.$donut.style.transition = "none";
+    donut1.$bg.style.transition = "none";
+    donut2.$donut.style.transition = "none";
+    donut2.$bg.style.transition = "none";
     var list = introTracksList.length > 0 ? introTracksList : introTracksListFallback;
     var trackFile = (!selectedIntroTrack || selectedIntroTrack === "random") && list.length > 0
         ? list[Math.floor(Math.random() * list.length)]
