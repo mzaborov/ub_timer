@@ -27,6 +27,7 @@
     height: 100%;
     min-height: 0;
     overflow: hidden;
+    padding-bottom: 6px;
   }
 
   /* Хидер поджат; без серого фона у name-and-role и timer */
@@ -321,6 +322,12 @@
     height: 120px !important;
     line-height: 120px !important;
   }
+  /* При малой высоте экрана (альбомный телефон, напр. iPhone 11) — текст в бублике паузы поджимаем */
+  @media (max-width: 992px) and (max-height: 450px) {
+    #pause_timer {
+      font-size: 1.2rem !important;
+    }
+  }
   #referee_donut {
     width: 120px !important;
     height: 120px !important;
@@ -394,6 +401,14 @@
   #finishDuelModal .referee-category-label {
     font-size: 0.65rem;
     line-height: 1.2;
+    text-align: center;
+    width: 100%;
+  }
+  #finishDuelModal .referee-category {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
   }
   /* Кнопки судей поджимаются при нехватке места */
   #finishDuelModal .referee-category .btn-group {
@@ -405,6 +420,10 @@
     flex: 1 1 auto;
     padding: 0.25rem 0.35rem;
     font-size: 0.7rem;
+  }
+  /* На мобилке прячем кнопку «спрятать подсказку судей» (иконка газеты) */
+  #finishDuelModal #hide_referee_hint_grp {
+    display: none !important;
   }
   /* Футер модалки: строка — одна линия, колонки не переносим; правая колонка шире */
   #finishDuelModal .modal-footer .container-fluid .row {
