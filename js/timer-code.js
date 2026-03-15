@@ -1,4 +1,4 @@
-// deploy-version: 12
+// deploy-version: 13
 const activeTimerColor = "blue";
 const inactiveTimerColor = "DarkGray";
 const emergingTimerColor = "OrangeRed";
@@ -145,6 +145,9 @@ function initRefereeStructure(refQty)
  }
  else {
     if (refQty!=-1) {refereeQty=refQty;};
+    if (currentDuel != null && currentDuel !== undefined && duelsList && duelsList[currentDuel]) {
+        duelsList[currentDuel].RefereeQty = refereeQty;
+    }
     switch(refereeQty) {
         case   9 : 
                 refereeList = [
@@ -675,13 +678,12 @@ function stop_duel() {
     }
     // - форма оценок судей 
     initRefereeStructure(-1);
-    if (duelsList && duelsList[currentDuel]){
-        document.getElementById("ref_qty_picker").style.visibility = "hidden";
-        document.getElementById(duelsList[currentDuel].RefereeQty+"ref").checked=true; 
-     }
-    else {
-        document.getElementById("ref_qty_picker").style.visibility = (duelType ==="classic" ? 'visible' : 'hidden');
-    }       
+    if (duelsList && duelsList[currentDuel]) {
+        var q = duelsList[currentDuel].RefereeQty || refereeQty || 9;
+        q = (q === 9 || q === 7 || q === 5) ? q : 9;
+        document.getElementById(q + "ref").checked = true;
+    }
+    document.getElementById("ref_qty_picker").style.visibility = (duelType === "classic" ? "visible" : "hidden");
     refereeTimer("start");
     const myModal = new bootstrap.Modal(document.getElementById('finishDuelModal'), {});                
     myModal.show();    
@@ -1160,7 +1162,11 @@ function duelChoosed(currentDuelRef) {
         select1.innerHTML="";
         select2.innerHTML="";
         setDuelTime(duel.DuelMinutesLength*60);
-        refereeQty= duel.RefereeQty;
+        refereeQty = duel.RefereeQty;
+        if (refereeQty !== 9 && refereeQty !== 7 && refereeQty !== 5) {
+            refereeQty = 9;
+            duel.RefereeQty = refereeQty;
+        }
         document.getElementById(duel.DuelMinutesLength+"min").checked = true;     
         document.getElementById("5min").disabled = true;
         document.getElementById("4min").disabled = true;
@@ -1294,6 +1300,7 @@ function finishDuelAndClose(ev) {
         duelsList[currentDuel].Winner = winner;
         duelsList[currentDuel].JudgeVotes = judgeVotes.slice();
         duelsList[currentDuel].RoundDurations = roundDurations.slice();
+        duelsList[currentDuel].RefereeQty = refereeQty;
     }
     saveProtocolStateToLocalStorage();
     var modalEl = document.getElementById("finishDuelModal");
