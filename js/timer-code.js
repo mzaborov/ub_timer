@@ -1,4 +1,4 @@
-// deploy-version: 14
+// deploy-version: 15
 const activeTimerColor = "blue";
 const inactiveTimerColor = "DarkGray";
 const emergingTimerColor = "OrangeRed";
@@ -70,6 +70,8 @@ var introTracksList = [];
 var selectedIntroTrack = "";
 var introBlinkTimeoutId = null;
 var introFinishTimeoutId = null;
+var introCountdownIntervalId = null;
+var introTimeupdateHandler = null;
 var audioIntro = null;
 
 (function() {
@@ -393,6 +395,8 @@ function initTimers() {
 /*---------------------Dice ---------------------------------*/
 
 function finishDice() {
+    var countdownEl = document.getElementById("dice_countdown");
+    if (countdownEl) countdownEl.style.display = "none";
     if (introBlinkTimeoutId !== null) {
         clearTimeout(introBlinkTimeoutId);
         introBlinkTimeoutId = null;
@@ -401,7 +405,15 @@ function finishDice() {
         clearTimeout(introFinishTimeoutId);
         introFinishTimeoutId = null;
     }
+    if (introCountdownIntervalId !== null) {
+        clearInterval(introCountdownIntervalId);
+        introCountdownIntervalId = null;
+    }
     if (audioIntro) {
+        if (introTimeupdateHandler) {
+            audioIntro.removeEventListener("timeupdate", introTimeupdateHandler);
+            introTimeupdateHandler = null;
+        }
         stopAudio(audioIntro);
         audioIntro = null;
     }
@@ -485,9 +497,21 @@ function dice() {
     var trackFile = (!selectedIntroTrack || selectedIntroTrack === "random") && list.length > 0
         ? list[Math.floor(Math.random() * list.length)]
         : selectedIntroTrack;
+    var countdownEl = document.getElementById("dice_countdown");
+    if (countdownEl) countdownEl.style.display = "block";
     if (soundsEnabled && trackFile) {
         var path = "assets/Sound/intro/" + trackFile;
         audioIntro = new Audio(path);
+        countdownEl.textContent = "--:--";
+        introTimeupdateHandler = function() {
+            if (!audioIntro) return;
+            var d = audioIntro.duration;
+            var c = audioIntro.currentTime;
+            if (isFinite(d) && d > 0) {
+                countdownEl.textContent = formatTime(Math.ceil(d - c));
+            }
+        };
+        audioIntro.addEventListener("timeupdate", introTimeupdateHandler);
         audioIntro.addEventListener("ended", function onEnded() {
             audioIntro.removeEventListener("ended", onEnded);
             finishDice();
@@ -495,9 +519,19 @@ function dice() {
         audioIntro.play().catch(function() { finishDice(); });
         blinkingIntroStep(1);
     } else {
-        var duration = 1600 + Math.ceil(Math.random() * 1000);
+        var durationMs = 1600 + Math.ceil(Math.random() * 1000);
+        var remainingSec = durationMs / 1000;
+        countdownEl.textContent = formatTime(Math.ceil(remainingSec));
+        introCountdownIntervalId = setInterval(function() {
+            remainingSec -= 0.2;
+            if (remainingSec <= 0) {
+                countdownEl.textContent = "0:00";
+            } else {
+                countdownEl.textContent = formatTime(Math.ceil(remainingSec));
+            }
+        }, 200);
         blinkingIntroStep(1);
-        introFinishTimeoutId = setTimeout(finishDice, duration);
+        introFinishTimeoutId = setTimeout(finishDice, durationMs);
     }
 }
 
