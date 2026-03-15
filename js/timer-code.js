@@ -1,4 +1,4 @@
-// deploy-version: 13
+// deploy-version: 14
 const activeTimerColor = "blue";
 const inactiveTimerColor = "DarkGray";
 const emergingTimerColor = "OrangeRed";
@@ -39,7 +39,12 @@ var refereeList ;
 var scheduleFileName = "";
 var roundStartRemaining = [0, 0]; // остаток времени игрока 1 и 2 на старте текущего сегмента
 var roundDurations = [];
+var roundRoles = []; // для классики: [{ player1Role, player2Role }, ...] по раундам
+var pauseProtestEvents = []; // [{ type: 'pause'|'protest', round, player, gameTimeLeft }, ...]
 var PROTOCOL_STORAGE_KEY = "ub-timer-online-state";
+var sessionPhase = "idle"; // "idle" | "round" | "judges"
+var isRestoringProtocol = false;
+var lastCompletedDuelIndex = null; // индекс поединка, только что завершённого (для кнопки «Вернуть голосование» в idle)
 
 
 /*--------------------------инициализирующий код----------------------------*/
@@ -276,13 +281,14 @@ function nextReferee()
  }
  setReferee(ar);
  highlightReferee();
- 
+ saveProtocolStateToLocalStorage();
 }
 
 function refereeVote(vt)
 {
     refereeList[activeReferee].vote= vt;
     highlightReferee();
+    saveProtocolStateToLocalStorage();
 }
 
 function calcAndShowScore()
@@ -547,6 +553,7 @@ document.getElementById("dice_button").addEventListener("contextmenu", function(
 
 function changePlayer() {
     stop_timer();
+    var previousPlayer = current_player;
     var newPlayer = (current_player % 2) + 1;
     if (time[newPlayer - 1] === 0) // однократный возврат обратно себе 
     {
@@ -569,18 +576,25 @@ function changePlayer() {
     else {
         setPlayer(newPlayer);
     }
-    // Сохраняем длительность сегмента при переходе хода (по игровому времени, без пауз)
-    var durationSec = roundStartRemaining[current_player - 1] - time[current_player - 1];
+    // Длительность считаем по игроку, чей ход завершился (previousPlayer), т.к. setPlayer уже сменил current_player
+    var durationSec = roundStartRemaining[previousPlayer - 1] - time[previousPlayer - 1];
     if (durationSec > 0) roundDurations.push(durationSec);
-    roundStartRemaining[current_player - 1] = time[current_player - 1];
+    roundStartRemaining[previousPlayer - 1] = time[previousPlayer - 1];
     roundStartRemaining[newPlayer - 1] = time[newPlayer - 1];
     current_round++;
     document.getElementById("current_round").textContent = "Раунд №" + current_round;
     document.getElementById("change_player").disabled = true;
     if (duelType==="classic")
      {
-      //Очищаем Роли  
-      document.getElementById('Player1Roles').value=-1;
+      // Сохраняем роли завершённого раунда для протокола (читаем до сброса селектов)
+      var sel1 = document.getElementById('Player1Roles');
+      var sel2 = document.getElementById('Player2Roles');
+      var r1 = (sel1 && sel1.options[sel1.selectedIndex]) ? sel1.options[sel1.selectedIndex].text : "";
+      var r2 = (sel2 && sel2.options[sel2.selectedIndex]) ? sel2.options[sel2.selectedIndex].text : "";
+      if (r1 || r2) roundRoles.push({ player1Role: r1, player2Role: r2 });
+      saveProtocolStateToLocalStorage();
+      // Очищаем Роли
+      document.getElementById('Player1Roles').value = -1;
       document.getElementById('Player2Roles').value=-1;
       document.getElementById("Player1RoleGoal").innerHTML ="";
       document.getElementById("Player2RoleGoal").innerHTML ="";
@@ -652,9 +666,26 @@ function start_duel() {
     roundStartRemaining[0] = time[0];
     roundStartRemaining[1] = time[1];
     roundDurations = [];
+    roundRoles = [];
+    pauseProtestEvents = [];
+    if (duelType === "classic") {
+        var sel1 = document.getElementById('Player1Roles');
+        var sel2 = document.getElementById('Player2Roles');
+        var r1 = (sel1 && sel1.options[sel1.selectedIndex]) ? sel1.options[sel1.selectedIndex].text : "";
+        var r2 = (sel2 && sel2.options[sel2.selectedIndex]) ? sel2.options[sel2.selectedIndex].text : "";
+        var placeholder = "Выберите Роль...";
+        if ((r1 && r1 !== placeholder) || (r2 && r2 !== placeholder)) {
+            roundRoles.push({ player1Role: r1 || "", player2Role: r2 || "" });
+        }
+    }
     document.getElementById("current_round").textContent = "Раунд №" + current_round;
     duel_is_active = true;
+    sessionPhase = "round";
+    lastCompletedDuelIndex = null;
    lastShiftIsUsed =  false;
+    var reopenBtn = document.getElementById("reopen_judges_form_btn");
+    if (reopenBtn) reopenBtn.style.display = "none";
+    saveProtocolStateToLocalStorage();
 }
 
 function stop_duel() {
@@ -663,11 +694,20 @@ function stop_duel() {
     // Сохраняем длительность последнего сегмента при завершении поединка
     var durationSec = roundStartRemaining[current_player - 1] - time[current_player - 1];
     if (durationSec > 0) roundDurations.push(durationSec);
+    if (duelType === "classic") {
+        var sel1 = document.getElementById('Player1Roles');
+        var sel2 = document.getElementById('Player2Roles');
+        var r1 = (sel1 && sel1.options[sel1.selectedIndex]) ? sel1.options[sel1.selectedIndex].text : "";
+        var r2 = (sel2 && sel2.options[sel2.selectedIndex]) ? sel2.options[sel2.selectedIndex].text : "";
+        if (r1 || r2) roundRoles.push({ player1Role: r1, player2Role: r2 });
+    }
     document.getElementById("current_round").textContent = '\xa0';
     document.getElementById("start_stop_duel").textContent = "Начать поединок";
     document.getElementById("start_stop_duel").classList.remove("btn-danger");
     document.getElementById("start_stop_duel").classList.add("btn-primary");
     duel_is_active = false;
+    sessionPhase = "judges";
+    saveProtocolStateToLocalStorage();
     initTimers();
     if (duelType==="express" && duelsList && duelsList[currentDuel]) { 
 
@@ -685,8 +725,10 @@ function stop_duel() {
     }
     document.getElementById("ref_qty_picker").style.visibility = (duelType === "classic" ? "visible" : "hidden");
     refereeTimer("start");
-    const myModal = new bootstrap.Modal(document.getElementById('finishDuelModal'), {});                
-    myModal.show();    
+    var myModal = bootstrap.Modal.getOrCreateInstance(document.getElementById("finishDuelModal"));
+    var reopenBtn = document.getElementById("reopen_judges_form_btn");
+    if (reopenBtn) reopenBtn.style.display = "none";
+    myModal.show();
 }
 
 function protest(regime)
@@ -710,6 +752,7 @@ function protest(regime)
               else
                {
                 stop_timer();
+                pauseProtestEvents.push({ type: "protest", round: current_round, player: current_player, gameTimeLeft: time[current_player - 1] });
                  document.getElementById("protest").innerText ="Протест обработан";      
                  document.getElementById("protest").classList.add("btn-danger"); 
                  document.getElementById("protest").classList.remove("btn-light");     
@@ -732,6 +775,7 @@ function pause(regime)
     switch(regime) {
         case   "start" : 
                 stop_timer();
+                pauseProtestEvents.push({ type: "pause", round: current_round, player: current_player, gameTimeLeft: time[current_player - 1] });
                 document.getElementById("pauseModalLabel").textContent = "Секундант Игрока №"+current_player+" взял паузу";
                 pauseTime=60; 
                 pause_donut.setState({ value: pauseTime, color: secondaryTimerColor});
@@ -847,6 +891,7 @@ function timeTicker(donaty) {
         donaty.setState({ color: finishingTimerColor }); 
     //    if (soundsEnabled) {audioTicking.play(); }  
     }
+    if (duel_is_active) saveProtocolStateToLocalStorage();
 }
 
 
@@ -961,7 +1006,8 @@ function showLoadDiagnostics(fileName, errors, warnings, summary) {
 function saveProtocolStateToLocalStorage() {
     try {
         if (!scheduleFileName && (!duelsList || duelsList.length === 0)) return;
-        var payload = { scheduleFileName: scheduleFileName || "", duelsList: duelsList || [] };
+        var payload = buildSessionStatePayload();
+        payload.duelsList = duelsList || [];
         localStorage.setItem(PROTOCOL_STORAGE_KEY, JSON.stringify(payload));
     } catch (e) { console.warn("saveProtocolStateToLocalStorage", e); }
 }
@@ -973,8 +1019,104 @@ function switchToFileDropdown() {
     if (dropdown) dropdown.style.display = "";
 }
 
+function applyRestoredSessionState(data) {
+    if (!data || !data.phase) return;
+    var phase = data.phase;
+    if (phase !== "round" && phase !== "judges") return;
+    var cd = data.currentDuel;
+    if (cd === undefined || cd === null) return;
+    currentDuel = typeof cd === "number" ? cd : parseInt(cd, 10);
+    if (currentDuel < 0 || !duelsList || currentDuel >= duelsList.length) return;
+    if (data.game_time != null) game_time = data.game_time;
+    time[0] = data.time0 != null ? data.time0 : game_time;
+    time[1] = data.time1 != null ? data.time1 : game_time;
+    roundStartRemaining[0] = data.roundStartRemaining0 != null ? data.roundStartRemaining0 : time[0];
+    roundStartRemaining[1] = data.roundStartRemaining1 != null ? data.roundStartRemaining1 : time[1];
+    roundDurations = (data.roundDurations && Array.isArray(data.roundDurations)) ? data.roundDurations.slice() : [];
+    current_round = data.current_round != null ? data.current_round : 1;
+    current_player = data.current_player === 1 || data.current_player === 2 ? data.current_player : 1;
+    if (data.duelType) duelType = data.duelType;
+    if (data.refereeQty != null && (data.refereeQty === 9 || data.refereeQty === 7 || data.refereeQty === 5)) refereeQty = data.refereeQty;
+    roundRoles = (data.roundRoles && Array.isArray(data.roundRoles)) ? data.roundRoles.slice() : [];
+    pauseProtestEvents = (data.pauseProtestEvents && Array.isArray(data.pauseProtestEvents)) ? data.pauseProtestEvents.slice() : [];
+    if (data.player1Name) { var el1 = document.getElementById("Player1Name"); if (el1) el1.value = data.player1Name; }
+    if (data.player2Name) { var el2 = document.getElementById("Player2Name"); if (el2) el2.value = data.player2Name; }
+    sessionPhase = phase;
+    duel_is_active = true;
+    clock_is_active = false;
+    donut1.setState({ max: game_time, value: time[0], color: current_player === 1 ? activeTimerColor : inactiveTimerColor, bg: donuttyTrackColor });
+    donut2.setState({ max: game_time, value: time[1], color: current_player === 2 ? activeTimerColor : inactiveTimerColor, bg: donuttyTrackColor });
+    document.getElementById("timer1").textContent = formatTime(time[0]);
+    document.getElementById("timer2").textContent = formatTime(time[1]);
+    var roundEl = document.getElementById("current_round");
+    if (roundEl) roundEl.textContent = "Раунд №" + current_round;
+    setPlayer(current_player);
+    document.getElementById("start_stop_duel").textContent = "Завершить поединок";
+    document.getElementById("start_stop_duel").classList.remove("btn-primary");
+    document.getElementById("start_stop_duel").classList.add("btn-danger");
+    enable_disable_duel_options_conrols("visible", true);
+    if (duelType === "classic") {
+        var duel = duelsList[currentDuel];
+        if (duel && duel.SituationRoles) {
+            var role1Text = null, role2Text = null;
+            if (roundRoles.length >= current_round) {
+                var rolesForRound = roundRoles[current_round - 1];
+                if (rolesForRound) { role1Text = rolesForRound.player1Role; role2Text = rolesForRound.player2Role; }
+            }
+            if (!role1Text && !role2Text && (data.currentRoundRole1 || data.currentRoundRole2)) {
+                var place = "Выберите Роль...";
+                role1Text = (data.currentRoundRole1 && data.currentRoundRole1.trim() !== place) ? data.currentRoundRole1.trim() : null;
+                role2Text = (data.currentRoundRole2 && data.currentRoundRole2.trim() !== place) ? data.currentRoundRole2.trim() : null;
+            }
+            if (role1Text || role2Text) {
+                var sel1 = document.getElementById("Player1Roles");
+                var sel2 = document.getElementById("Player2Roles");
+                if (sel1 && sel2) {
+                    var idx1 = -1, idx2 = -1;
+                    for (var ri in duel.SituationRoles) {
+                        if (duel.SituationRoles[ri].Role === role1Text) idx1 = parseInt(ri, 10);
+                        if (duel.SituationRoles[ri].Role === role2Text) idx2 = parseInt(ri, 10);
+                    }
+                    if (idx1 >= 0) {
+                        sel1.value = String(idx1);
+                        document.getElementById("Player1RoleGoal").innerHTML = duel.SituationRoles[idx1].Goals || "";
+                    }
+                    if (idx2 >= 0) {
+                        sel2.value = String(idx2);
+                        document.getElementById("Player2RoleGoal").innerHTML = duel.SituationRoles[idx2].Goals || "";
+                    }
+                    for (var o = 0; o < sel2.options.length; o++) sel2.options[o].disabled = (sel2.options[o].value === sel1.value);
+                    for (var o = 0; o < sel1.options.length; o++) sel1.options[o].disabled = (sel1.options[o].value === sel2.value);
+                }
+            }
+        }
+    }
+    if (phase === "judges") {
+        initRefereeStructure(refereeQty);
+        var refQtyEl = document.getElementById(refereeQty + "ref");
+        if (refQtyEl) refQtyEl.checked = true;
+        if (data.refereeVotes && Array.isArray(data.refereeVotes) && refereeList) {
+            for (var i = 0; i < data.refereeVotes.length && i < refereeList.length; i++) {
+                refereeList[i].vote = data.refereeVotes[i].vote;
+                if (data.refereeVotes[i].visible !== undefined) refereeList[i].visible = data.refereeVotes[i].visible;
+            }
+        }
+        activeReferee = (data.activeReferee != null && !isNaN(data.activeReferee)) ? data.activeReferee : 0;
+        setReferee(activeReferee);
+        highlightReferee();
+        var modalEl = document.getElementById("finishDuelModal");
+        if (modalEl) {
+            var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+        }
+        var reopenBtn = document.getElementById("reopen_judges_form_btn");
+        if (reopenBtn) reopenBtn.style.display = "none";
+    }
+}
+
 function restoreProtocolStateFromLocalStorage() {
     try {
+        isRestoringProtocol = true;
         var raw = localStorage.getItem(PROTOCOL_STORAGE_KEY);
         if (!raw) return false;
         var data = JSON.parse(raw);
@@ -996,8 +1138,41 @@ function restoreProtocolStateFromLocalStorage() {
         }
         switchToFileDropdown();
         hideRestoreProtocolBanner();
+        var currentDuelNum = data.currentDuel;
+        if (currentDuelNum !== undefined && currentDuelNum !== null && !isNaN(currentDuelNum) && currentDuelNum >= 0 && currentDuelNum < duelsList.length) {
+            duelChoosed(String(currentDuelNum));
+        }
+        if (data.phase === "idle" && (data.currentRoundRole1 || data.currentRoundRole2) && duelType === "classic") {
+            var duel = duelsList[currentDuel];
+            if (duel && duel.SituationRoles) {
+                var sel1 = document.getElementById("Player1Roles"), sel2 = document.getElementById("Player2Roles");
+                if (sel1 && sel2) {
+                    var placeIdle = "Выберите Роль...";
+                    var r1 = (data.currentRoundRole1 && data.currentRoundRole1.trim() !== placeIdle) ? data.currentRoundRole1.trim() : "";
+                    var r2 = (data.currentRoundRole2 && data.currentRoundRole2.trim() !== placeIdle) ? data.currentRoundRole2.trim() : "";
+                    var idx1 = -1, idx2 = -1;
+                    for (var ri in duel.SituationRoles) {
+                        if (r1 && duel.SituationRoles[ri].Role === r1) idx1 = parseInt(ri, 10);
+                        if (r2 && duel.SituationRoles[ri].Role === r2) idx2 = parseInt(ri, 10);
+                    }
+                    if (idx1 >= 0) { sel1.value = String(idx1); document.getElementById("Player1RoleGoal").innerHTML = duel.SituationRoles[idx1].Goals || ""; }
+                    if (idx2 >= 0) { sel2.value = String(idx2); document.getElementById("Player2RoleGoal").innerHTML = duel.SituationRoles[idx2].Goals || ""; }
+                    for (var o = 0; o < sel2.options.length; o++) sel2.options[o].disabled = (sel2.options[o].value === sel1.value);
+                    for (var o = 0; o < sel1.options.length; o++) sel1.options[o].disabled = (sel1.options[o].value === sel2.value);
+                }
+            }
+        }
+        applyRestoredSessionState(data);
+        if (data.phase === "idle" && data.lastCompletedDuelIndex != null && !isNaN(data.lastCompletedDuelIndex) && data.lastCompletedDuelIndex >= 0 && data.lastCompletedDuelIndex < duelsList.length) {
+            lastCompletedDuelIndex = data.lastCompletedDuelIndex;
+            var reopenBtn = document.getElementById("reopen_judges_form_btn");
+            if (reopenBtn) reopenBtn.style.display = "block";
+        }
+        isRestoringProtocol = false;
+        saveProtocolStateToLocalStorage();
+        setImportStatusMenuItemEnabled(true);
         return true;
-    } catch (e) { console.warn("restoreProtocolStateFromLocalStorage", e); return false; }
+    } catch (e) { isRestoringProtocol = false; console.warn("restoreProtocolStateFromLocalStorage", e); return false; }
 }
 
 function processDuelsJson(file) {
@@ -1023,9 +1198,11 @@ function processDuelsJson(file) {
         `
         duelChooser.appendChild(figure);
     });
+    sessionPhase = "idle";
     saveProtocolStateToLocalStorage();
     switchToFileDropdown();
     hideRestoreProtocolBanner();
+    setImportStatusMenuItemEnabled(true);
 }
 
 function loadFile(event) {
@@ -1161,13 +1338,19 @@ function duelChoosed(currentDuelRef) {
         var select2 = document.getElementById('Player2Roles');
         select1.innerHTML="";
         select2.innerHTML="";
-        setDuelTime(duel.DuelMinutesLength*60);
+        var mins = duel.DuelMinutesLength;
+        if (mins === 5 || mins === 4 || mins === 1) {
+            setDuelTime(mins * 60);
+            var timeEl = document.getElementById(mins + "min");
+            if (timeEl) timeEl.checked = true;
+        } else {
+            setDuelTime(game_time || 300);
+        }
         refereeQty = duel.RefereeQty;
         if (refereeQty !== 9 && refereeQty !== 7 && refereeQty !== 5) {
             refereeQty = 9;
             duel.RefereeQty = refereeQty;
-        }
-        document.getElementById(duel.DuelMinutesLength+"min").checked = true;     
+        }     
         document.getElementById("5min").disabled = true;
         document.getElementById("4min").disabled = true;
         document.getElementById("1min").disabled = true;       
@@ -1202,19 +1385,39 @@ function duelChoosed(currentDuelRef) {
         };        
         document.getElementById("classic").disabled = true;
         document.getElementById("express").disabled = true;
-        document.getElementById(duelType).checked =true;
+        var typeEl = document.getElementById(duelType);
+        if (typeEl) typeEl.checked = true;
     }
-
+    if (!isRestoringProtocol) saveProtocolStateToLocalStorage();
 }
 function roleChoosed(player) {
-    var role = document.getElementById("Player" + player + "Roles").value;
-    document.getElementById("Player" + player + "RoleGoal").innerHTML = duelsList[currentDuel].SituationRoles[role].Goals;
-    othrPlayer = player%2+1;
-    var select = document.getElementById("Player" + othrPlayer+"Roles");
-    for (var i = 0; i < select.options.length; i++) {
-        select.options[i].disabled = (select.options[i].value===role);    
+    var sel = document.getElementById("Player" + player + "Roles");
+    var role = sel ? sel.value : "";
+    var goals = "";
+    var duel = duelsList[currentDuel];
+    if (duel && duel.SituationRoles && role !== "" && duel.SituationRoles[role] != null) {
+        goals = duel.SituationRoles[role].Goals || "";
     }
-    
+    var goalEl = document.getElementById("Player" + player + "RoleGoal");
+    if (goalEl) goalEl.innerHTML = goals;
+    othrPlayer = player % 2 + 1;
+    var select = document.getElementById("Player" + othrPlayer + "Roles");
+    if (select && select.options) {
+        for (var i = 0; i < select.options.length; i++) {
+            select.options[i].disabled = (select.options[i].value === role);
+        }
+    }
+    if (duelType === "classic" && sessionPhase === "round" && current_round >= 1) {
+        var sel1 = document.getElementById("Player1Roles");
+        var sel2 = document.getElementById("Player2Roles");
+        var r1 = (sel1 && sel1.options[sel1.selectedIndex]) ? sel1.options[sel1.selectedIndex].text : "";
+        var r2 = (sel2 && sel2.options[sel2.selectedIndex]) ? sel2.options[sel2.selectedIndex].text : "";
+        var idx = current_round - 1;
+        while (roundRoles.length <= idx) roundRoles.push({ player1Role: "", player2Role: "" });
+        roundRoles[idx].player1Role = r1;
+        roundRoles[idx].player2Role = r2;
+    }
+    saveProtocolStateToLocalStorage();
 }
 
 
@@ -1301,11 +1504,74 @@ function finishDuelAndClose(ev) {
         duelsList[currentDuel].JudgeVotes = judgeVotes.slice();
         duelsList[currentDuel].RoundDurations = roundDurations.slice();
         duelsList[currentDuel].RefereeQty = refereeQty;
+        duelsList[currentDuel].RoundRoles = roundRoles.slice();
+        duelsList[currentDuel].PauseProtestEvents = pauseProtestEvents.slice();
     }
+    var justCompletedDuel = currentDuel;
+    sessionPhase = "idle";
+    duel_is_active = false;
+    lastCompletedDuelIndex = justCompletedDuel;
+    document.getElementById("current_round").textContent = "\xa0";
+    document.getElementById("start_stop_duel").textContent = "Начать поединок";
+    document.getElementById("start_stop_duel").classList.remove("btn-danger");
+    document.getElementById("start_stop_duel").classList.add("btn-primary");
+    enable_disable_duel_options_conrols("hidden", false);
+    initTimers();
     saveProtocolStateToLocalStorage();
     var modalEl = document.getElementById("finishDuelModal");
     var modal = bootstrap.Modal.getInstance(modalEl);
     if (modal) modal.hide();
+    var allVoted = true;
+    if (refereeList) {
+        for (var vi = 0; vi < refereeList.length; vi++) {
+            if (refereeList[vi].visible && (refereeList[vi].vote !== 1 && refereeList[vi].vote !== 2)) { allVoted = false; break; }
+        }
+    }
+    var currentDuelNum = currentDuel === undefined || currentDuel === null ? 0 : (typeof currentDuel === "string" ? parseInt(currentDuel, 10) : currentDuel);
+    if (allVoted && duelsList && !isNaN(currentDuelNum) && currentDuelNum >= 0 && currentDuelNum < duelsList.length - 1) {
+        duelChoosed(String(currentDuelNum + 1));
+    }
+    var reopenBtn = document.getElementById("reopen_judges_form_btn");
+    if (reopenBtn) reopenBtn.style.display = "block";
+}
+
+function reopenJudgesForm() {
+    if (sessionPhase === "idle" && lastCompletedDuelIndex != null && duelsList && duelsList[lastCompletedDuelIndex]) {
+        var prevDuel = duelsList[lastCompletedDuelIndex];
+        currentDuel = lastCompletedDuelIndex;
+        duelChoosed(String(lastCompletedDuelIndex));
+        var q = prevDuel.RefereeQty;
+        if (q !== 9 && q !== 7 && q !== 5) q = 9;
+        refereeQty = q;
+        initRefereeStructure(refereeQty);
+        var votes = prevDuel.JudgeVotes;
+        if (refereeList && votes && Array.isArray(votes)) {
+            var voteIdx = 0;
+            for (var i = 0; i < refereeList.length; i++) {
+                if (refereeList[i].visible) {
+                    refereeList[i].vote = (voteIdx < votes.length && (votes[voteIdx] === 1 || votes[voteIdx] === 2)) ? votes[voteIdx] : 0;
+                    voteIdx++;
+                }
+            }
+        }
+        activeReferee = 0;
+        sessionPhase = "judges";
+        highlightReferee();
+        var modalEl = document.getElementById("finishDuelModal");
+        var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        var refQtyEl = document.getElementById(refereeQty + "ref");
+        if (refQtyEl) refQtyEl.checked = true;
+        modal.show();
+        var btn = document.getElementById("reopen_judges_form_btn");
+        if (btn) btn.style.display = "none";
+        return;
+    }
+    if (sessionPhase === "judges") {
+        var modalEl = document.getElementById("finishDuelModal");
+        var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        highlightReferee();
+        modal.show();
+    }
 }
 
 function toggeSound()
@@ -1338,6 +1604,20 @@ function formatDurationSec(sec) {
     return m + ":" + (r < 10 ? "0" : "") + r;
 }
 
+function parseDurationToSec(str) {
+    if (str == null || str === "") return null;
+    if (typeof str === "number" && !isNaN(str)) return str;
+    var s = String(str).trim();
+    var parts = s.split(":");
+    if (parts.length >= 2) {
+        var m = parseInt(parts[0], 10);
+        var sec = parseInt(parts[1], 10);
+        if (!isNaN(m) && !isNaN(sec)) return m * 60 + sec;
+    }
+    var n = parseInt(s, 10);
+    return isNaN(n) ? null : n;
+}
+
 function buildProtocolAndDownload() {
     if (!duelsList || duelsList.length === 0) {
         alert("Сначала загрузите расписание поединков.");
@@ -1355,7 +1635,6 @@ function buildProtocolAndDownload() {
     var rows = [headers];
     var rowLabels = ["Игрок 1", "Игрок 2", "Победитель"];
     for (var j = 1; j <= maxRef; j++) rowLabels.push("Судья " + j);
-    rowLabels.push("Длительность Раунд 1", "Длительность Раунд 2", "Длительность Раунд 3");
     for (var r = 0; r < rowLabels.length; r++) {
         var label = rowLabels[r];
         var arr = [label];
@@ -1372,21 +1651,358 @@ function buildProtocolAndDownload() {
                     var v = votes[voteIdx];
                     if (v === 1 || v === 2) val = v;
                 }
-            } else if (r === 3 + maxRef) val = formatDurationSec(duel.RoundDurations && duel.RoundDurations[0]);
-            else if (r === 4 + maxRef) val = formatDurationSec(duel.RoundDurations && duel.RoundDurations[1]);
-            else if (r === 5 + maxRef) val = formatDurationSec(duel.RoundDurations && duel.RoundDurations[2]);
+            }
             arr.push(val);
         }
         rows.push(arr);
     }
     var wb = XLSX.utils.book_new();
-    var ws = XLSX.utils.aoa_to_sheet(rows);
-    XLSX.utils.book_append_sheet(wb, ws, "Протокол");
+    var wsProtocol = XLSX.utils.aoa_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, wsProtocol, "Протокол");
+    var roundsRows = [["Поединок", "Раунд", "Длительность", "Игрок 1 Роль", "Игрок 2 Роль", "Время паузы", "Протесты"]];
+    for (var d = 0; d < duelsList.length; d++) {
+        var duel = duelsList[d];
+        var durations = duel.RoundDurations || [];
+        var roles = duel.RoundRoles || [];
+        var events = duel.PauseProtestEvents || [];
+        var numRounds = Math.max(durations.length, roles.length, 1);
+        for (var r = 0; r < numRounds; r++) {
+            var roundNum = r + 1;
+            var dur = formatDurationSec(durations[r]);
+            var role1 = (roles[r] && roles[r].player1Role) ? roles[r].player1Role : "";
+            var role2 = (roles[r] && roles[r].player2Role) ? roles[r].player2Role : "";
+            var pauseStr = "";
+            var protestStrs = [];
+            for (var e = 0; e < events.length; e++) {
+                if (events[e].round !== roundNum) continue;
+                if (events[e].type === "pause") pauseStr = formatDurationSec(events[e].gameTimeLeft);
+                else if (events[e].type === "protest") protestStrs.push(formatDurationSec(events[e].gameTimeLeft));
+            }
+            roundsRows.push([d + 1, roundNum, dur, role1, role2, pauseStr, protestStrs.join(", ")]);
+        }
+    }
+    var wsRounds = XLSX.utils.aoa_to_sheet(roundsRows);
+    XLSX.utils.book_append_sheet(wb, wsRounds, "Раунды");
     XLSX.writeFile(wb, "Протокол " + name + ".xlsx");
     try {
         localStorage.removeItem(PROTOCOL_STORAGE_KEY);
     } catch (e) {}
     hideRestoreProtocolBanner();
+}
+
+function buildSessionStatePayload() {
+    var currentDuelNum = currentDuel === undefined || currentDuel === null ? 0 : (typeof currentDuel === "string" ? parseInt(currentDuel, 10) : currentDuel);
+    if (isNaN(currentDuelNum) || currentDuelNum < 0) currentDuelNum = 0;
+    var payload = { scheduleFileName: scheduleFileName || "", phase: sessionPhase, currentDuel: currentDuelNum };
+    if (sessionPhase === "round" || sessionPhase === "judges") {
+        payload.time0 = time[0]; payload.time1 = time[1];
+        payload.roundStartRemaining0 = roundStartRemaining[0]; payload.roundStartRemaining1 = roundStartRemaining[1];
+        payload.roundDurations = roundDurations.slice();
+        payload.current_round = current_round; payload.current_player = current_player;
+        payload.game_time = game_time; payload.duelType = duelType; payload.refereeQty = refereeQty;
+        var p1El = document.getElementById("Player1Name"); var p2El = document.getElementById("Player2Name");
+        payload.player1Name = (p1El && p1El.value) ? p1El.value.trim() : "";
+        payload.player2Name = (p2El && p2El.value) ? p2El.value.trim() : "";
+        payload.roundRoles = roundRoles.slice(); payload.pauseProtestEvents = pauseProtestEvents.slice();
+        var sel1 = document.getElementById("Player1Roles"), sel2 = document.getElementById("Player2Roles");
+        if (sel1 && sel2 && sel1.options.length && sel2.options.length) {
+            var opt1 = sel1.selectedIndex >= 0 ? sel1.options[sel1.selectedIndex] : null;
+            var opt2 = sel2.selectedIndex >= 0 ? sel2.options[sel2.selectedIndex] : null;
+            payload.currentRoundRole1 = (opt1 && opt1.text) ? opt1.text.trim() : "";
+            payload.currentRoundRole2 = (opt2 && opt2.text) ? opt2.text.trim() : "";
+        }
+    }
+    if (sessionPhase === "judges" && refereeList) {
+        payload.refereeVotes = refereeList.map(function (r) { return { vote: r.vote, visible: r.visible }; });
+        payload.activeReferee = activeReferee;
+    }
+    if (sessionPhase === "idle") {
+        var sel1 = document.getElementById("Player1Roles"), sel2 = document.getElementById("Player2Roles");
+        if (sel1 && sel2 && sel1.options.length && sel2.options.length) {
+            var opt1Idle = sel1.selectedIndex >= 0 ? sel1.options[sel1.selectedIndex] : null;
+            var opt2Idle = sel2.selectedIndex >= 0 ? sel2.options[sel2.selectedIndex] : null;
+            payload.currentRoundRole1 = (opt1Idle && opt1Idle.text) ? opt1Idle.text.trim() : "";
+            payload.currentRoundRole2 = (opt2Idle && opt2Idle.text) ? opt2Idle.text.trim() : "";
+        }
+    }
+    if (lastCompletedDuelIndex != null) payload.lastCompletedDuelIndex = lastCompletedDuelIndex;
+    return payload;
+}
+
+function exportOnlineStatusToFile() {
+    var listToExport = duelsList;
+    var name = (scheduleFileName && scheduleFileName.trim()) ? scheduleFileName.trim() : "Статус онлайна";
+    var sessionData = null;
+    if (!listToExport || listToExport.length === 0) {
+        try {
+            var raw = localStorage.getItem(PROTOCOL_STORAGE_KEY);
+            if (raw) {
+                var data = JSON.parse(raw);
+                if (data && data.duelsList && Array.isArray(data.duelsList) && data.duelsList.length > 0) {
+                    listToExport = data.duelsList;
+                    name = (data.scheduleFileName && String(data.scheduleFileName).trim()) ? String(data.scheduleFileName).trim() : "Статус онлайна";
+                    sessionData = data;
+                }
+            }
+        } catch (e) {}
+    }
+    if (!listToExport || listToExport.length === 0) {
+        alert("Сначала загрузите расписание поединков или восстановите последний онлайн.");
+        return;
+    }
+    var maxRef = 0;
+    for (var d = 0; d < listToExport.length; d++) {
+        var q = listToExport[d].RefereeQty;
+        maxRef = Math.max(maxRef, q === 9 || q === 7 || q === 5 ? q : 9);
+    }
+    if (maxRef === 0) maxRef = 9;
+    var payloadExport = sessionData || buildSessionStatePayload();
+    var currentDuelIdx = sessionData ? (sessionData.currentDuel != null ? sessionData.currentDuel : 0) : (currentDuel === undefined || currentDuel === null ? 0 : (typeof currentDuel === "string" ? parseInt(currentDuel, 10) : currentDuel));
+    if (isNaN(currentDuelIdx) || currentDuelIdx < 0) currentDuelIdx = 0;
+    var exportPhase = sessionData ? sessionData.phase : sessionPhase;
+    var headers = [""];
+    for (var c = 0; c < listToExport.length; c++) headers.push("Поединок " + (c + 1));
+    var rows = [headers];
+    var rowLabels = ["Игрок 1", "Игрок 2", "Победитель"];
+    for (var j = 1; j <= maxRef; j++) rowLabels.push("Судья " + j);
+    for (var r = 0; r < rowLabels.length; r++) {
+        var label = rowLabels[r];
+        var arr = [label];
+        for (var col = 0; col < listToExport.length; col++) {
+            var duel = listToExport[col];
+            var val = "";
+            if (r === 0) val = duel.Player1 != null ? String(duel.Player1) : "";
+            else if (r === 1) val = duel.Player2 != null ? String(duel.Player2) : "";
+            else if (r === 2) val = duel.Winner != null ? String(duel.Winner) : "";
+            else if (r >= 3 && r < 3 + maxRef) {
+                var voteIdx = r - 3;
+                var votes = duel.JudgeVotes;
+                if (col === currentDuelIdx && exportPhase === "judges" && payloadExport.refereeVotes && Array.isArray(payloadExport.refereeVotes)) {
+                    if (voteIdx < payloadExport.refereeVotes.length) { var v = payloadExport.refereeVotes[voteIdx].vote; if (v === 1 || v === 2) val = v; }
+                } else if (votes && voteIdx < (duel.RefereeQty || 9)) { var v = votes[voteIdx]; if (v === 1 || v === 2) val = v; }
+            }
+            arr.push(val);
+        }
+        rows.push(arr);
+    }
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "Протокол");
+    var roundsRows = [["Поединок", "Раунд", "Длительность", "Игрок 1 Роль", "Игрок 2 Роль", "Время паузы", "Протесты"]];
+    for (var d = 0; d < listToExport.length; d++) {
+        var duel = listToExport[d];
+        var durations = duel.RoundDurations || [];
+        var roles = duel.RoundRoles || [];
+        var events = duel.PauseProtestEvents || [];
+        if (d === currentDuelIdx && (exportPhase === "round" || exportPhase === "judges")) {
+            var sessDurations = sessionData ? (sessionData.roundDurations || []) : roundDurations;
+            var sessRoles = sessionData ? (sessionData.roundRoles || []) : roundRoles;
+            var sessEvents = sessionData ? (sessionData.pauseProtestEvents || []) : pauseProtestEvents;
+            if (sessDurations.length || sessRoles.length || sessEvents.length) {
+                durations = sessDurations.length ? sessDurations : durations;
+                roles = sessRoles.length ? sessRoles : roles;
+                events = sessEvents.length ? sessEvents : events;
+            }
+        }
+        var exportCurrentRound = (d === currentDuelIdx && exportPhase === "round" && payloadExport.current_round) ? payloadExport.current_round : 0;
+        var numRounds = Math.max(durations.length, roles.length, exportCurrentRound, 1);
+        for (var r = 0; r < numRounds; r++) {
+            var roundNum = r + 1;
+            var dur = formatDurationSec(durations[r]);
+            var role1 = (roles[r] && roles[r].player1Role) ? roles[r].player1Role : "";
+            var role2 = (roles[r] && roles[r].player2Role) ? roles[r].player2Role : "";
+            if (d === currentDuelIdx && exportPhase === "round" && roundNum === exportCurrentRound && (!role1 || !role2) && (payloadExport.currentRoundRole1 || payloadExport.currentRoundRole2)) {
+                role1 = payloadExport.currentRoundRole1 || role1 || "";
+                role2 = payloadExport.currentRoundRole2 || role2 || "";
+            }
+            if (d === currentDuelIdx && r === 0 && !role1 && !role2 && (payloadExport.currentRoundRole1 || payloadExport.currentRoundRole2)) {
+                role1 = payloadExport.currentRoundRole1 || "";
+                role2 = payloadExport.currentRoundRole2 || "";
+            }
+            var pauseStr = ""; var protestStrs = [];
+            for (var e = 0; e < events.length; e++) {
+                if (events[e].round !== roundNum) continue;
+                if (events[e].type === "pause") pauseStr = formatDurationSec(events[e].gameTimeLeft);
+                else if (events[e].type === "protest") protestStrs.push(formatDurationSec(events[e].gameTimeLeft));
+            }
+            roundsRows.push([d + 1, roundNum, dur, role1, role2, pauseStr, protestStrs.join(", ")]);
+        }
+    }
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(roundsRows), "Раунды");
+    var payload = payloadExport;
+    var sessionRows = [["Поле", "Значение"]];
+    var keys = ["scheduleFileName", "phase", "currentDuel", "time0", "time1", "roundStartRemaining0", "roundStartRemaining1", "roundDurations", "current_round", "current_player", "game_time", "duelType", "refereeQty", "player1Name", "player2Name", "roundRoles", "pauseProtestEvents", "refereeVotes", "activeReferee", "currentRoundRole1", "currentRoundRole2", "lastCompletedDuelIndex"];
+    for (var ki = 0; ki < keys.length; ki++) {
+        var k = keys[ki];
+        if (payload[k] === undefined) continue;
+        var v = payload[k];
+        if (typeof v === "object" && v !== null) v = JSON.stringify(v);
+        sessionRows.push([k, v]);
+    }
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sessionRows), "Состояние сессии");
+    XLSX.writeFile(wb, "Статус онлайна " + name + ".xlsx");
+}
+
+function setImportStatusMenuItemEnabled(enabled) {
+    var el = document.getElementById("import-status-menu-item");
+    if (!el) return;
+    if (enabled) {
+        el.classList.remove("disabled");
+        el.removeAttribute("aria-disabled");
+        el.removeAttribute("title");
+    } else {
+        el.classList.add("disabled");
+        el.setAttribute("aria-disabled", "true");
+        el.setAttribute("title", "Сначала загрузите файл расписания");
+    }
+}
+
+function tryImportOnlineStatus(ev) {
+    if (!duelsList || duelsList.length === 0) {
+        if (ev) ev.preventDefault();
+        alert("Сначала загрузите файл расписания.");
+        return false;
+    }
+    document.getElementById("Import_Online_Status_File").click();
+    return false;
+}
+
+function importOnlineStatusFromFile(ev) {
+    var file = ev.target && ev.target.files[0];
+    if (!file) return;
+    ev.target.value = "";
+    if (!duelsList || duelsList.length === 0) {
+        alert("Сначала загрузите файл расписания.");
+        return;
+    }
+    var reader = new FileReader();
+    reader.onload = function () {
+        try {
+            var array = new Uint8Array(reader.result);
+            var binary = String.fromCharCode.apply(null, array);
+            var wb = XLSX.read(binary, { type: "binary" });
+            if (!wb.SheetNames || wb.SheetNames.length === 0) { alert("В файле нет листов."); return; }
+            var wsProtocol = wb.Sheets["Протокол"] || wb.Sheets[wb.SheetNames[0]];
+            var aoa = XLSX.utils.sheet_to_json(wsProtocol, { header: 1 });
+            if (!aoa || aoa.length < 2) { alert("Лист Протокол пуст или не найден."); return; }
+            var firstRow = aoa[0];
+            if (!firstRow || firstRow.length < 2) { alert("В протоколе нет колонок поединков."); return; }
+            var numDuels = firstRow.length - 1;
+            for (var c = 1; c <= numDuels && (c - 1) < duelsList.length; c++) {
+                var duel = duelsList[c - 1];
+                if (!duel) continue;
+                for (var r = 1; r < aoa.length; r++) {
+                    var row = aoa[r];
+                    if (!row) continue;
+                    var label = row[0] != null ? String(row[0]).trim() : "";
+                    var val = row[c];
+                    if (label === "Игрок 1") duel.Player1 = val != null ? String(val) : "";
+                    else if (label === "Игрок 2") duel.Player2 = val != null ? String(val) : "";
+                    else if (label === "Победитель") duel.Winner = val != null ? String(val) : "";
+                    else if (label.indexOf("Судья") === 0) {
+                        if (!duel.JudgeVotes) duel.JudgeVotes = [];
+                        duel.JudgeVotes.push((val === 1 || val === 2) ? val : 0);
+                    }
+                }
+                duel.RefereeQty = duel.JudgeVotes ? duel.JudgeVotes.length : 9;
+                if (duel.RefereeQty !== 9 && duel.RefereeQty !== 7 && duel.RefereeQty !== 5) duel.RefereeQty = 9;
+            }
+            var idxRounds = wb.SheetNames.indexOf("Раунды");
+            if (idxRounds >= 0) {
+                var wsRounds = wb.Sheets["Раунды"];
+                var roundsAoa = XLSX.utils.sheet_to_json(wsRounds, { header: 1 });
+                if (roundsAoa && Array.isArray(roundsAoa)) for (var ri = 1; ri < roundsAoa.length; ri++) {
+                    var row = roundsAoa[ri];
+                    if (!row || row.length < 3) continue;
+                    var duelIdx = parseInt(row[0], 10) - 1;
+                    if (isNaN(duelIdx) || duelIdx < 0 || duelIdx >= duelsList.length) continue;
+                    var duel = duelsList[duelIdx];
+                    var roundNum = parseInt(row[1], 10) || 1;
+                    var durSec = parseDurationToSec(row[2]);
+                    if (!duel.RoundDurations) duel.RoundDurations = [];
+                    while (duel.RoundDurations.length < roundNum) duel.RoundDurations.push(null);
+                    if (durSec != null) duel.RoundDurations[roundNum - 1] = durSec;
+                    if (!duel.RoundRoles) duel.RoundRoles = [];
+                    while (duel.RoundRoles.length < roundNum) duel.RoundRoles.push({ player1Role: "", player2Role: "" });
+                    if (row[3] || row[4]) duel.RoundRoles[roundNum - 1] = { player1Role: (row[3] != null ? String(row[3]) : ""), player2Role: (row[4] != null ? String(row[4]) : "") };
+                    if (!duel.PauseProtestEvents) duel.PauseProtestEvents = [];
+                    var pauseSec = parseDurationToSec(row[5]);
+                    if (pauseSec != null) duel.PauseProtestEvents.push({ type: "pause", round: roundNum, player: 1, gameTimeLeft: pauseSec });
+                    var protestsStr = row[6] != null ? String(row[6]).trim() : "";
+                    if (protestsStr) {
+                        protestsStr.split(/[,;]/).forEach(function (s) {
+                            var sec = parseDurationToSec(s.trim());
+                            if (sec != null) duel.PauseProtestEvents.push({ type: "protest", round: roundNum, player: 1, gameTimeLeft: sec });
+                        });
+                    }
+                }
+            }
+            scheduleFileName = (file.name || "").replace(/\.xlsx$/i, "").replace(/^Статус онлайна\s*/, "") || "Восстановлено";
+            var data = { scheduleFileName: scheduleFileName, duelsList: duelsList, phase: "idle", currentDuel: 0 };
+            var idxSession = wb.SheetNames.indexOf("Состояние сессии");
+            if (idxSession >= 0) {
+                var wsSession = wb.Sheets["Состояние сессии"];
+                var sessionAoa = XLSX.utils.sheet_to_json(wsSession, { header: 1 });
+                if (sessionAoa && Array.isArray(sessionAoa)) for (var si = 0; si < sessionAoa.length; si++) {
+                    var r = sessionAoa[si];
+                    if (!r || r.length < 2) continue;
+                    var key = r[0] != null ? String(r[0]).trim() : "";
+                    var val = r[1];
+                    if (!key) continue;
+                    if (key === "duelsList") continue;
+                    if (key === "scheduleFileName") data.scheduleFileName = val != null ? String(val) : "";
+                    else if (key === "phase") data.phase = val != null ? String(val) : "idle";
+                    else if (key === "currentDuel") data.currentDuel = typeof val === "number" ? val : parseInt(val, 10);
+                    else if (key === "time0") data.time0 = typeof val === "number" ? val : parseInt(val, 10);
+                    else if (key === "time1") data.time1 = typeof val === "number" ? val : parseInt(val, 10);
+                    else if (key === "roundStartRemaining0") data.roundStartRemaining0 = typeof val === "number" ? val : parseInt(val, 10);
+                    else if (key === "roundStartRemaining1") data.roundStartRemaining1 = typeof val === "number" ? val : parseInt(val, 10);
+                    else if (key === "current_round") data.current_round = typeof val === "number" ? val : parseInt(val, 10);
+                    else if (key === "current_player") data.current_player = val === 1 || val === 2 ? val : 1;
+                    else if (key === "game_time") data.game_time = typeof val === "number" ? val : parseInt(val, 10);
+                    else if (key === "duelType") data.duelType = val != null ? String(val) : "classic";
+                    else if (key === "refereeQty") data.refereeQty = typeof val === "number" ? val : parseInt(val, 10);
+                    else if (key === "player1Name") data.player1Name = val != null ? String(val) : "";
+                    else if (key === "player2Name") data.player2Name = val != null ? String(val) : "";
+                    else if (key === "roundDurations" || key === "roundRoles" || key === "pauseProtestEvents" || key === "refereeVotes") {
+                        try { data[key] = typeof val === "string" ? JSON.parse(val) : val; } catch (e) {}
+                    } else if (key === "activeReferee") data.activeReferee = typeof val === "number" ? val : parseInt(val, 10);
+                    else if (key === "currentRoundRole1") data.currentRoundRole1 = val != null ? String(val) : "";
+                    else if (key === "currentRoundRole2") data.currentRoundRole2 = val != null ? String(val) : "";
+                    else if (key === "lastCompletedDuelIndex") data.lastCompletedDuelIndex = typeof val === "number" ? val : parseInt(val, 10);
+                }
+                if (data.scheduleFileName != null && data.scheduleFileName !== "") scheduleFileName = data.scheduleFileName;
+            }
+            var fileNameEl = document.getElementById("file-name");
+            if (fileNameEl) fileNameEl.innerHTML = scheduleFileName;
+            var duelChooser = document.getElementById("duel-chooser");
+            if (duelChooser) {
+                duelChooser.innerHTML = "";
+                duelsList.forEach(function (duel, index) {
+                    var figure = document.createElement("figure");
+                    figure.innerHTML = "<a class=\"icon-link\" href=\"#\" onclick='duelChoosed(\"" + index + "\")'>" +
+                        "<blockquote class=\"blockquote\"><p>№" + (duel.DuelNum || (index + 1)) + " :: " + (duel.SituationName || "") + "</p></blockquote></a>" +
+                        "<figcaption class=\"blockquote-footer\">" + (duel.Player1 || "") + " VS " + (duel.Player2 || "") + "</figcaption>";
+                    duelChooser.appendChild(figure);
+                });
+            }
+            switchToFileDropdown();
+            if (data.currentDuel !== undefined && data.currentDuel !== null && !isNaN(data.currentDuel) && data.currentDuel >= 0 && data.currentDuel < duelsList.length) {
+                duelChoosed(String(data.currentDuel));
+            }
+            applyRestoredSessionState(data);
+            if (data.phase === "idle" && data.lastCompletedDuelIndex != null && !isNaN(data.lastCompletedDuelIndex) && data.lastCompletedDuelIndex >= 0 && data.lastCompletedDuelIndex < duelsList.length) {
+                lastCompletedDuelIndex = data.lastCompletedDuelIndex;
+                var reopenBtn = document.getElementById("reopen_judges_form_btn");
+                if (reopenBtn) reopenBtn.style.display = "block";
+            }
+            saveProtocolStateToLocalStorage();
+            hideRestoreProtocolBanner();
+        } catch (e) {
+            console.warn("importOnlineStatusFromFile", e);
+            alert("Не удалось загрузить файл: " + (e.message || e));
+        }
+    };
+    reader.readAsArrayBuffer(file);
 }
 
 function showRestoreProtocolBanner() {
@@ -1421,14 +2037,41 @@ function hasProtocolRealData(duels) {
     return false;
 }
 
-(function checkRestoreProtocolOnLoad() {
+function checkRestoreProtocolBanner(ignoreInMemoryList) {
     try {
         var raw = localStorage.getItem(PROTOCOL_STORAGE_KEY);
         if (!raw) return;
         var data = JSON.parse(raw);
         if (!data.duelsList || !Array.isArray(data.duelsList) || data.duelsList.length === 0) return;
-        if (!hasProtocolRealData(data.duelsList)) return;
-        if (duelsList && duelsList.length > 0) return;
+        var hasRealData = hasProtocolRealData(data.duelsList);
+        var hasActiveSession = data.phase === "round" || data.phase === "judges";
+        if (!hasRealData && !hasActiveSession) return;
+        if (!ignoreInMemoryList && duelsList && duelsList.length > 0) return;
         showRestoreProtocolBanner();
     } catch (e) {}
+}
+
+function attachJudgesModalReopenListeners() {
+    var finishModalEl = document.getElementById("finishDuelModal");
+    if (!finishModalEl || finishModalEl._judgesModalListenersAttached) return;
+    finishModalEl._judgesModalListenersAttached = true;
+    finishModalEl.addEventListener("hidden.bs.modal", function () {
+        if (sessionPhase === "judges" || (sessionPhase === "idle" && lastCompletedDuelIndex != null)) {
+            var btn = document.getElementById("reopen_judges_form_btn");
+            if (btn) btn.style.display = "block";
+        }
+    });
+}
+
+(function checkRestoreProtocolOnLoad() {
+    checkRestoreProtocolBanner(false);
+    function updateImportStatusMenu() { setImportStatusMenuItemEnabled(!!(duelsList && duelsList.length > 0)); }
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", updateImportStatusMenu);
+    else updateImportStatusMenu();
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", attachJudgesModalReopenListeners);
+    else attachJudgesModalReopenListeners();
 })();
+
+window.addEventListener("pageshow", function (e) {
+    if (e.persisted) checkRestoreProtocolBanner(true);
+});
