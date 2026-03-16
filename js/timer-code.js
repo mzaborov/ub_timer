@@ -1,4 +1,4 @@
-// deploy-version: 15
+// deploy-version: 16
 const activeTimerColor = "blue";
 const inactiveTimerColor = "DarkGray";
 const emergingTimerColor = "OrangeRed";
@@ -53,6 +53,89 @@ var donut2 = new Donutty(document.getElementById("donut2"), { min: 0, max: game_
 var pause_donut = new Donutty(document.getElementById("pause_donut"), { min: 0, max: 60, value: 60, round: false, color: secondaryTimerColor, bg:donuttyTrackColor });
 var referee_donut = new Donutty(document.getElementById("referee_donut"), { min: 0, max: 60, value: 60, round: false, color: secondaryTimerColor, bg:donuttyTrackColor });
 initTimers();
+
+(function setupTimerDblclickEdit() {
+    /** Парсит ввод времени: "M:SS", "MM:SS" или число секунд. Возвращает секунды или null. */
+    function parseTimeInput(str) {
+        if (str == null || (str = String(str).trim()) === "") return null;
+        if (str.indexOf(":") !== -1) {
+            var parts = str.split(":");
+            if (parts.length === 2) {
+                var m = parseInt(parts[0], 10);
+                var s = parseInt(parts[1], 10);
+                if (!isNaN(m) && !isNaN(s) && m >= 0 && s >= 0 && s < 60) return m * 60 + s;
+            }
+            return null;
+        }
+        var num = parseInt(str, 10);
+        return (!isNaN(num) && num >= 0) ? num : null;
+    }
+    function colorForDonut(playerIndex, value) {
+        var isActive = (current_player === playerIndex + 1);
+        if (!isActive) return inactiveTimerColor;
+        if (value <= finishingTime) return finishingTimerColor;
+        if (value <= emergingTime) return emergingTimerColor;
+        return activeTimerColor;
+    }
+    function applyTimerValue(playerIndex, seconds) {
+        var idx = playerIndex;
+        time[idx] = Math.max(1, Math.min(game_time, seconds));
+        var donut = (idx === 0) ? donut1 : donut2;
+        var color = colorForDonut(idx, time[idx]);
+        donut.setState({ value: time[idx], color: color });
+        document.getElementById("timer" + (idx + 1)).textContent = formatTime(time[idx]);
+        if (duel_is_active) saveProtocolStateToLocalStorage();
+    }
+    function startEdit(timerId) {
+        if (clock_is_active || !duel_is_active) return;
+        var playerIndex = (timerId === "timer1") ? 0 : 1;
+        if (timerId !== "timer1" && timerId !== "timer2") return;
+        var el = document.getElementById(timerId);
+        if (!el || el.querySelector("input.timer-edit-input")) return;
+        var parent = el.parentNode;
+        var input = document.createElement("input");
+        input.type = "text";
+        input.className = "timer-edit-input";
+        input.value = formatTime(time[playerIndex]);
+        input.setAttribute("aria-label", "Время в формате М:СС или секунды");
+        var style = window.getComputedStyle(el);
+        input.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;text-align:center;font-size:inherit;font-family:inherit;border:1px solid #0d6efd;border-radius:4px;box-sizing:border-box;padding:0;background:rgba(255,255,255,0.95);";
+        input.style.fontSize = style.fontSize;
+        input.style.lineHeight = el.style.lineHeight || "200px";
+        el.style.visibility = "hidden";
+        parent.appendChild(input);
+        input.focus();
+        input.select();
+        var done = false;
+        function finishEdit() {
+            if (done) return;
+            done = true;
+            var val = parseTimeInput(input.value);
+            if (val !== null) applyTimerValue(playerIndex, val);
+            if (input.parentNode) parent.removeChild(input);
+            el.style.visibility = "";
+        }
+        function cancelEdit() {
+            if (done) return;
+            done = true;
+            if (input.parentNode) parent.removeChild(input);
+            el.style.visibility = "";
+        }
+        input.addEventListener("blur", finishEdit);
+        input.addEventListener("keydown", function(e) {
+            if (e.key === "Enter") { e.preventDefault(); finishEdit(); }
+            if (e.key === "Escape") { e.preventDefault(); cancelEdit(); }
+        });
+    }
+    function onDblclick(e) {
+        var id = e.currentTarget.id;
+        if (id === "timer1" || id === "timer2") startEdit(id);
+    }
+    var t1 = document.getElementById("timer1");
+    var t2 = document.getElementById("timer2");
+    if (t1) { t1.addEventListener("dblclick", onDblclick); t1.title = "Двойной клик — ввести время (при остановленных часах). Формат: М:СС или секунды"; }
+    if (t2) { t2.addEventListener("dblclick", onDblclick); t2.title = "Двойной клик — ввести время (при остановленных часах). Формат: М:СС или секунды"; }
+})();
 document.getElementById("plr1radiolabel").classList.add("btn-outline-"+PlayerVoteStyle[1]);
 document.getElementById("plr2radiolabel").classList.add("btn-outline-"+PlayerVoteStyle[2]);
 document.getElementById("Player1Score").classList.add("text-bg-"+PlayerVoteStyle[1]);

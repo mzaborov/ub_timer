@@ -1,4 +1,4 @@
-/* deploy-version: 15 */
+/* deploy-version: 16 */
 @keyframes pulse {
   0%  { opacity: 0;  transform: scale(0.2);}
   20% { opacity: 0.3; transform: scale(0.4);}
@@ -154,6 +154,16 @@ body.dice-blink-active #Player2Label {
   position: relative;
   z-index: 5; /* ← ТАЙМЕРЫ НАВЕРХУ — ВИДНЫ И КЛИКАБЕЛЬНЫ */
   flex-shrink: 0;
+}
+
+/* Поле времени: двойной клик — редактировать (при остановленных часах). Курсор не вводится в текст. */
+#timer1,
+#timer2 {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 

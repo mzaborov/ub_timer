@@ -209,6 +209,14 @@
   }
   #timer1,
   #timer2 {
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+  }
+  #timer1,
+  #timer2 {
     width: 155px !important;
     height: 155px !important;
     line-height: 155px !important;
