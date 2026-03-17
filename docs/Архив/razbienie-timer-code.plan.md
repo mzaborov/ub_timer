@@ -4,31 +4,31 @@ overview: "Разбить монолитный js/timer-code.js на неско�
 todos:
   - id: extract-state
     content: "Вынести константы и глобальные переменные в js/state.js. "
-    status: pending
+    status: completed
   - id: update-html-scripts
     content: "Подключить state.js перед timer-code.js в index.html. "
-    status: pending
+    status: completed
   - id: verify-no-regressions
     content: "Проверить: загрузка расписания, поединок, судьи, участники, протокол, восстановление. "
-    status: pending
+    status: completed
   - id: phase2-extract-core
     content: "Фаза 2: выделить core.js (часы, поединок, переход хода, Dice, IIFE таймера). "
-    status: pending
+    status: completed
   - id: phase2-extract-referees
     content: "Фаза 2: выделить referees.js (оценки судей). "
-    status: pending
+    status: completed
   - id: phase2-extract-schedule
     content: "Фаза 2: выделить schedule.js (загрузка JSON, участники, раскладка судей). "
-    status: pending
+    status: completed
   - id: phase2-extract-toolbar-sound
     content: "Фаза 2: выделить toolbar-sound.js (кнопки тулбара, звук). "
-    status: pending
+    status: completed
   - id: phase2-extract-protocol
     content: "Фаза 2: выделить protocol.js (протокол онлайна, баннер, экспорт/импорт). "
-    status: pending
+    status: completed
   - id: phase2-extract-init
     content: "Фаза 2: создать init.js (донаты, initTimers(), стили, звук/интро). "
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -180,5 +180,4 @@ isProject: false
 | Забыть вынести переменную, на которую ссылается code | Перед удалением из code проверить grep по имени переменной; в state объявить все, что используются в code. |
 | Ошибиться порядком скриптов                          | В index.html state всегда перед timer-code.js.                                                             |
 | Версия кэша                                          | Использовать тот же query `?v=...` для state и code при деплое или поднять версию разом.                   |
-
 
