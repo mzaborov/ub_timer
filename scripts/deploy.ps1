@@ -42,7 +42,8 @@ if (-not $remoteDir) { $remoteDir = "timer.zaborov.ru/www" }
 
 # Исключения из выкладки: из env или значения по умолчанию
 $defaultExcludeRoots = '.git', 'secrets.env', 'scripts', '.gitignore', '.cursor', 'node_modules', 'History.log', '.vscode', 'git_hint.txt', 'Таблицы для онлайнов', 'docs'
-$defaultExcludeFiles = 'secrets.env', 'secrets.env.example', '.gitignore', 'History.log', 'git_hint.txt', 'Макет часов.vsdx'
+$defaultExcludeFiles = 'secrets.env', 'secrets.env.example', '.gitignore', 'History.log', 'git_hint.txt', 'Макет часов.vsdx', 'Онлайн я-ИТ-ы №24.xlsx'
+# Файлы с расширением .xlsx не выкладываем (данные/примеры расписаний; на сервере пользователи загружают свои)
 $excludeRoot = if ($env:DEPLOY_EXCLUDE_ROOTS) { $env:DEPLOY_EXCLUDE_ROOTS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' } } else { $defaultExcludeRoots }
 $excludeFiles = if ($env:DEPLOY_EXCLUDE_FILES) { $env:DEPLOY_EXCLUDE_FILES -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' } } else { $defaultExcludeFiles }
 
@@ -154,6 +155,7 @@ Get-ChildItem -Path $root -Recurse -File | ForEach-Object {
     if ($relParts[0] -in $excludeRoot) { return }
     if ($relParts -contains '.git' -or $relParts -contains 'node_modules' -or $relParts -contains '.cursor') { return }
     if ($rel -in $excludeFiles) { return }
+    if ($rel -match '\.xlsx$') { return }
     $size = $_.Length
     $remoteSize = $remoteNormalized[$rel]
     if ($null -eq $remoteSize -or $remoteSize -ne $size) {
@@ -169,6 +171,7 @@ Get-ChildItem -Path $root -Recurse -File | ForEach-Object {
     if ($relParts[0] -in $excludeRoot) { return }
     if ($relParts -contains '.git' -or $relParts -contains 'node_modules' -or $relParts -contains '.cursor') { return }
     if ($rel -in $excludeFiles) { return }
+    if ($rel -match '\.xlsx$') { return }
     $localPaths[$rel] = $_.Length
 }
 
@@ -203,7 +206,7 @@ $newVer = $currentVer + 1
 Set-Content $versionFile -Value ([string]$newVer) -NoNewline -Encoding UTF8
 Write-Host "Версия выкладки: $newVer" -ForegroundColor Cyan
 
-$versionedFiles = @("index.html", "js/timer-code.js", "css/timer.css")
+$versionedFiles = @("index.html", "js/init.js", "css/timer.css")
 foreach ($rel in $versionedFiles) {
     $fp = Join-Path $root $rel
     if (-not (Test-Path $fp)) { continue }
