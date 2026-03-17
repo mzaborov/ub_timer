@@ -1,4 +1,4 @@
-// deploy-version: 16
+// deploy-version: 17
 const activeTimerColor = "blue";
 const inactiveTimerColor = "DarkGray";
 const emergingTimerColor = "OrangeRed";
@@ -45,6 +45,11 @@ var PROTOCOL_STORAGE_KEY = "ub-timer-online-state";
 var sessionPhase = "idle"; // "idle" | "round" | "judges"
 var isRestoringProtocol = false;
 var lastCompletedDuelIndex = null; // индекс поединка, только что завершённого (для кнопки «Вернуть голосование» в idle)
+
+// Участники и раскладка судей (план форма судей)
+var people = {}; // id -> { id, fullName, isActive, experience, notes? }; experience: "novice" | "experienced" | "org" | "none"
+var duelAssignments = []; // по duelIndex: { player1Id, player2Id, second1Id?, second2Id?, judges: [ { personId, category }, ... ] (max 9), confirmed: {} (slotKey -> true для зелёного) }
+var peopleNextId = 1;
 
 
 /*--------------------------инициализирующий код----------------------------*/
@@ -214,6 +219,30 @@ function refereeTimer(regime)
       }
 }
 
+function shortNameForPerson(fullName) {
+    if (!fullName || typeof fullName !== "string") return "";
+    var parts = fullName.trim().split(/\s+/);
+    if (parts.length === 0) return "";
+    if (parts.length === 1) return parts[0].length > 12 ? parts[0].slice(0, 10) + "…" : parts[0];
+    var last = parts[parts.length - 1];
+    var initials = parts.slice(0, -1).map(function (p) { return (p.charAt(0) || "").toUpperCase() + "."; }).join(" ");
+    return (initials + " " + last).trim();
+}
+
+function applyJudgesNamesFromAssignments() {
+    var cd = (currentDuel != null && currentDuel !== "-1") ? (typeof currentDuel === "string" ? parseInt(currentDuel, 10) : currentDuel) : 0;
+    if (isNaN(cd) || cd < 0 || !duelAssignments[cd] || !duelAssignments[cd].judges) return;
+    var judges = duelAssignments[cd].judges;
+    var vis = [];
+    for (var i = 0; i < 11; i++) if (refereeList[i].visible) vis.push(i);
+    for (var k = 0; k < vis.length && k < judges.length; k++) {
+        var pid = judges[k].personId;
+        var full = pid && people[pid] ? people[pid].fullName : "";
+        refereeList[vis[k]].Caption = full ? full.trim() : ("Судья " + (k + 1));
+        refereeList[vis[k]]._fullName = full;
+    }
+}
+
 function initRefereeStructure(refQty)
 {
  if (duelType === 'express')
@@ -287,6 +316,7 @@ function initRefereeStructure(refQty)
     }          
 
  }
+ applyJudgesNamesFromAssignments();
  highlightReferee ();
 }
 
@@ -371,21 +401,23 @@ function nextReferee()
 
 function refereeVote(vt)
 {
-    refereeList[activeReferee].vote= vt;
+    if (refereeList[activeReferee].vote === vt) {
+        refereeList[activeReferee].vote = 0;
+    } else {
+        refereeList[activeReferee].vote = vt;
+    }
     highlightReferee();
     saveProtocolStateToLocalStorage();
 }
 
 function calcAndShowScore()
 {
-  var score=[0,0,0];
+  var score = [0, 0, 0];
   var unvotedCount = 0;
-    for (let i=0; i<11;i++)
-    {
-       if (refereeList[i].visible)
-        {
-           score[refereeList[i].vote]++;
-           if (refereeList[i].vote === 0) unvotedCount++;
+    for (let i = 0; i < 11; i++) {
+       if (refereeList[i].visible) {
+           if (refereeList[i].vote === 1 || refereeList[i].vote === 2) score[refereeList[i].vote]++;
+           else unvotedCount++;
         }
     }
     document.getElementById("Player1Score").innerHTML = "&nbsp"+score[1]+"&nbsp";
@@ -405,8 +437,11 @@ function highlightReferee ()
     {
        if (refereeList[i].visible)
         {
-         document.getElementById("refBut"+i).style.visibility = "visible";
-         document.getElementById("refBut"+i).innerHTML  = refereeList[i].Сaption;        
+         var but = document.getElementById("refBut"+i);
+         but.style.visibility = "visible";
+         but.innerHTML = refereeList[i].Caption || refereeList[i].Сaption || "";
+         but.title = refereeList[i]._fullName || refereeList[i].Caption || refereeList[i].Сaption || "";
+         but.style.fontSize = (refereeList[i]._fullName ? "0.85em" : "");
         }
       else
        {
@@ -837,10 +872,10 @@ function stop_duel() {
     initRefereeStructure(-1);
     if (duelsList && duelsList[currentDuel]) {
         var q = duelsList[currentDuel].RefereeQty || refereeQty || 9;
-        q = (q === 9 || q === 7 || q === 5) ? q : 9;
-        document.getElementById(q + "ref").checked = true;
+        refereeQty = (q === 9 || q === 7 || q === 5) ? q : 9;
     }
-    document.getElementById("ref_qty_picker").style.visibility = (duelType === "classic" ? "visible" : "hidden");
+    var openJudgesFormBtn = document.getElementById("open_judges_form_btn");
+    if (openJudgesFormBtn) openJudgesFormBtn.style.visibility = (duelType === "classic" ? "visible" : "hidden");
     refereeTimer("start");
     var myModal = bootstrap.Modal.getOrCreateInstance(document.getElementById("finishDuelModal"));
     var reopenBtn = document.getElementById("reopen_judges_form_btn");
@@ -1210,8 +1245,6 @@ function applyRestoredSessionState(data) {
     }
     if (phase === "judges") {
         initRefereeStructure(refereeQty);
-        var refQtyEl = document.getElementById(refereeQty + "ref");
-        if (refQtyEl) refQtyEl.checked = true;
         if (data.refereeVotes && Array.isArray(data.refereeVotes) && refereeList) {
             for (var i = 0; i < data.refereeVotes.length && i < refereeList.length; i++) {
                 refereeList[i].vote = data.refereeVotes[i].vote;
@@ -1240,6 +1273,24 @@ function restoreProtocolStateFromLocalStorage() {
         if (!data.duelsList || !Array.isArray(data.duelsList) || data.duelsList.length === 0) return false;
         scheduleFileName = data.scheduleFileName || "";
         duelsList = data.duelsList;
+        if (data.people && typeof data.people === "object") {
+            people = data.people;
+            peopleNextId = (data.peopleNextId != null && !isNaN(data.peopleNextId)) ? data.peopleNextId : (function () { var max = 0; for (var k in people) { var n = parseInt(String(k).replace(/^p_/, ""), 10); if (!isNaN(n) && n > max) max = n; } return max + 1; })();
+        }
+        if (data.duelAssignments && Array.isArray(data.duelAssignments)) {
+            duelAssignments = data.duelAssignments;
+            for (var i = 0; i < duelAssignments.length; i++) if (duelAssignments[i] && duelAssignments[i].excludedPersonIds) delete duelAssignments[i].excludedPersonIds;
+            ensurePeopleFromSchedule();
+            for (var si = 0; si < duelsList.length && si < duelAssignments.length; si++) {
+                var du = duelsList[si], as = duelAssignments[si];
+                if (!as) continue;
+                if ((!as.second1Id || !people[as.second1Id]) && du.Second1) as.second1Id = getOrCreatePersonId(du.Second1);
+                if ((!as.second2Id || !people[as.second2Id]) && du.Second2) as.second2Id = getOrCreatePersonId(du.Second2);
+            }
+        } else {
+            ensurePeopleFromSchedule();
+            initDuelAssignmentsFromDuels();
+        }
         var fileNameEl = document.getElementById("file-name");
         if (fileNameEl) fileNameEl.innerHTML = scheduleFileName || "Восстановлено";
         var duelChooser = document.getElementById("duel-chooser");
@@ -1292,12 +1343,990 @@ function restoreProtocolStateFromLocalStorage() {
     } catch (e) { isRestoringProtocol = false; console.warn("restoreProtocolStateFromLocalStorage", e); return false; }
 }
 
+function getOrCreatePersonId(fullName) {
+    var name = (fullName != null && typeof fullName === "string") ? fullName.trim() : "";
+    if (!name) return null;
+    for (var id in people) { if (people[id].fullName === name) return id; }
+    var id = "p_" + (peopleNextId++);
+    people[id] = { id: id, fullName: name, isActive: true, experience: "none" };
+    return id;
+}
+
+function ensurePeopleFromSchedule() {
+    if (!duelsList || !duelsList.length) return;
+    var i, duel, name;
+    for (i = 0; i < duelsList.length; i++) {
+        duel = duelsList[i];
+        if (duel.Player1) getOrCreatePersonId(duel.Player1);
+        if (duel.Player2) getOrCreatePersonId(duel.Player2);
+        if (duel.Second1) getOrCreatePersonId(duel.Second1);
+        if (duel.Second2) getOrCreatePersonId(duel.Second2);
+    }
+}
+
+function getDuelSecondName(duel, which) {
+    var v;
+    if (which === 1) v = duel.Second1 || duel["Second 1"] || duel["Cornerman 1"] || duel["Секундант 1"] || duel.Cornerman1 || duel["Cornerman1"];
+    else v = duel.Second2 || duel["Second 2"] || duel["Cornerman 2"] || duel["Секундант 2"] || duel.Cornerman2 || duel["Cornerman2"];
+    return (v != null && String(v).trim() !== "") ? String(v).trim() : null;
+}
+
+function initDuelAssignmentsFromDuels() {
+    var list = [];
+    if (!duelsList || !duelsList.length) { duelAssignments = list; return; }
+    var i, duel, a;
+    for (i = 0; i < duelsList.length; i++) {
+        duel = duelsList[i];
+        var name1 = getDuelSecondName(duel, 1);
+        var name2 = getDuelSecondName(duel, 2);
+        if (name1) duel.Second1 = name1;
+        if (name2) duel.Second2 = name2;
+        a = { player1Id: duel.Player1 ? getOrCreatePersonId(duel.Player1) : null, player2Id: duel.Player2 ? getOrCreatePersonId(duel.Player2) : null, second1Id: name1 ? getOrCreatePersonId(name1) : null, second2Id: name2 ? getOrCreatePersonId(name2) : null, judges: [], confirmed: {} };
+        var j;
+        for (j = 0; j < 9; j++) a.judges.push({ personId: null, category: j < 3 ? "hiring" : j < 7 ? "negotiators" : "owners" });
+        list.push(a);
+    }
+    duelAssignments = list;
+}
+
+function countTimesJudged(personId) {
+    var n = 0;
+    if (!personId || !duelAssignments.length) return n;
+    for (var d = 0; d < duelAssignments.length; d++) {
+        var a = duelAssignments[d];
+        if (!a.judges) continue;
+        for (var j = 0; j < a.judges.length; j++) { if (a.judges[j].personId === personId) n++; }
+    }
+    return n;
+}
+
+function countTimesPlayed(personId) {
+    var n = 0;
+    if (!personId || !duelAssignments.length) return n;
+    for (var d = 0; d < duelAssignments.length; d++) {
+        var a = duelAssignments[d];
+        if (a.player1Id === personId || a.player2Id === personId) n++;
+    }
+    return n;
+}
+
+function countTimesSeconded(personId) {
+    var n = 0;
+    if (!personId || !duelAssignments.length) return n;
+    for (var d = 0; d < duelAssignments.length; d++) {
+        var a = duelAssignments[d];
+        if (a.second1Id === personId || a.second2Id === personId) n++;
+    }
+    return n;
+}
+
+function getSlotCategory(duelIdx, slotKey) {
+    var slots = getJudgeSlotsForDuel(duelIdx);
+    var i = slots.indexOf(slotKey);
+    if (i < 0) return "negotiators";
+    var express = isDuelExpress(duelIdx);
+    if (express) return "negotiators";
+    var n = slots.length;
+    if (n === 9) return i < 3 ? "hiring" : i < 6 ? "negotiators" : "owners";
+    if (n === 7) return i < 2 ? "hiring" : i < 5 ? "negotiators" : "owners";
+    return i < 1 ? "hiring" : i < 4 ? "negotiators" : "owners";
+}
+
+function renderParticipantsTab() {
+    var tbody = document.getElementById("participants-tbody");
+    if (!tbody) return;
+    var list = [];
+    for (var id in people) list.push(people[id]);
+    list.sort(function (a, b) { return (a.fullName || "").localeCompare(b.fullName || ""); });
+    tbody.innerHTML = "";
+    if (list.length === 0) {
+        var tr = document.createElement("tr");
+        tr.innerHTML = "<td colspan=\"7\" class=\"text-muted text-center py-3\">Нет участников. Загрузите расписание с именами игроков/секундантов или введите ФИО выше и нажмите «Добавить участника».</td>";
+        tbody.appendChild(tr);
+        return;
+    }
+    list.forEach(function (p, index) {
+        var judged = countTimesJudged(p.id);
+        var played = countTimesPlayed(p.id);
+        var seconded = countTimesSeconded(p.id);
+        var expVal = p.experience || "none";
+        var statusLabel = p.isActive !== false ? "активен" : "неактивен";
+        var tr = document.createElement("tr");
+        tr.setAttribute("data-person-id", p.id);
+        if (p.isActive === false) tr.classList.add("text-muted");
+        tr.style.cursor = "pointer";
+        tr.addEventListener("click", function () { var t = document.getElementById("participants-tbody"); if (t) { var rows = t.querySelectorAll("tr"); for (var r = 0; r < rows.length; r++) rows[r].classList.remove("table-active"); } tr.classList.add("table-active"); });
+        var expName = "exp-" + p.id.replace(/"/g, "");
+        tr.innerHTML = "<td class=\"text-nowrap\">" + (index + 1) + "</td><td>" + (p.fullName || "") + "</td>" +
+            "<td><button type=\"button\" class=\"btn btn-sm btn-outline-secondary\" onclick=\"setPersonActive('" + p.id + "', " + (p.isActive === false ? "true" : "false") + "); renderParticipantsTab();\">" + statusLabel + "</button></td>" +
+            "<td onclick=\"event.stopPropagation();\"><div class=\"d-flex flex-nowrap gap-1\">" +
+            "<div class=\"form-check form-check-inline mb-0\"><input class=\"form-check-input\" type=\"radio\" name=\"" + expName + "\" value=\"none\"" + (expVal === "none" ? " checked" : "") + " onchange=\"setPersonExperience('" + p.id.replace(/'/g, "\\'") + "', this.value);\"><label class=\"form-check-label small\">—</label></div>" +
+            "<div class=\"form-check form-check-inline mb-0\"><input class=\"form-check-input\" type=\"radio\" name=\"" + expName + "\" value=\"novice\"" + (expVal === "novice" ? " checked" : "") + " onchange=\"setPersonExperience('" + p.id.replace(/'/g, "\\'") + "', this.value);\"><label class=\"form-check-label small\">новичок</label></div>" +
+            "<div class=\"form-check form-check-inline mb-0\"><input class=\"form-check-input\" type=\"radio\" name=\"" + expName + "\" value=\"experienced\"" + (expVal === "experienced" ? " checked" : "") + " onchange=\"setPersonExperience('" + p.id.replace(/'/g, "\\'") + "', this.value);\"><label class=\"form-check-label small\">опытный</label></div>" +
+            "<div class=\"form-check form-check-inline mb-0\"><input class=\"form-check-input\" type=\"radio\" name=\"" + expName + "\" value=\"org\"" + (expVal === "org" ? " checked" : "") + " onchange=\"setPersonExperience('" + p.id.replace(/'/g, "\\'") + "', this.value);\"><label class=\"form-check-label small\">орг</label></div>" +
+            "</div></td>" +
+            "<td>" + judged + "</td><td>" + played + "</td><td>" + seconded + "</td>";
+        tbody.appendChild(tr);
+    });
+}
+
+function setPersonActive(personId, active) {
+    if (!people[personId]) return;
+    people[personId].isActive = !!active;
+    saveProtocolStateToLocalStorage();
+}
+
+function setPersonExperience(personId, experience) {
+    if (!people[personId]) return;
+    people[personId].experience = (experience === "novice" || experience === "experienced" || experience === "org") ? experience : "none";
+    saveProtocolStateToLocalStorage();
+}
+
+function addParticipantFromModal() {
+    var input = document.getElementById("participants-new-name");
+    var name = (input && input.value) ? String(input.value).trim() : "";
+    if (!name) {
+        alert("Введите ФИО в поле выше.");
+        if (input) input.focus();
+        return;
+    }
+    getOrCreatePersonId(name);
+    if (input) input.value = "";
+    saveProtocolStateToLocalStorage();
+    renderParticipantsTab();
+}
+
+function openParticipantsJudgesModal() {
+    if (duelsList && duelsList.length) ensurePeopleFromSchedule();
+    var modalEl = document.getElementById("participantsJudgesModal");
+    if (!modalEl) return;
+    var defaultTab = (sessionPhase !== "idle" || (duelsList && duelsList.length && hasProtocolRealData(duelsList))) ? "tab-judges" : "tab-participants";
+    var tabParticipants = document.getElementById("tab-participants-btn");
+    var tabJudges = document.getElementById("tab-judges-btn");
+    if (defaultTab === "tab-judges" && tabJudges) { tabJudges.click(); renderJudgesLayoutTab(); }
+    else if (tabParticipants) tabParticipants.click();
+    renderParticipantsTab();
+    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    var tabsEl = document.getElementById("participantsJudgesTabs");
+    if (tabsEl && !tabsEl._tabShownListener) {
+        tabsEl._tabShownListener = true;
+        tabsEl.addEventListener("shown.bs.tab", function (e) {
+            var target = e.target && e.target.getAttribute("data-bs-target");
+            if (target === "#tab-participants") renderParticipantsTab();
+            else if (target === "#tab-judges") renderJudgesLayoutTab();
+        });
+    }
+    modal.show();
+}
+
+var JUDGES_LAYOUT_BASE_ROWS = [
+    { key: "player1", label: "Игрок" },
+    { key: "second1", label: "Секундант" },
+    { key: "player2", label: "Игрок" },
+    { key: "second2", label: "Секундант" }
+];
+
+function getJudgeSlotsForDuel(duelIdx) {
+    if (!duelsList || duelIdx < 0 || duelIdx >= duelsList.length) return [];
+    var duel = duelsList[duelIdx];
+    var express = (duel.Type || "").toString().toLowerCase().indexOf("экспресс") !== -1;
+    var q = duel.RefereeQty;
+    if (q !== 9 && q !== 7 && q !== 5) q = 9;
+    if (express) return ["j3", "j4", "j5", "j6", "j7"];
+    if (q === 9) return ["j0", "j1", "j2", "j3", "j4", "j5", "j6", "j7", "j8"];
+    if (q === 7) return ["j0", "j1", "j2", "j3", "j4", "j5", "j6"];
+    return ["j0", "j1", "j2", "j3", "j4"];
+}
+
+function getJudgesLayoutRows() {
+    var base = JUDGES_LAYOUT_BASE_ROWS.slice();
+    if (!duelsList || !duelsList.length) return base;
+    var allExpress = true, allClassic = true;
+    var maxQty = 0;
+    for (var i = 0; i < duelsList.length; i++) {
+        var t = (duelsList[i].Type || "").toString().toLowerCase();
+        if (t.indexOf("экспресс") !== -1) allClassic = false; else allExpress = false;
+        var q = duelsList[i].RefereeQty;
+        if (q === 9 || q === 7 || q === 5) maxQty = Math.max(maxQty, q); else maxQty = Math.max(maxQty, 9);
+    }
+    if (maxQty === 0) maxQty = 9;
+    if (allExpress) {
+        for (var k = 1; k <= 5; k++) base.push({ key: "j" + (2 + k), label: "Отправляющие " + k });
+        return base;
+    }
+    if (maxQty === 9) {
+        for (var n = 1; n <= 3; n++) base.push({ key: "j" + (n - 1), label: "Нанимающиеся " + n });
+        for (var o = 1; o <= 3; o++) base.push({ key: "j" + (2 + o), label: "Отправляющие " + o });
+        for (var d = 1; d <= 3; d++) base.push({ key: "j" + (5 + d), label: "Доверяющие " + d });
+    } else if (maxQty === 7) {
+        for (var n = 1; n <= 2; n++) base.push({ key: "j" + (n - 1), label: "Нанимающиеся " + n });
+        for (var o = 1; o <= 3; o++) base.push({ key: "j" + (1 + o), label: "Отправляющие " + o });
+        for (var d = 1; d <= 2; d++) base.push({ key: "j" + (4 + d), label: "Доверяющие " + d });
+    } else {
+        base.push({ key: "j0", label: "Нанимающиеся 1" });
+        for (var o = 1; o <= 3; o++) base.push({ key: "j" + o, label: "Отправляющие " + o });
+        base.push({ key: "j4", label: "Доверяющие 1" });
+    }
+    return base;
+}
+
+function isDuelPast(duelIdx) {
+    if (duelIdx < 0 || !duelsList || duelIdx >= duelsList.length) return true;
+    var d = duelsList[duelIdx];
+    return !!(d.Winner != null && String(d.Winner).trim() !== "") || (d.RoundDurations && d.RoundDurations.length > 0);
+}
+
+function isDuelExpress(duelIdx) {
+    if (duelIdx < 0 || !duelsList || duelIdx >= duelsList.length) return false;
+    return (duelsList[duelIdx].Type || "").toString().toLowerCase().indexOf("экспресс") !== -1;
+}
+
+function getPersonName(personId) {
+    if (!personId || !people[personId]) return "";
+    return people[personId].fullName || "";
+}
+
+function getAssignmentSlot(duelIdx, slotKey) {
+    if (!duelAssignments[duelIdx]) return null;
+    var a = duelAssignments[duelIdx];
+    if (slotKey === "player1") return a.player1Id;
+    if (slotKey === "player2") return a.player2Id;
+    if (slotKey === "second1") return a.second1Id;
+    if (slotKey === "second2") return a.second2Id;
+    if (slotKey.indexOf("j") === 0) {
+        var j = parseInt(slotKey.slice(1), 10);
+        if (a.judges && a.judges[j]) return a.judges[j].personId;
+    }
+    return null;
+}
+
+function setAssignmentSlot(duelIdx, slotKey, personId) {
+    while (duelAssignments.length <= duelIdx) duelAssignments.push({ player1Id: null, player2Id: null, second1Id: null, second2Id: null, judges: [], confirmed: {} });
+    var a = duelAssignments[duelIdx];
+    if (!a.judges) a.judges = [];
+    while (a.judges.length < 9) a.judges.push({ personId: null, category: a.judges.length < 3 ? "hiring" : a.judges.length < 7 ? "negotiators" : "owners" });
+    if (slotKey === "player1") { a.player1Id = personId; if (duelsList && duelsList[duelIdx]) duelsList[duelIdx].Player1 = getPersonName(personId); }
+    else if (slotKey === "player2") { a.player2Id = personId; if (duelsList && duelsList[duelIdx]) duelsList[duelIdx].Player2 = getPersonName(personId); }
+    else if (slotKey === "second1") { a.second1Id = personId; if (duelsList && duelsList[duelIdx]) duelsList[duelIdx].Second1 = getPersonName(personId); }
+    else if (slotKey === "second2") { a.second2Id = personId; if (duelsList && duelsList[duelIdx]) duelsList[duelIdx].Second2 = getPersonName(personId); }
+    else if (slotKey.indexOf("j") === 0) {
+        var j = parseInt(slotKey.slice(1), 10);
+        if (a.judges[j]) a.judges[j].personId = personId;
+    }
+    saveProtocolStateToLocalStorage();
+}
+
+function getConfirmedSlot(duelIdx, slotKey) {
+    if (!duelAssignments[duelIdx] || !duelAssignments[duelIdx].confirmed) return false;
+    return !!duelAssignments[duelIdx].confirmed[slotKey];
+}
+
+function setConfirmedSlot(duelIdx, slotKey, value) {
+    if (!duelAssignments[duelIdx]) return;
+    if (!duelAssignments[duelIdx].confirmed) duelAssignments[duelIdx].confirmed = {};
+    if (value) duelAssignments[duelIdx].confirmed[slotKey] = true;
+    else delete duelAssignments[duelIdx].confirmed[slotKey];
+    saveProtocolStateToLocalStorage();
+}
+
+function getBusyInDuel(duelIdx) {
+    var busy = {};
+    var a = duelAssignments[duelIdx];
+    if (!a) return busy;
+    ["player1", "player2", "second1", "second2"].forEach(function (k) {
+        var id = getAssignmentSlot(duelIdx, k);
+        if (id) busy[id] = true;
+    });
+    if (a.judges) for (var j = 0; j < a.judges.length; j++) { if (a.judges[j].personId) busy[a.judges[j].personId] = true; }
+    return busy;
+}
+
+function getExcludedFromDuel(duelIdx) {
+    var a = duelAssignments[duelIdx];
+    if (!a || !a.excludedPersonIds) return {};
+    var set = {};
+    for (var i = 0; i < a.excludedPersonIds.length; i++) set[a.excludedPersonIds[i]] = true;
+    return set;
+}
+
+function addExcludedFromDuel(duelIdx, personId) {
+    if (!personId) return;
+    while (duelAssignments.length <= duelIdx) duelAssignments.push({ player1Id: null, player2Id: null, second1Id: null, second2Id: null, judges: [], confirmed: {} });
+    var a = duelAssignments[duelIdx];
+    if (!a.excludedPersonIds) a.excludedPersonIds = [];
+    if (a.excludedPersonIds.indexOf(personId) === -1) a.excludedPersonIds.push(personId);
+    saveProtocolStateToLocalStorage();
+}
+
+function renderJudgesLayoutTab() {
+    var thead = document.getElementById("judges-layout-thead");
+    var tbody = document.getElementById("judges-layout-tbody");
+    if (!thead || !tbody) return;
+    var duels = duelsList || [];
+    if (duels.length === 0) { thead.innerHTML = ""; tbody.innerHTML = "<tr><td colspan=\"2\" class=\"text-muted\">Загрузите расписание поединков.</td></tr>"; return; }
+    var cd = (currentDuel != null && currentDuel !== "-1") ? (typeof currentDuel === "string" ? parseInt(currentDuel, 10) : currentDuel) : 0;
+    if (isNaN(cd) || cd < 0) cd = 0;
+    var headerRow = "<tr><th class=\"table-secondary\">Блок / позиция</th>";
+    for (var c = 0; c < duels.length; c++) {
+        var isPast = isDuelPast(c);
+        var isCur = (c === cd);
+        var thClass = "table-secondary";
+        var duel = duels[c];
+        var situationName = (duel && duel.SituationName && String(duel.SituationName).trim()) ? String(duel.SituationName).trim() : "";
+        var title = "Поединок " + (c + 1) + (situationName ? "<br>" + situationName : "");
+        if (isPast) {
+            headerRow += "<th class=\"" + thClass + "\" data-duel-idx=\"" + c + "\">" + title + "</th>";
+        } else {
+            headerRow += "<th class=\"" + thClass + "\" data-duel-idx=\"" + c + "\"><div class=\"dropdown\"><button type=\"button\" class=\"btn btn-link btn-sm p-0 text-dark text-decoration-none dropdown-toggle\" data-bs-toggle=\"dropdown\" aria-haspopup=\"true\">" + title + "</button><ul class=\"dropdown-menu\"><li><a class=\"dropdown-item\" href=\"#\" data-autofill-duel=\"" + c + "\">Назначить судей на этот поединок</a></li></ul></div></th>";
+        }
+    }
+    thead.innerHTML = headerRow + "</tr>";
+    var table = document.getElementById("judges-layout-table");
+    if (table && !table._autofillDelegate) {
+        table._autofillDelegate = true;
+        table.addEventListener("click", function (e) {
+            var t = e.target.closest ? e.target.closest("[data-autofill-duel]") : null;
+            if (t) { e.preventDefault(); runJudgesAutofillForDuel(parseInt(t.getAttribute("data-autofill-duel"), 10)); }
+        });
+    }
+    tbody.innerHTML = "";
+    var layoutRows = getJudgesLayoutRows();
+    var isPlayerOnly = function (key) { return key === "player1" || key === "player2"; };
+    var thickBottomKeys = { second2: true };
+    var lastRow = layoutRows[layoutRows.length - 1];
+    if (lastRow) thickBottomKeys[lastRow.key] = true;
+    if (layoutRows.some(function (r) { return r.key === "j8"; })) { thickBottomKeys.j2 = true; thickBottomKeys.j5 = true; thickBottomKeys.j8 = true; }
+    else if (layoutRows.some(function (r) { return r.key === "j6"; })) { thickBottomKeys.j1 = true; thickBottomKeys.j4 = true; thickBottomKeys.j6 = true; }
+    else if (layoutRows.some(function (r) { return r.key === "j4"; })) { thickBottomKeys.j0 = true; thickBottomKeys.j3 = true; thickBottomKeys.j4 = true; }
+    else if (layoutRows.some(function (r) { return r.key === "j7"; })) { thickBottomKeys.j7 = true; }
+    var swapMode = window._judgesSwapMode;
+    var sourceD = swapMode ? swapMode.duelIdx : null;
+    var sourceS = swapMode ? swapMode.slotKey : null;
+    var sourcePerson = (sourceD != null && sourceS) ? getAssignmentSlot(sourceD, sourceS) : null;
+    function isSwapAvailable(tdD, tdS) {
+        if (sourceD === tdD && sourceS === tdS) return "source";
+        if (sourceD == null || !sourcePerson) return null;
+        var slots = getJudgeSlotsForDuel(tdD);
+        if (slots.indexOf(tdS) === -1) return null;
+        if (isDuelPast(tdD)) return "unavailable";
+        var targetPerson = getAssignmentSlot(tdD, tdS);
+        if (!targetPerson) return "unavailable";
+        if (sourceD === tdD) return "available";
+        var busy1 = getBusyInDuel(sourceD), busy2 = getBusyInDuel(tdD);
+        if (busy2[sourcePerson] || busy1[targetPerson]) return "unavailable";
+        return "available";
+    }
+    layoutRows.forEach(function (row) {
+        var tr = document.createElement("tr");
+        var cellTitle = (row.key === "second1" || row.key === "second2") ? " title=\"Заполняется из файла расписания (колонки Cornerman 1, Cornerman 2). Автоназначение судей секундантов не заполняет.\"" : "";
+        if (thickBottomKeys[row.key]) tr.style.borderBottom = "3px solid #000";
+        tr.innerHTML = "<td class=\"text-nowrap\"" + cellTitle + ">" + row.label + "</td>";
+        for (var col = 0; col < duels.length; col++) {
+            var isPast = isDuelPast(col);
+            var isCur = (col === cd);
+            var isExpressCol = isDuelExpress(col);
+            var judgeRow = row.key.indexOf("j") === 0;
+            var judgeNum = judgeRow ? parseInt(row.key.slice(1), 10) : -1;
+            var hideInExpress = isExpressCol && judgeRow && (row.label.indexOf("Нанимающиеся") === 0 || row.label.indexOf("Доверяющие") === 0);
+            var personId = getAssignmentSlot(col, row.key);
+            var name = getPersonName(personId);
+            var confirmed = getConfirmedSlot(col, row.key);
+            var td = document.createElement("td");
+            td.setAttribute("data-duel-idx", col);
+            td.setAttribute("data-slot-key", row.key);
+            if (isPast) td.classList.add("table-secondary");
+            else if (isCur && judgeRow) td.classList.add("table-primary");
+            if (hideInExpress) td.classList.add("table-secondary");
+            if (confirmed) td.style.backgroundColor = "rgba(200,255,200,0.5)";
+            else if (isPlayerOnly(row.key)) td.style.backgroundColor = "rgba(173, 216, 230, 0.5)";
+            if (swapMode && judgeRow && !hideInExpress) {
+                var swapState = isSwapAvailable(col, row.key);
+                if (swapState === "source") td.classList.add("judges-swap-source");
+                else if (swapState === "available") td.classList.add("judges-swap-available");
+                else if (swapState === "unavailable" && !isPast) td.classList.add("judges-swap-unavailable");
+            }
+            td.textContent = name || "—";
+            td.style.minWidth = "100px";
+            td.style.cursor = isPast ? "default" : "pointer";
+            if (!isPast && !hideInExpress) {
+                td.addEventListener("click", function (e) {
+                    if (e.detail === 2) return;
+                    var d = parseInt(this.getAttribute("data-duel-idx"), 10);
+                    var s = this.getAttribute("data-slot-key");
+                    if (window._judgesSwapMode) {
+                        var st = isSwapAvailable(d, s);
+                        if (st === "available") {
+                            var a = getAssignmentSlot(window._judgesSwapMode.duelIdx, window._judgesSwapMode.slotKey);
+                            var b = getAssignmentSlot(d, s);
+                            setAssignmentSlot(window._judgesSwapMode.duelIdx, window._judgesSwapMode.slotKey, b);
+                            setAssignmentSlot(d, s, a);
+                        }
+                        window._judgesSwapMode = null;
+                        if (window._judgesSwapEscape) { document.removeEventListener("keydown", window._judgesSwapEscape); window._judgesSwapEscape = null; }
+                        window._judgesSwapJustHandled = true;
+                        setTimeout(function () { window._judgesSwapJustHandled = false; }, 200);
+                        renderJudgesLayoutTab();
+                        return;
+                    }
+                    if (d !== cd) return;
+                    setConfirmedSlot(d, s, !getConfirmedSlot(d, s));
+                    renderJudgesLayoutTab();
+                });
+                td.addEventListener("dblclick", function () {
+                    if (window._judgesSwapMode || window._judgesSwapJustHandled) return;
+                    var d = parseInt(this.getAttribute("data-duel-idx"), 10);
+                    var s = this.getAttribute("data-slot-key");
+                    if (isDuelPast(d) || hideInExpress) return;
+                    openJudgesCellCombobox(d, s, this);
+                });
+                td.addEventListener("contextmenu", function (e) {
+                    e.preventDefault();
+                    var d = parseInt(this.getAttribute("data-duel-idx"), 10);
+                    var s = this.getAttribute("data-slot-key");
+                    if (isDuelPast(d)) return;
+                    showJudgesCellContextMenu(d, s, e.clientX, e.clientY);
+                });
+            }
+            tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+    });
+    var autofillBtn = document.getElementById("judges-autofill-btn");
+    if (autofillBtn) autofillBtn.onclick = function (e) { runJudgesAutofill(!!(e && e.ctrlKey)); };
+}
+
+function openJudgesCellCombobox(duelIdx, slotKey, cellEl) {
+    var busy = getBusyInDuel(duelIdx);
+    var list = [];
+    for (var id in people) {
+        if (busy[id]) continue;
+        list.push(people[id]);
+    }
+    list.sort(function (a, b) { return (a.fullName || "").localeCompare(b.fullName || ""); });
+    var div = document.getElementById("judges-cell-dropdown");
+    if (!div) return;
+    div.innerHTML = "<div class=\"dropdown-menu show\" style=\"max-height:280px; overflow-y:auto;\"><input type=\"text\" class=\"form-control form-control-sm m-1\" placeholder=\"Поиск...\" id=\"judges-cell-search\"><div id=\"judges-cell-list\"></div></div>";
+    div.style.display = "block";
+    div.style.left = (cellEl.getBoundingClientRect().left) + "px";
+    div.style.top = (cellEl.getBoundingClientRect().bottom) + "px";
+    var listEl = document.getElementById("judges-cell-list");
+    function fillList(filter) {
+        var q = (filter || "").trim().toLowerCase();
+        listEl.innerHTML = "";
+        list.forEach(function (p) {
+            if (q && (p.fullName || "").toLowerCase().indexOf(q) === -1) return;
+            if (busy[p.id]) return;
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "dropdown-item";
+            if (p.isActive === false) btn.classList.add("text-muted");
+            btn.textContent = p.fullName || p.id;
+            btn.onclick = function () {
+                setAssignmentSlot(duelIdx, slotKey, p.id);
+                closeJudgesCellDropdown();
+                renderJudgesLayoutTab();
+            };
+            listEl.appendChild(btn);
+        });
+    }
+    fillList();
+    var searchEl = document.getElementById("judges-cell-search");
+    if (searchEl) searchEl.oninput = function () { fillList(this.value); };
+    window._judgesCellDropdownClose = function () { closeJudgesCellDropdown(); };
+    window._judgesCellDropdownEsc = function (e) {
+        if (e.key === "Escape") {
+            e.preventDefault();
+            e.stopPropagation();
+            closeJudgesCellDropdown();
+        }
+    };
+    setTimeout(function () { document.addEventListener("click", window._judgesCellDropdownClose); }, 0);
+    document.addEventListener("keydown", window._judgesCellDropdownEsc, true);
+}
+
+function closeJudgesCellDropdown() {
+    var div = document.getElementById("judges-cell-dropdown");
+    if (div) { div.innerHTML = ""; div.style.display = "none"; }
+    document.removeEventListener("click", window._judgesCellDropdownClose);
+    document.removeEventListener("keydown", window._judgesCellDropdownEsc, true);
+}
+
+function runJudgesAutofillForOneDuel(d) {
+    if (!duelsList || d < 0 || d >= duelsList.length || isDuelPast(d)) return;
+    var timesJudged = {};
+    for (var id in people) timesJudged[id] = countTimesJudged(id);
+    var busy = getBusyInDuel(d);
+    var slots = getJudgeSlotsForDuel(d);
+    var express = isDuelExpress(d);
+    var hiringFirst = [];
+    var preferExperiencedSlots = {};
+    if (!express && slots.length >= 5) {
+        var n = Math.ceil(slots.length / 3);
+        for (var hi = 0; hi < n; hi++) hiringFirst.push(slots[hi]);
+        for (var pi = slots.length - n; pi < slots.length; pi++) preferExperiencedSlots[slots[pi]] = true;
+    }
+    for (var hi = 0; hi < hiringFirst.length; hi++) preferExperiencedSlots[hiringFirst[hi]] = true;
+    function rolePriority(p) {
+        var play = countTimesPlayed(p.id), second = countTimesSeconded(p.id);
+        if (play === 0 && second === 0) return 0;
+        if (second > 0) return 1;
+        if (play > 0) return 2;
+        return 3;
+    }
+    function expRank(p, preferN, preferE) {
+        if (preferN && p.experience === "novice") return 0;
+        if (preferE && p.experience === "experienced") return 0;
+        if (p.experience === "novice") return 1;
+        if (p.experience === "experienced") return 2;
+        if (p.experience === "org") return 3;
+        return 4;
+    }
+    var excluded = getExcludedFromDuel(d);
+    function fillPass(excludeOrg) {
+        slots.forEach(function (slotKey) {
+            if (excludeOrg === false && getAssignmentSlot(d, slotKey)) return;
+            var candidates = [];
+            for (var id in people) {
+                if (people[id].isActive === false) continue;
+                if (busy[id]) continue;
+                if (excluded[id]) continue;
+                if (excludeOrg && people[id].experience === "org") continue;
+                candidates.push(people[id]);
+            }
+            var preferNovice = hiringFirst.indexOf(slotKey) !== -1 && d < (duelsList.length * 0.4);
+            var preferExperienced = !!preferExperiencedSlots[slotKey];
+            candidates.sort(function (a, b) {
+                var ra = rolePriority(a), rb = rolePriority(b);
+                if (ra !== rb) return ra - rb;
+                var ta = timesJudged[a.id] || 0, tb = timesJudged[b.id] || 0;
+                if (ta !== tb) return ta - tb;
+                var ea = expRank(a, preferNovice, preferExperienced), eb = expRank(b, preferNovice, preferExperienced);
+                if (ea !== eb) return ea - eb;
+                return Math.random() - 0.5;
+            });
+            var chosen = candidates.length ? candidates[0] : null;
+            setAssignmentSlot(d, slotKey, chosen ? chosen.id : null);
+            if (chosen) { busy[chosen.id] = true; timesJudged[chosen.id] = (timesJudged[chosen.id] || 0) + 1; }
+        });
+    }
+    fillPass(true);
+    fillPass(false);
+    renderJudgesLayoutTab();
+}
+
+function runJudgesAutofillForDuel(duelIdx) {
+    runJudgesAutofillForOneDuel(duelIdx);
+}
+
+function findBestCandidateForSlot(duelIdx, slotKey) {
+    if (!duelsList || duelIdx < 0 || duelIdx >= duelsList.length || isDuelPast(duelIdx)) return null;
+    var busy = getBusyInDuel(duelIdx);
+    var excluded = getExcludedFromDuel(duelIdx);
+    var slots = getJudgeSlotsForDuel(duelIdx);
+    if (slots.indexOf(slotKey) === -1) return null;
+    var express = isDuelExpress(duelIdx);
+    var cat = getSlotCategory(duelIdx, slotKey);
+    var preferNovice = (cat === "hiring");
+    var timesJudged = {};
+    for (var id in people) timesJudged[id] = countTimesJudged(id);
+    function rolePriority(p) {
+        var play = countTimesPlayed(p.id), second = countTimesSeconded(p.id);
+        if (play === 0 && second === 0) return 0;
+        if (second > 0) return 1;
+        if (play > 0) return 2;
+        return 3;
+    }
+    function expRank(p) {
+        if (p.experience === "org") return 3;
+        if (preferNovice && p.experience === "novice") return 0;
+        if (preferNovice && p.experience === "experienced") return 1;
+        if (!preferNovice && p.experience === "experienced") return 0;
+        if (!preferNovice && p.experience === "novice") return 1;
+        return 2;
+    }
+    var candidates = [];
+    for (var id in people) {
+        if (people[id].isActive === false) continue;
+        if (people[id].experience === "org") continue;
+        if (busy[id]) continue;
+        if (excluded[id]) continue;
+        candidates.push(people[id]);
+    }
+    if (candidates.length === 0) return null;
+    candidates.sort(function (a, b) {
+        var ra = rolePriority(a), rb = rolePriority(b);
+        if (ra !== rb) return ra - rb;
+        var ta = timesJudged[a.id] || 0, tb = timesJudged[b.id] || 0;
+        if (ta !== tb) return ta - tb;
+        var ea = expRank(a), eb = expRank(b);
+        if (ea !== eb) return ea - eb;
+        return String(a.id).localeCompare(String(b.id));
+    });
+    return candidates[0].id;
+}
+
+function recalcFutureDuels(fromDuelIdx) {
+    if (!duelsList || fromDuelIdx < 0) return;
+    for (var d = fromDuelIdx; d < duelsList.length; d++) {
+        if (isDuelPast(d)) continue;
+        var slots = getJudgeSlotsForDuel(d);
+        for (var i = 0; i < slots.length; i++) setAssignmentSlot(d, slots[i], null);
+    }
+    for (var d = fromDuelIdx; d < duelsList.length; d++) {
+        if (isDuelPast(d)) continue;
+        runJudgesAutofillForOneDuel(d);
+    }
+}
+
+function runJudgesAutofill(debugMode) {
+    if (!duelsList || !duelsList.length) return;
+    for (var d = 0; d < duelsList.length; d++) {
+        if (isDuelPast(d)) continue;
+        var slots = getJudgeSlotsForDuel(d);
+        for (var i = 0; i < slots.length; i++) setAssignmentSlot(d, slots[i], null);
+    }
+    var timesJudged = {};
+    for (var id in people) timesJudged[id] = countTimesJudged(id);
+    var assignedOnlyJudge = {};
+    var assignedInPass2 = {};
+    var assignedInPass3 = {};
+    var numDuels = 0;
+    for (var d = 0; d < duelsList.length; d++) if (!isDuelPast(d)) numDuels++;
+    var limit1 = numDuels >= 5 ? 3 : 2;
+    var limit2 = numDuels >= 5 ? 2 : 1;
+    var limit3 = numDuels >= 5 ? 2 : 1;
+    var currentLimit1 = limit1, currentLimit2 = limit2, currentLimit3 = limit3;
+    function isOnlyJudge(id) {
+        return countTimesPlayed(id) === 0 && countTimesSeconded(id) === 0;
+    }
+    var sharedPanelCount = {};
+    var timesAssignedToCategory = {};
+    function getAssignedInDuelPanel(d, cat) {
+        var ids = [];
+        var slots = getJudgeSlotsForDuel(d);
+        for (var i = 0; i < slots.length; i++) {
+            if (getSlotCategory(d, slots[i]) !== cat) continue;
+            var pid = getAssignmentSlot(d, slots[i]);
+            if (pid) ids.push(pid);
+        }
+        return ids;
+    }
+    function neighborCost(personId, d, slotKey) {
+        var cat = getSlotCategory(d, slotKey);
+        var inPanel = getAssignedInDuelPanel(d, cat);
+        var cost = 0;
+        for (var i = 0; i < inPanel.length; i++) {
+            var q = inPanel[i];
+            if (q === personId) continue;
+            cost += (sharedPanelCount[personId] && sharedPanelCount[personId][q]) ? sharedPanelCount[personId][q] : 0;
+        }
+        return cost;
+    }
+    function updateSharedPanel(personId, d, slotKey) {
+        var cat = getSlotCategory(d, slotKey);
+        var inPanel = getAssignedInDuelPanel(d, cat);
+        if (!sharedPanelCount[personId]) sharedPanelCount[personId] = {};
+        for (var i = 0; i < inPanel.length; i++) {
+            var q = inPanel[i];
+            if (q === personId) continue;
+            sharedPanelCount[personId][q] = (sharedPanelCount[personId][q] || 0) + 1;
+            if (!sharedPanelCount[q]) sharedPanelCount[q] = {};
+            sharedPanelCount[q][personId] = (sharedPanelCount[q][personId] || 0) + 1;
+        }
+    }
+    function getFreeSlotsForPerson(personId, categoryFilter) {
+        var list = [];
+        for (var d = 0; d < duelsList.length; d++) {
+            if (isDuelPast(d)) continue;
+            var busy = getBusyInDuel(d);
+            if (busy[personId]) continue;
+            if (getExcludedFromDuel(d)[personId]) continue;
+            var slots = getJudgeSlotsForDuel(d);
+            for (var i = 0; i < slots.length; i++) {
+                var slotKey = slots[i];
+                if (getAssignmentSlot(d, slotKey)) continue;
+                var cat = getSlotCategory(d, slotKey);
+                if (categoryFilter === "hiring" && cat !== "hiring") continue;
+                if (categoryFilter === "non-hiring" && cat === "hiring") continue;
+                if (categoryFilter === "panel23" && cat !== "negotiators" && cat !== "owners") continue;
+                list.push({ d: d, slotKey: slotKey });
+            }
+        }
+        return list;
+    }
+    var autofillLog = [];
+    var round = 1;
+
+    function assignOne(personId, d, slotKey, passLabel, onAssign) {
+        setAssignmentSlot(d, slotKey, personId);
+        timesJudged[personId] = (timesJudged[personId] || 0) + 1;
+        var cat = getSlotCategory(d, slotKey);
+        if (!timesAssignedToCategory[personId]) timesAssignedToCategory[personId] = {};
+        timesAssignedToCategory[personId][cat] = (timesAssignedToCategory[personId][cat] || 0) + 1;
+        updateSharedPanel(personId, d, slotKey);
+        if (onAssign) onAssign(personId);
+        var p = people[personId];
+        autofillLog.push({ round: round, pass: passLabel || "", duel: d + 1, slotKey: slotKey, name: (p && p.fullName) || personId, experience: (p && p.experience) || "—" });
+    }
+    function sortSlotsByDuelAndNeighbor(list, personId) {
+        list.sort(function (a, b) {
+            var ca = neighborCost(personId, a.d, a.slotKey), cb = neighborCost(personId, b.d, b.slotKey);
+            if (ca !== cb) return ca - cb;
+            if (a.d !== b.d) return a.d - b.d;
+            var catA = getSlotCategory(a.d, a.slotKey), catB = getSlotCategory(b.d, b.slotKey);
+            var cntA = (timesAssignedToCategory[personId] && timesAssignedToCategory[personId][catA]) || 0;
+            var cntB = (timesAssignedToCategory[personId] && timesAssignedToCategory[personId][catB]) || 0;
+            return cntA - cntB;
+        });
+    }
+
+    function onePassStep1Round1() {
+        var list = [];
+        for (var id in people) {
+            if (!people[id].isActive || people[id].experience === "org") continue;
+            if (!isOnlyJudge(id) || (assignedOnlyJudge[id] || 0) >= limit1) continue;
+            list.push(people[id]);
+        }
+        list.sort(function (a, b) { return (timesJudged[a.id] || 0) - (timesJudged[b.id] || 0) || String(a.id).localeCompare(String(b.id)); });
+        var novices = list.filter(function (p) { return p.experience === "novice"; });
+        var experienced = list.filter(function (p) { return p.experience === "experienced"; });
+        var none = list.filter(function (p) { return p.experience !== "novice" && p.experience !== "experienced"; });
+        var n = 0;
+        novices.forEach(function (p) {
+            var assignedDuels = {};
+            var hired = 0;
+            while (hired < 2) {
+                var freeHiring = getFreeSlotsForPerson(p.id, "hiring").filter(function (x) { return !assignedDuels[x.d]; });
+                if (freeHiring.length === 0) break;
+                sortSlotsByDuelAndNeighbor(freeHiring, p.id);
+                var pick = freeHiring[0];
+                assignOne(p.id, pick.d, pick.slotKey, "1-только судьи", function (id) { assignedOnlyJudge[id] = (assignedOnlyJudge[id] || 0) + 1; });
+                assignedDuels[pick.d] = true;
+                hired++;
+                n++;
+            }
+            if ((assignedOnlyJudge[p.id] || 0) < limit1 && limit1 >= 3) {
+                var freeOther = getFreeSlotsForPerson(p.id, "panel23");
+                if (freeOther.length === 0) freeOther = getFreeSlotsForPerson(p.id, "non-hiring");
+                freeOther = freeOther.filter(function (x) { return !assignedDuels[x.d]; });
+                if (freeOther.length > 0) {
+                    sortSlotsByDuelAndNeighbor(freeOther, p.id);
+                    var x = freeOther[0];
+                    assignOne(p.id, x.d, x.slotKey, "1-только судьи", function (id) { assignedOnlyJudge[id] = (assignedOnlyJudge[id] || 0) + 1; });
+                    n++;
+                }
+            }
+        });
+        experienced.forEach(function (p) {
+            var assignedDuels = {};
+            var need = limit1 - (assignedOnlyJudge[p.id] || 0);
+            while (need > 0) {
+                var free = getFreeSlotsForPerson(p.id, "panel23").filter(function (x) { return !assignedDuels[x.d]; });
+                if (free.length === 0) break;
+                sortSlotsByDuelAndNeighbor(free, p.id);
+                var x = free[0];
+                assignOne(p.id, x.d, x.slotKey, "1-только судьи", function (id) { assignedOnlyJudge[id] = (assignedOnlyJudge[id] || 0) + 1; });
+                assignedDuels[x.d] = true;
+                need--;
+                n++;
+            }
+        });
+        none.forEach(function (p) {
+            var assignedDuels = {};
+            var need = limit1 - (assignedOnlyJudge[p.id] || 0);
+            while (need > 0) {
+                var free = getFreeSlotsForPerson(p.id, null).filter(function (x) { return !assignedDuels[x.d]; });
+                if (free.length === 0) break;
+                sortSlotsByDuelAndNeighbor(free, p.id);
+                var x = free[0];
+                assignOne(p.id, x.d, x.slotKey, "1-только судьи", function (id) { assignedOnlyJudge[id] = (assignedOnlyJudge[id] || 0) + 1; });
+                assignedDuels[x.d] = true;
+                need--;
+                n++;
+            }
+        });
+        return n;
+    }
+    function onePassStepByPeopleRound1(filterFn, limit, assignedMap, passLabel, preferHiringForNovices) {
+        var list = [];
+        for (var id in people) {
+            if (!people[id].isActive || people[id].experience === "org") continue;
+            if (!filterFn(id) || (assignedMap[id] || 0) >= limit) continue;
+            list.push(people[id]);
+        }
+        var byExp = function (a, b) { return (timesJudged[a.id] || 0) - (timesJudged[b.id] || 0) || String(a.id).localeCompare(String(b.id)); };
+        var novices = list.filter(function (p) { return p.experience === "novice"; }).sort(byExp);
+        var experienced = list.filter(function (p) { return p.experience === "experienced"; }).sort(byExp);
+        var none = list.filter(function (p) { return p.experience !== "novice" && p.experience !== "experienced"; }).sort(byExp);
+        var n = 0;
+        novices.concat(experienced, none).forEach(function (p) {
+            var assignedDuels = {};
+            var need = limit - (assignedMap[p.id] || 0);
+            if (preferHiringForNovices && p.experience === "novice" && need > 0) {
+                var hiringCount = 0;
+                while (hiringCount < 2 && hiringCount < need) {
+                    var freeHiring = getFreeSlotsForPerson(p.id, "hiring").filter(function (x) { return !assignedDuels[x.d]; });
+                    if (freeHiring.length === 0) break;
+                    sortSlotsByDuelAndNeighbor(freeHiring, p.id);
+                    var pick = freeHiring[0];
+                    assignOne(p.id, pick.d, pick.slotKey, passLabel, function (id) { assignedMap[id] = (assignedMap[id] || 0) + 1; });
+                    assignedDuels[pick.d] = true;
+                    hiringCount++;
+                    need--;
+                    n++;
+                }
+            }
+            while (need > 0) {
+                var free = getFreeSlotsForPerson(p.id, null).filter(function (x) { return !assignedDuels[x.d]; });
+                if (free.length === 0) break;
+                sortSlotsByDuelAndNeighbor(free, p.id);
+                var x = free[0];
+                assignOne(p.id, x.d, x.slotKey, passLabel, function (id) { assignedMap[id] = (assignedMap[id] || 0) + 1; });
+                assignedDuels[x.d] = true;
+                need--;
+                n++;
+            }
+        });
+        return n;
+    }
+    function onePassSimple(filterFn, limit, assignedMap, onAssignKey, passLabel) {
+        var slotOrder = [];
+        for (var d = 0; d < duelsList.length; d++) {
+            if (isDuelPast(d)) continue;
+            var s = getJudgeSlotsForDuel(d);
+            for (var i = 0; i < s.length; i++) if (slotOrder.indexOf(s[i]) === -1) slotOrder.push(s[i]);
+        }
+        var count = 0;
+        for (var d = 0; d < duelsList.length; d++) {
+            if (isDuelPast(d)) continue;
+            var slots = getJudgeSlotsForDuel(d);
+            for (var si = 0; si < slotOrder.length; si++) {
+                var slotKey = slotOrder[si];
+                if (slots.indexOf(slotKey) === -1) continue;
+                if (getAssignmentSlot(d, slotKey)) continue;
+                var busy = getBusyInDuel(d);
+                var excluded = getExcludedFromDuel(d);
+                var candidates = [];
+                for (var id in people) {
+                    if (!people[id].isActive || busy[id]) continue;
+                    if (excluded[id]) continue;
+                    if (!filterFn(id) || (assignedMap[id] || 0) >= limit) continue;
+                    candidates.push(people[id]);
+                }
+                if (candidates.length === 0) continue;
+                candidates.sort(function (a, b) {
+                    var ta = timesJudged[a.id] || 0, tb = timesJudged[b.id] || 0;
+                    return ta - tb || String(a.id).localeCompare(String(b.id));
+                });
+                var chosen = candidates[0];
+                setAssignmentSlot(d, slotKey, chosen.id);
+                timesJudged[chosen.id] = (timesJudged[chosen.id] || 0) + 1;
+                if (onAssignKey === "onlyJudge") assignedOnlyJudge[chosen.id] = (assignedOnlyJudge[chosen.id] || 0) + 1;
+                else if (onAssignKey === "pass2") assignedInPass2[chosen.id] = (assignedInPass2[chosen.id] || 0) + 1;
+                else if (onAssignKey === "pass3") assignedInPass3[chosen.id] = (assignedInPass3[chosen.id] || 0) + 1;
+                count++;
+                var pe = people[chosen.id];
+                autofillLog.push({ round: round, pass: passLabel || "", duel: d + 1, slotKey: slotKey, name: (pe && pe.fullName) || chosen.id, experience: (pe && pe.experience) || "—" });
+            }
+        }
+        return count;
+    }
+
+    var n1 = onePassStep1Round1();
+    var n2 = onePassStepByPeopleRound1(function (id) { return countTimesSeconded(id) > 0 && countTimesPlayed(id) === 0; }, limit2, assignedInPass2, "2-секунданты", true);
+    var n3 = onePassStepByPeopleRound1(function (id) { return countTimesPlayed(id) > 0; }, limit3, assignedInPass3, "3-игроки", true);
+
+    for (round = 2; ; round++) {
+        currentLimit1 = limit1 + (round - 1);
+        currentLimit2 = limit2 + (round - 1);
+        currentLimit3 = limit3 + (round - 1);
+        var n = 0;
+        n += onePassSimple(function (id) { return isOnlyJudge(id) && people[id].experience !== "org"; }, currentLimit1, assignedOnlyJudge, "onlyJudge", "1-только судьи");
+        n += onePassSimple(function (id) { return countTimesSeconded(id) > 0 && countTimesPlayed(id) === 0 && people[id].experience !== "org"; }, currentLimit2, assignedInPass2, "pass2", "2-секунданты");
+        n += onePassSimple(function (id) { return countTimesPlayed(id) > 0 && people[id].experience !== "org"; }, currentLimit3, assignedInPass3, "pass3", "3-игроки");
+        if (n === 0) break;
+    }
+    onePassSimple(function (id) { return people[id].experience === "org"; }, 999, {}, null, "орги");
+    if (debugMode) {
+        var lines = ["Автоназначение судей — порядок назначений", "Дата: " + new Date().toLocaleString("ru-RU"), ""];
+        autofillLog.forEach(function (entry, i) {
+            lines.push((i + 1) + ". раунд " + entry.round + ", " + entry.pass + ", поединок " + entry.duel + ", " + entry.slotKey + " → " + entry.name + " (" + (entry.experience || "—") + ")");
+        });
+        var blob = new Blob([lines.join("\r\n")], { type: "text/plain;charset=utf-8" });
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "autofill-log-" + new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "").replace(" ", "-") + ".txt";
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+    }
+    renderJudgesLayoutTab();
+}
+
+function showJudgesCellContextMenu(duelIdx, slotKey, x, y) {
+    var menu = document.getElementById("judges-cell-context-menu");
+    if (!menu) return;
+    var personId = getAssignmentSlot(duelIdx, slotKey);
+    var isJudgeSlot = slotKey && slotKey.indexOf("j") === 0;
+    menu.innerHTML = "<a class=\"dropdown-item\" href=\"#\" data-action=\"clear\">Очистить</a><a class=\"dropdown-item\" href=\"#\" data-action=\"swap\">Поменять местами</a>" +
+        (personId && isJudgeSlot ? "<a class=\"dropdown-item\" href=\"#\" data-action=\"exclude\">Не может на этот поединок</a><a class=\"dropdown-item\" href=\"#\" data-action=\"offline\">Отключился со встречи</a>" : "");
+    menu.style.left = x + "px";
+    menu.style.top = y + "px";
+    menu.style.display = "block";
+    menu._duelIdx = duelIdx;
+    menu._slotKey = slotKey;
+    menu.querySelector("[data-action=clear]").onclick = function (e) { e.preventDefault(); menu.style.display = "none"; setAssignmentSlot(duelIdx, slotKey, null); renderJudgesLayoutTab(); };
+    menu.querySelector("[data-action=swap]").onclick = function (e) {
+        e.preventDefault();
+        menu.style.display = "none";
+        window._judgesSwapMode = { duelIdx: duelIdx, slotKey: slotKey };
+        window._judgesSwapEscape = function (ev) {
+            if (ev.key === "Escape") {
+                window._judgesSwapMode = null;
+                document.removeEventListener("keydown", window._judgesSwapEscape);
+                renderJudgesLayoutTab();
+            }
+        };
+        document.addEventListener("keydown", window._judgesSwapEscape);
+        renderJudgesLayoutTab();
+    };
+    if (personId && isJudgeSlot) {
+        menu.querySelector("[data-action=exclude]").onclick = function (e) {
+            e.preventDefault();
+            menu.style.display = "none";
+            setAssignmentSlot(duelIdx, slotKey, null);
+            addExcludedFromDuel(duelIdx, personId);
+            var replacement = findBestCandidateForSlot(duelIdx, slotKey);
+            if (replacement) setAssignmentSlot(duelIdx, slotKey, replacement);
+            renderJudgesLayoutTab();
+        };
+        menu.querySelector("[data-action=offline]").onclick = function (e) {
+            e.preventDefault();
+            menu.style.display = "none";
+            if (people[personId]) people[personId].isActive = false;
+            setAssignmentSlot(duelIdx, slotKey, null);
+            var replacement = findBestCandidateForSlot(duelIdx, slotKey);
+            if (replacement) setAssignmentSlot(duelIdx, slotKey, replacement);
+            recalcFutureDuels(duelIdx);
+            saveProtocolStateToLocalStorage();
+            renderJudgesLayoutTab();
+        };
+    }
+    window._judgesContextMenuClose = function () { menu.style.display = "none"; document.removeEventListener("click", window._judgesContextMenuClose); };
+    setTimeout(function () { document.addEventListener("click", window._judgesContextMenuClose); }, 0);
+}
+
 function processDuelsJson(file) {
     const fileName = document.getElementById('file-name');
     const duelChooser = document.getElementById('duel-chooser');
 
     fileName.innerHTML = file.name.split('.').slice(0, -1).join('');
     scheduleFileName = (file && file.name) ? file.name.replace(/\.(xlsx|json)$/i, '') : '';
+
+    ensurePeopleFromSchedule();
+    initDuelAssignmentsFromDuels();
 
     duelChooser.innerHTML = ''
     duelsList.forEach((duel, index) => {
@@ -1341,6 +2370,13 @@ function loadFile(event) {
                     var worksheet = workbook.Sheets[first_sheet_name];
                     var headerToColumn = getHeaderToColumnMap(worksheet);
                     duelsList = XLSX.utils.sheet_to_json(worksheet, { raw: true });
+                    for (var ni = 0; ni < duelsList.length; ni++) {
+                        var d = duelsList[ni];
+                        var s1 = (d["Second 1"] != null ? String(d["Second 1"]).trim() : "") || (d["Cornerman 1"] != null ? String(d["Cornerman 1"]).trim() : "") || (d["Секундант 1"] != null ? String(d["Секундант 1"]).trim() : "") || (d.Second1 != null ? String(d.Second1).trim() : "");
+                        var s2 = (d["Second 2"] != null ? String(d["Second 2"]).trim() : "") || (d["Cornerman 2"] != null ? String(d["Cornerman 2"]).trim() : "") || (d["Секундант 2"] != null ? String(d["Секундант 2"]).trim() : "") || (d.Second2 != null ? String(d.Second2).trim() : "");
+                        if (s1) d.Second1 = s1;
+                        if (s2) d.Second2 = s2;
+                    }
                     var validRows = [];
                     for (var i = 0; i < duelsList.length; i++) {
                         var duel = duelsList[i];
@@ -1676,8 +2712,6 @@ function reopenJudgesForm() {
         highlightReferee();
         var modalEl = document.getElementById("finishDuelModal");
         var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-        var refQtyEl = document.getElementById(refereeQty + "ref");
-        if (refQtyEl) refQtyEl.checked = true;
         modal.show();
         var btn = document.getElementById("reopen_judges_form_btn");
         if (btn) btn.style.display = "none";
@@ -1750,8 +2784,9 @@ function buildProtocolAndDownload() {
     var headers = [""];
     for (var c = 0; c < duelsList.length; c++) headers.push("Поединок " + (c + 1));
     var rows = [headers];
-    var rowLabels = ["Игрок 1", "Игрок 2", "Победитель"];
+    var rowLabels = ["Игрок 1", "Игрок 2", "Секундант 1", "Секундант 2", "Тип поединка", "Победитель"];
     for (var j = 1; j <= maxRef; j++) rowLabels.push("Судья " + j);
+    for (var j = 1; j <= maxRef; j++) rowLabels.push("Судья " + j + " Голос");
     for (var r = 0; r < rowLabels.length; r++) {
         var label = rowLabels[r];
         var arr = [label];
@@ -1760,14 +2795,18 @@ function buildProtocolAndDownload() {
             var val = "";
             if (r === 0) val = duel.Player1 != null ? String(duel.Player1) : "";
             else if (r === 1) val = duel.Player2 != null ? String(duel.Player2) : "";
-            else if (r === 2) val = duel.Winner != null ? String(duel.Winner) : "";
-            else if (r >= 3 && r < 3 + maxRef) {
-                var voteIdx = r - 3;
+            else if (r === 2) val = duel.Second1 != null ? String(duel.Second1) : "";
+            else if (r === 3) val = duel.Second2 != null ? String(duel.Second2) : "";
+            else if (r === 4) val = (duel.Type != null ? String(duel.Type) : "").trim() || "Классика";
+            else if (r === 5) val = duel.Winner != null ? String(duel.Winner) : "";
+            else if (r >= 6 && r < 6 + maxRef) {
+                var judgeIdx = r - 6;
+                var a = duelAssignments[col];
+                if (a && a.judges && a.judges[judgeIdx] && a.judges[judgeIdx].personId) val = getPersonName(a.judges[judgeIdx].personId);
+            } else if (r >= 6 + maxRef && r < 6 + 2 * maxRef) {
+                var voteIdx = r - 6 - maxRef;
                 var votes = duel.JudgeVotes;
-                if (votes && voteIdx < (duel.RefereeQty || 9)) {
-                    var v = votes[voteIdx];
-                    if (v === 1 || v === 2) val = v;
-                }
+                if (votes && voteIdx < (duel.RefereeQty || 9)) { var v = votes[voteIdx]; if (v === 1 || v === 2) val = v; }
             }
             arr.push(val);
         }
@@ -1843,6 +2882,15 @@ function buildSessionStatePayload() {
         }
     }
     if (lastCompletedDuelIndex != null) payload.lastCompletedDuelIndex = lastCompletedDuelIndex;
+    payload.people = people;
+    var da = [];
+    for (var i = 0; i < duelAssignments.length; i++) {
+        var a = duelAssignments[i], b = {};
+        for (var k in a) if (k !== "excludedPersonIds") b[k] = a[k];
+        da.push(b);
+    }
+    payload.duelAssignments = da;
+    payload.peopleNextId = peopleNextId;
     return payload;
 }
 
@@ -1880,8 +2928,9 @@ function exportOnlineStatusToFile() {
     var headers = [""];
     for (var c = 0; c < listToExport.length; c++) headers.push("Поединок " + (c + 1));
     var rows = [headers];
-    var rowLabels = ["Игрок 1", "Игрок 2", "Победитель"];
+    var rowLabels = ["Игрок 1", "Игрок 2", "Секундант 1", "Секундант 2", "Тип поединка", "Победитель"];
     for (var j = 1; j <= maxRef; j++) rowLabels.push("Судья " + j);
+    for (var j = 1; j <= maxRef; j++) rowLabels.push("Судья " + j + " Голос");
     for (var r = 0; r < rowLabels.length; r++) {
         var label = rowLabels[r];
         var arr = [label];
@@ -1890,9 +2939,16 @@ function exportOnlineStatusToFile() {
             var val = "";
             if (r === 0) val = duel.Player1 != null ? String(duel.Player1) : "";
             else if (r === 1) val = duel.Player2 != null ? String(duel.Player2) : "";
-            else if (r === 2) val = duel.Winner != null ? String(duel.Winner) : "";
-            else if (r >= 3 && r < 3 + maxRef) {
-                var voteIdx = r - 3;
+            else if (r === 2) val = duel.Second1 != null ? String(duel.Second1) : "";
+            else if (r === 3) val = duel.Second2 != null ? String(duel.Second2) : "";
+            else if (r === 4) val = (duel.Type != null ? String(duel.Type) : "").trim() || "Классика";
+            else if (r === 5) val = duel.Winner != null ? String(duel.Winner) : "";
+            else if (r >= 6 && r < 6 + maxRef) {
+                var judgeIdx = r - 6;
+                var a = duelAssignments[col];
+                if (a && a.judges && a.judges[judgeIdx] && a.judges[judgeIdx].personId) val = getPersonName(a.judges[judgeIdx].personId);
+            } else if (r >= 6 + maxRef && r < 6 + 2 * maxRef) {
+                var voteIdx = r - 6 - maxRef;
                 var votes = duel.JudgeVotes;
                 if (col === currentDuelIdx && exportPhase === "judges" && payloadExport.refereeVotes && Array.isArray(payloadExport.refereeVotes)) {
                     if (voteIdx < payloadExport.refereeVotes.length) { var v = payloadExport.refereeVotes[voteIdx].vote; if (v === 1 || v === 2) val = v; }
@@ -1947,7 +3003,7 @@ function exportOnlineStatusToFile() {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(roundsRows), "Раунды");
     var payload = payloadExport;
     var sessionRows = [["Поле", "Значение"]];
-    var keys = ["scheduleFileName", "phase", "currentDuel", "time0", "time1", "roundStartRemaining0", "roundStartRemaining1", "roundDurations", "current_round", "current_player", "game_time", "duelType", "refereeQty", "player1Name", "player2Name", "roundRoles", "pauseProtestEvents", "refereeVotes", "activeReferee", "currentRoundRole1", "currentRoundRole2", "lastCompletedDuelIndex"];
+    var keys = ["scheduleFileName", "phase", "currentDuel", "time0", "time1", "roundStartRemaining0", "roundStartRemaining1", "roundDurations", "current_round", "current_player", "game_time", "duelType", "refereeQty", "player1Name", "player2Name", "roundRoles", "pauseProtestEvents", "refereeVotes", "activeReferee", "currentRoundRole1", "currentRoundRole2", "lastCompletedDuelIndex", "people", "duelAssignments", "peopleNextId"];
     for (var ki = 0; ki < keys.length; ki++) {
         var k = keys[ki];
         if (payload[k] === undefined) continue;
@@ -1960,17 +3016,40 @@ function exportOnlineStatusToFile() {
 }
 
 function setImportStatusMenuItemEnabled(enabled) {
-    var el = document.getElementById("import-status-menu-item");
-    if (!el) return;
-    if (enabled) {
-        el.classList.remove("disabled");
-        el.removeAttribute("aria-disabled");
-        el.removeAttribute("title");
-    } else {
-        el.classList.add("disabled");
-        el.setAttribute("aria-disabled", "true");
-        el.setAttribute("title", "Сначала загрузите файл расписания");
+    var ids = ["import-status-menu-item", "participants-judges-menu-item", "download-protocol-menu-item"];
+    for (var i = 0; i < ids.length; i++) {
+        var el = document.getElementById(ids[i]);
+        if (!el) continue;
+        if (enabled) {
+            el.classList.remove("disabled");
+            el.removeAttribute("aria-disabled");
+            el.removeAttribute("title");
+        } else {
+            el.classList.add("disabled");
+            el.setAttribute("aria-disabled", "true");
+            el.setAttribute("title", "Сначала загрузите файл расписания");
+        }
     }
+}
+
+function tryOpenParticipantsJudges(ev) {
+    if (!duelsList || duelsList.length === 0) {
+        if (ev) ev.preventDefault();
+        alert("Сначала загрузите файл расписания.");
+        return false;
+    }
+    openParticipantsJudgesModal();
+    return false;
+}
+
+function tryBuildProtocolAndDownload(ev) {
+    if (!duelsList || duelsList.length === 0) {
+        if (ev) ev.preventDefault();
+        alert("Сначала загрузите файл расписания.");
+        return false;
+    }
+    buildProtocolAndDownload();
+    return false;
 }
 
 function tryImportOnlineStatus(ev) {
@@ -2004,9 +3083,18 @@ function importOnlineStatusFromFile(ev) {
             var firstRow = aoa[0];
             if (!firstRow || firstRow.length < 2) { alert("В протоколе нет колонок поединков."); return; }
             var numDuels = firstRow.length - 1;
+            ensurePeopleFromSchedule();
+            initDuelAssignmentsFromDuels();
+            var hasNewProtocolFormat = false;
+            for (var ri = 1; ri < aoa.length; ri++) {
+                var row0 = aoa[ri];
+                if (row0 && row0[0] && String(row0[0]).indexOf("Голос") !== -1) { hasNewProtocolFormat = true; break; }
+            }
             for (var c = 1; c <= numDuels && (c - 1) < duelsList.length; c++) {
                 var duel = duelsList[c - 1];
+                var col = c - 1;
                 if (!duel) continue;
+                if (!duel.JudgeVotes) duel.JudgeVotes = [];
                 for (var r = 1; r < aoa.length; r++) {
                     var row = aoa[r];
                     if (!row) continue;
@@ -2014,10 +3102,28 @@ function importOnlineStatusFromFile(ev) {
                     var val = row[c];
                     if (label === "Игрок 1") duel.Player1 = val != null ? String(val) : "";
                     else if (label === "Игрок 2") duel.Player2 = val != null ? String(val) : "";
+                    else if (label === "Секундант 1") {
+                        duel.Second1 = val != null ? String(val) : "";
+                        if (duelAssignments[col]) duelAssignments[col].second1Id = (val != null && String(val).trim() !== "") ? getOrCreatePersonId(String(val).trim()) : null;
+                    } else if (label === "Секундант 2") {
+                        duel.Second2 = val != null ? String(val) : "";
+                        if (duelAssignments[col]) duelAssignments[col].second2Id = (val != null && String(val).trim() !== "") ? getOrCreatePersonId(String(val).trim()) : null;
+                    } else if (label === "Тип поединка") duel.Type = (val != null ? String(val) : "").trim() || "Классика";
                     else if (label === "Победитель") duel.Winner = val != null ? String(val) : "";
                     else if (label.indexOf("Судья") === 0) {
-                        if (!duel.JudgeVotes) duel.JudgeVotes = [];
-                        duel.JudgeVotes.push((val === 1 || val === 2) ? val : 0);
+                        if (hasNewProtocolFormat && label.indexOf("Голос") !== -1) {
+                            var jMatch = label.match(/Судья\s*(\d+)\s*Голос/);
+                            if (jMatch) { var j = parseInt(jMatch[1], 10) - 1; if (j >= 0) { while (duel.JudgeVotes.length <= j) duel.JudgeVotes.push(0); duel.JudgeVotes[j] = (val === 1 || val === 2) ? val : 0; } }
+                        } else if (hasNewProtocolFormat) {
+                            var jMatch = label.match(/Судья\s*(\d+)/);
+                            if (jMatch && val != null && String(val).trim() !== "" && val !== 1 && val !== 2) {
+                                var j = parseInt(jMatch[1], 10) - 1;
+                                var pid = getOrCreatePersonId(val);
+                                if (duelAssignments[col] && duelAssignments[col].judges && duelAssignments[col].judges[j]) duelAssignments[col].judges[j].personId = pid;
+                            }
+                        } else {
+                            duel.JudgeVotes.push((val === 1 || val === 2) ? val : 0);
+                        }
                     }
                 }
                 duel.RefereeQty = duel.JudgeVotes ? duel.JudgeVotes.length : 9;
@@ -2086,6 +3192,14 @@ function importOnlineStatusFromFile(ev) {
                     else if (key === "currentRoundRole1") data.currentRoundRole1 = val != null ? String(val) : "";
                     else if (key === "currentRoundRole2") data.currentRoundRole2 = val != null ? String(val) : "";
                     else if (key === "lastCompletedDuelIndex") data.lastCompletedDuelIndex = typeof val === "number" ? val : parseInt(val, 10);
+                    else if (key === "people") { try { data.people = typeof val === "string" ? JSON.parse(val) : val; } catch (e) {} }
+                    else if (key === "duelAssignments") { try { data.duelAssignments = typeof val === "string" ? JSON.parse(val) : val; } catch (e) {} }
+                    else if (key === "peopleNextId") data.peopleNextId = typeof val === "number" ? val : parseInt(val, 10);
+                }
+                if (data.people && typeof data.people === "object") { people = data.people; peopleNextId = (data.peopleNextId != null && !isNaN(data.peopleNextId)) ? data.peopleNextId : (function () { var max = 0; for (var k in people) { var n = parseInt(String(k).replace(/^p_/, ""), 10); if (!isNaN(n) && n > max) max = n; } return max + 1; })(); }
+                if (data.duelAssignments && Array.isArray(data.duelAssignments)) {
+                    duelAssignments = data.duelAssignments;
+                    for (var ii = 0; ii < duelAssignments.length; ii++) if (duelAssignments[ii] && duelAssignments[ii].excludedPersonIds) delete duelAssignments[ii].excludedPersonIds;
                 }
                 if (data.scheduleFileName != null && data.scheduleFileName !== "") scheduleFileName = data.scheduleFileName;
             }
@@ -2162,7 +3276,8 @@ function checkRestoreProtocolBanner(ignoreInMemoryList) {
         if (!data.duelsList || !Array.isArray(data.duelsList) || data.duelsList.length === 0) return;
         var hasRealData = hasProtocolRealData(data.duelsList);
         var hasActiveSession = data.phase === "round" || data.phase === "judges";
-        if (!hasRealData && !hasActiveSession) return;
+        var hasParticipants = data.people && typeof data.people === "object" && Object.keys(data.people).length > 0;
+        if (!hasRealData && !hasActiveSession && !hasParticipants) return;
         if (!ignoreInMemoryList && duelsList && duelsList.length > 0) return;
         showRestoreProtocolBanner();
     } catch (e) {}
