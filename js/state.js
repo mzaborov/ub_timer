@@ -1,4 +1,4 @@
-// Состояние приложения (константы и глобальные переменные). Загружается перед timer-code.js.
+// Состояние приложения (константы и глобальные переменные). Загружается перед core.js и остальными модулями.
 const activeTimerColor = "blue";
 const inactiveTimerColor = "DarkGray";
 const emergingTimerColor = "OrangeRed";
