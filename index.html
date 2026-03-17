@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: 16 — счётчик выкладок, обновляется скриптом -->
+<!-- deploy-version: 17 — счётчик выкладок, обновляется скриптом -->
 <html lang="en">
 
 <head>
@@ -20,11 +20,11 @@
         }
       })();
     </script>
-    <link rel="stylesheet" href="fontawesome/css/fontawesome.css?v=16">
-    <link rel="stylesheet" href="fontawesome/css/all.css?v=16">
-    <link rel="stylesheet" href="css/timer.css?v=16">
-    <link rel="stylesheet" href="css/timer-mobile.css?v=16" media="(max-width: 992px)">
-    <script src="js/donutty.js?v=16"></script>
+    <link rel="stylesheet" href="fontawesome/css/fontawesome.css?v=17">
+    <link rel="stylesheet" href="fontawesome/css/all.css?v=17">
+    <link rel="stylesheet" href="css/timer.css?v=17">
+    <link rel="stylesheet" href="css/timer-mobile.css?v=17" media="(max-width: 992px)">
+    <script src="js/donutty.js?v=17"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
         integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
@@ -106,7 +106,8 @@
                                 <ul class="dropdown-menu">
                                     <li><a class="dropdown-item" href="#" onclick="triggerClick(); return false;"><i class="fa-solid fa-arrow-up-from-bracket me-2"></i>Загрузить расписание</a></li>
                                     <li><a class="dropdown-item disabled" href="#" id="import-status-menu-item" aria-disabled="true" title="Сначала загрузите файл расписания" onclick="return tryImportOnlineStatus(event);"><i class="fa-solid fa-file-arrow-up me-2"></i>Загрузить статус онлайна</a></li>
-                                    <li><a class="dropdown-item" href="#" onclick="buildProtocolAndDownload(); return false;"><i class="fa-solid fa-file-arrow-down me-2"></i>Скачать протокол</a></li>
+                                    <li><a class="dropdown-item disabled" href="#" id="participants-judges-menu-item" aria-disabled="true" title="Сначала загрузите файл расписания" onclick="return tryOpenParticipantsJudges(event);"><i class="fa-solid fa-user-group me-2"></i>Участники и судьи</a></li>
+                                    <li><a class="dropdown-item disabled" href="#" id="download-protocol-menu-item" aria-disabled="true" title="Сначала загрузите файл расписания" onclick="return tryBuildProtocolAndDownload(event);"><i class="fa-solid fa-file-arrow-down me-2"></i>Скачать протокол</a></li>
                                 </ul>
                             </div>
                             <div class="dropdown inline" id="duel-chooser-href">
@@ -428,16 +429,10 @@
                                     <i class="fa-solid fa-newspaper"></i>
                                 </label>
                             </div>
-                            <div class="btn-group" role="group" aria-label="количество судей" id="ref_qty_picker">
-                                <input type="radio" class="btn-check btn-sm" onclick="initRefereeStructure(9)"
-                                    name="ref_qty" id="9ref" checked>
-                                <label class="btn btn-outline-dark btn-sm" for="9ref">9</label>
-                                <input type="radio" class="btn-check btn-sm " onclick="initRefereeStructure(7)"
-                                    name="ref_qty" id="7ref">
-                                <label class="btn btn-outline-dark btn-sm" for="7ref">7</label>
-                                <input type="radio" class="btn-check btn-sm" onclick="initRefereeStructure(5)"
-                                    name="ref_qty" id="5ref">
-                                <label class="btn btn-outline-dark btn-sm" for="5ref">5</label>
+                            <div class="btn-group" role="group" aria-label="форма судей">
+                                <button type="button" class="btn btn-outline-dark btn-sm" id="open_judges_form_btn" onclick="openParticipantsJudgesModal()" title="Участники и судьи — состав и раскладка">
+                                    <i class="fa-solid fa-user-tie"></i>
+                                </button>
                             </div>
                             <div class="btn-group" role="group" aria-label="звуки завершения" id="finish_duel_sound_grp">
                                 <button type="button" class="btn btn-outline-secondary btn-sm" onclick="playDrumRoll()"
@@ -466,10 +461,61 @@
 
     </div>
     </div>
-    <div class="credit-hidden" aria-hidden="true">Исходный код доступен на: https://github.com/mzaborov/ub_timer/ | Версия: 16</div>
-    <div class="app-version text-end small text-muted me-2 mb-1" title="Версия выкладки">v 16</div>
+
+    <!-- Участники и судьи (вкладки: Участники, Судьи) -->
+    <div class="modal fade" id="participantsJudgesModal" tabindex="-1" aria-labelledby="participantsJudgesModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="participantsJudgesModalLabel">Участники и судьи</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs mb-3" id="participantsJudgesTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-participants-btn" data-bs-toggle="tab" data-bs-target="#tab-participants" type="button" role="tab">Участники</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-judges-btn" data-bs-toggle="tab" data-bs-target="#tab-judges" type="button" role="tab">Судьи</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content" id="participantsJudgesTabContent">
+                        <div class="tab-pane fade" id="tab-participants" role="tabpanel">
+                            <div class="mb-2 d-flex flex-wrap gap-2 align-items-center">
+                                <input type="text" class="form-control form-control-sm" id="participants-new-name" placeholder="ФИО нового участника" style="max-width:200px">
+                                <button type="button" class="btn btn-sm btn-primary" onclick="addParticipantFromModal()">Добавить участника</button>
+                                <span class="small text-muted ms-2" id="participants-filter-hint"></span>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover">
+                                    <thead><tr><th>№</th><th>ФИО</th><th>Статус</th><th>Особенности назначения</th><th>Судит</th><th>Игр</th><th>Сек.</th></tr></thead>
+                                    <tbody id="participants-tbody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="tab-judges" role="tabpanel">
+                            <div class="mb-2 d-flex flex-wrap gap-2 align-items-center">
+                                <button type="button" class="btn btn-sm btn-primary" id="judges-autofill-btn" title="Ctrl+клик — скачать файл с логом назначений">Автоназначение судей</button>
+                            </div>
+                            <div class="table-responsive" id="judges-layout-scroll">
+                                <table class="table table-sm table-bordered" id="judges-layout-table">
+                                    <thead id="judges-layout-thead"></thead>
+                                    <tbody id="judges-layout-tbody"></tbody>
+                                </table>
+                            </div>
+                            <div class="dropdown position-fixed" id="judges-cell-dropdown" style="display:none; z-index:1060;"></div>
+                            <div class="dropdown-menu position-fixed" id="judges-cell-context-menu" style="display:none; z-index:1060;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="credit-hidden" aria-hidden="true">Исходный код доступен на: https://github.com/mzaborov/ub_timer/ | Версия: 17</div>
+    <div class="app-version text-end small text-muted me-2 mb-1" title="Версия выкладки">v 17</div>
     <script type="application/json" id="intro-tracks-json">["Baba_O_Riley.mp3","Bad_To_The_Bone.mp3","Cant_Stop.mp3","Deutschland.mp3","Eye_Of_The_Tiger.mp3","Jamming.mp3","Masha_i_medvedi.mp3","Misirlou.mp3","Peremen.mp3","Stop_the_Rock.mp3","Sweet_Home_Alabama.mp3","Tatarskaya_plyasovaya.mp3"]</script>
-    <script type="text/javascript" src="js/timer-code.js?v=16"></script>
+    <script type="text/javascript" src="js/timer-code.js?v=17"></script>
 </body>
 
 </html>

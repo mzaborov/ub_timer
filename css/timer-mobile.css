@@ -418,16 +418,25 @@
     align-items: center;
     text-align: center;
   }
-  /* Кнопки судей поджимаются при нехватке места */
+  /* Кнопки судей в одну линию, при нехватке места обрезаем с … */
   #finishDuelModal .referee-category .btn-group {
     min-width: 0;
     flex: 1 1 0;
+    flex-wrap: nowrap;
   }
   #finishDuelModal .referee-category .btn-group .btn {
     min-width: 0;
+    min-height: 2rem;
+    height: 2rem;
     flex: 1 1 auto;
     padding: 0.25rem 0.35rem;
     font-size: 0.7rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #finishDuelModal .modal-footer .btn {
+    min-height: 2rem;
   }
   /* На мобилке прячем кнопку «спрятать подсказку судей» (иконка газеты) */
   #finishDuelModal #hide_referee_hint_grp {
@@ -507,5 +516,63 @@
       line-height: 100px !important;
       font-size: 1.35rem;
     }
+  }
+
+  /* Модалка «Участники и судьи» */
+  #participantsJudgesModal .modal-dialog {
+    max-width: 100%;
+    margin: 0.5rem;
+    min-height: calc(100vh - 1rem);
+  }
+  #participantsJudgesModal .modal-body {
+    max-height: calc(100vh - 120px);
+    overflow: auto;
+  }
+  #participantsJudgesModal .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #participantsJudgesModal .table {
+    font-size: 0.85rem;
+  }
+  #participantsJudgesModal .mb-2.d-flex {
+    flex-wrap: wrap;
+  }
+  #judges-layout-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #judges-layout-table {
+    font-size: 0.8rem;
+    border: 3px solid #000;
+    border-collapse: collapse;
+  }
+  #judges-layout-table thead th {
+    border: 2px solid #000;
+    font-weight: bold;
+  }
+  #judges-layout-table thead th .btn,
+  #judges-layout-table thead th .dropdown-toggle {
+    font-weight: bold;
+  }
+  #judges-layout-table tbody td:first-child {
+    border-left: 3px solid #000;
+    border-right: 2px solid #000;
+    font-weight: bold;
+    background-color: var(--bs-secondary-bg, #e9ecef);
+  }
+  #judges-layout-table tbody td:not(:first-child) {
+    border-left: 3px solid #000;
+  }
+  #judges-layout-table tbody td:last-child {
+    border-right: 3px solid #000;
+  }
+  #judges-layout-table tbody tr:first-child td {
+    border-top: 2px solid #000;
+  }
+  #judges-layout-table th,
+  #judges-layout-table td {
+    min-width: 80px;
+    padding: 0.35rem;
   }
 }

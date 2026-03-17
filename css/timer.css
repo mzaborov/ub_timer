@@ -1,4 +1,4 @@
-/* deploy-version: 16 */
+/* deploy-version: 17 */
 @keyframes pulse {
   0%  { opacity: 0;  transform: scale(0.2);}
   20% { opacity: 0.3; transform: scale(0.4);}
@@ -310,9 +310,22 @@ body.dice-blink-active #Player2Label {
   padding-left: 1rem;
   padding-right: 1rem;
 }
+#finishDuelModal .referee-category .btn-group {
+  flex-wrap: nowrap;
+}
 #finishDuelModal .referee-category .btn-group .btn {
-  min-width: 6rem;
+  min-width: 0;
+  flex: 0 1 auto;
+  max-width: 8rem;
+  min-height: 2.25rem;
+  height: 2.25rem;
   padding: 0.35rem 0.6rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#finishDuelModal .modal-footer .btn {
+  min-height: 2.25rem;
 }
 
 /* Номер версии выкладки — малозаметно в углу */
@@ -326,4 +339,47 @@ body.dice-blink-active #Player2Label {
   z-index: 1000;
   pointer-events: none;
   margin: 0;
+}
+
+/* Таблица раскладки судей: жирные линии между коллегиями и по контуру */
+#judges-layout-table {
+  border: 3px solid #000;
+  border-collapse: collapse;
+}
+#judges-layout-table thead th {
+  border: 2px solid #000;
+  font-weight: bold;
+}
+#judges-layout-table thead th .btn,
+#judges-layout-table thead th .dropdown-toggle {
+  font-weight: bold;
+}
+#judges-layout-table tbody td:first-child {
+  border-left: 3px solid #000;
+  border-right: 2px solid #000;
+  font-weight: bold;
+  background-color: var(--bs-secondary-bg, #e9ecef);
+}
+#judges-layout-table tbody td:not(:first-child) {
+  border-left: 3px solid #000;
+}
+#judges-layout-table tbody td:last-child {
+  border-right: 3px solid #000;
+}
+#judges-layout-table tbody tr:first-child td {
+  border-top: 2px solid #000;
+}
+
+/* Режим «Поменять местами»: подсветка ячеек */
+#judges-layout-table .judges-swap-source {
+  background-color: #fff3cd !important;
+  outline: 2px solid #ffc107;
+}
+#judges-layout-table .judges-swap-available {
+  background-color: #d1e7dd !important;
+  outline: 2px solid #198754;
+}
+#judges-layout-table .judges-swap-unavailable {
+  background-color: #f8d7da !important;
+  outline: 1px solid #dc3545;
 }
