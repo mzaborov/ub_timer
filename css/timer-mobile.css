@@ -567,6 +567,14 @@
   #judges-layout-table tbody td:last-child {
     border-right: 3px solid #000;
   }
+  #judges-layout-table.table-bordered > :not(caption) > tbody > tr {
+    border-top-width: 0 !important;
+    border-bottom-width: 0 !important;
+  }
+  #judges-layout-table.table-bordered > :not(caption) > tbody > tr > td {
+    border-top: 1px solid #000;
+    border-bottom: 1px solid #000;
+  }
   #judges-layout-table tbody tr:first-child td {
     border-top: 2px solid #000;
   }
