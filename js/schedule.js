@@ -484,6 +484,69 @@ function getJudgeSlotsForDuel(duelIdx) {
     return ["j0", "j1", "j2", "j3", "j4"];
 }
 
+function isJudgeSlotUsedInDuel(duelIdx, slotKey) {
+    return getJudgeSlotsForDuel(duelIdx).indexOf(slotKey) !== -1;
+}
+
+function isLayoutJudgeRowKey(layoutRowKey) {
+    return layoutRowKey.indexOf("j") === 0 || /^neg[1-5]$/.test(layoutRowKey) ||
+        /^hire[1-3]$/.test(layoutRowKey) || /^own[1-3]$/.test(layoutRowKey);
+}
+
+/** Слот j для ячейки таблицы: у смешанного расписания «Отправляющие N» → разный j в классике и экспрессе. */
+function getLayoutSlotKey(duelIdx, layoutRowKey) {
+    if (!duelsList || duelIdx < 0 || duelIdx >= duelsList.length) return null;
+    if (layoutRowKey.indexOf("j") === 0) {
+        return isJudgeSlotUsedInDuel(duelIdx, layoutRowKey) ? layoutRowKey : null;
+    }
+    var express = isDuelExpress(duelIdx);
+    var q = duelsList[duelIdx].RefereeQty;
+    if (q !== 9 && q !== 7 && q !== 5) q = 9;
+    var negM = layoutRowKey.match(/^neg([1-5])$/);
+    if (negM) {
+        var n = parseInt(negM[1], 10);
+        if (express) return "j" + (2 + n);
+        if (q === 9) return n <= 3 ? "j" + (2 + n) : null;
+        if (q === 7) return n <= 3 ? "j" + (1 + n) : null;
+        return n <= 3 ? "j" + n : null;
+    }
+    var hireM = layoutRowKey.match(/^hire([1-3])$/);
+    if (hireM) {
+        if (express) return null;
+        var h = parseInt(hireM[1], 10);
+        if (q === 9) return h <= 3 ? "j" + (h - 1) : null;
+        if (q === 7) return h <= 2 ? "j" + (h - 1) : null;
+        return h === 1 ? "j0" : null;
+    }
+    var ownM = layoutRowKey.match(/^own([1-3])$/);
+    if (ownM) {
+        if (express) return null;
+        var o = parseInt(ownM[1], 10);
+        if (q === 9) return o <= 3 ? "j" + (5 + o) : null;
+        if (q === 7) return o <= 2 ? "j" + (4 + o) : null;
+        return o === 1 ? "j4" : null;
+    }
+    return null;
+}
+
+function getMixedJudgesLayoutRows(maxQty) {
+    var base = JUDGES_LAYOUT_BASE_ROWS.slice();
+    if (maxQty === 9) {
+        for (var h = 1; h <= 3; h++) base.push({ key: "hire" + h, label: "Нанимающиеся " + h });
+        for (var n = 1; n <= 5; n++) base.push({ key: "neg" + n, label: "Отправляющие " + n });
+        for (var o = 1; o <= 3; o++) base.push({ key: "own" + o, label: "Доверяющие " + o });
+    } else if (maxQty === 7) {
+        for (var h2 = 1; h2 <= 2; h2++) base.push({ key: "hire" + h2, label: "Нанимающиеся " + h2 });
+        for (var n2 = 1; n2 <= 5; n2++) base.push({ key: "neg" + n2, label: "Отправляющие " + n2 });
+        for (var o2 = 1; o2 <= 2; o2++) base.push({ key: "own" + o2, label: "Доверяющие " + o2 });
+    } else {
+        base.push({ key: "hire1", label: "Нанимающиеся 1" });
+        for (var n3 = 1; n3 <= 5; n3++) base.push({ key: "neg" + n3, label: "Отправляющие " + n3 });
+        base.push({ key: "own1", label: "Доверяющие 1" });
+    }
+    return base;
+}
+
 function getJudgesLayoutRows() {
     var base = JUDGES_LAYOUT_BASE_ROWS.slice();
     if (!duelsList || !duelsList.length) return base;
@@ -497,9 +560,10 @@ function getJudgesLayoutRows() {
     }
     if (maxQty === 0) maxQty = 9;
     if (allExpress) {
-        for (var k = 1; k <= 5; k++) base.push({ key: "j" + (2 + k), label: "Отправляющие " + k });
+        for (var k = 1; k <= 5; k++) base.push({ key: "neg" + k, label: "Отправляющие " + k });
         return base;
     }
+    if (!allExpress && scheduleHasExpressDuels()) return getMixedJudgesLayoutRows(maxQty);
     if (maxQty === 9) {
         for (var n = 1; n <= 3; n++) base.push({ key: "j" + (n - 1), label: "Нанимающиеся " + n });
         for (var o = 1; o <= 3; o++) base.push({ key: "j" + (2 + o), label: "Отправляющие " + o });
@@ -571,6 +635,14 @@ function scheduleHasPairDuels() {
     if (!duelsList || !duelsList.length) return false;
     for (var i = 0; i < duelsList.length; i++) {
         if (normalizeDuelTypeStr(duelsList[i].Type) === "pair") return true;
+    }
+    return false;
+}
+
+function scheduleHasExpressDuels() {
+    if (!duelsList || !duelsList.length) return false;
+    for (var i = 0; i < duelsList.length; i++) {
+        if (normalizeDuelTypeStr(duelsList[i].Type) === "express") return true;
     }
     return false;
 }
@@ -693,10 +765,35 @@ function renderJudgesLayoutTab() {
     var thickBottomKeys = { second2: true };
     var lastRow = layoutRows[layoutRows.length - 1];
     if (lastRow) thickBottomKeys[lastRow.key] = true;
-    if (layoutRows.some(function (r) { return r.key === "j8"; })) { thickBottomKeys.j2 = true; thickBottomKeys.j5 = true; thickBottomKeys.j8 = true; }
-    else if (layoutRows.some(function (r) { return r.key === "j6"; })) { thickBottomKeys.j1 = true; thickBottomKeys.j4 = true; thickBottomKeys.j6 = true; }
-    else if (layoutRows.some(function (r) { return r.key === "j4"; })) { thickBottomKeys.j0 = true; thickBottomKeys.j3 = true; thickBottomKeys.j4 = true; }
-    else if (layoutRows.some(function (r) { return r.key === "j7"; })) { thickBottomKeys.j7 = true; }
+    if (layoutRows.some(function (r) { return r.key === "j8"; })) {
+        thickBottomKeys.j2 = true;
+        thickBottomKeys.j5 = true;
+        thickBottomKeys.j8 = true;
+    } else if (layoutRows.some(function (r) { return r.key === "own3"; })) {
+        thickBottomKeys.hire3 = true;
+        thickBottomKeys.neg5 = true;
+        thickBottomKeys.own3 = true;
+    } else if (layoutRows.some(function (r) { return r.key === "own2"; })) {
+        thickBottomKeys.hire2 = true;
+        thickBottomKeys.neg5 = true;
+        thickBottomKeys.own2 = true;
+    } else if (layoutRows.some(function (r) { return r.key === "own1"; }) && layoutRows.some(function (r) { return r.key === "neg5"; }) && !layoutRows.some(function (r) { return r.key === "hire2"; })) {
+        thickBottomKeys.hire1 = true;
+        thickBottomKeys.neg5 = true;
+        thickBottomKeys.own1 = true;
+    } else if (layoutRows.some(function (r) { return r.key === "neg5"; }) && !layoutRows.some(function (r) { return r.key === "hire1"; })) {
+        thickBottomKeys.neg5 = true;
+    } else if (layoutRows.some(function (r) { return r.key === "j6"; })) {
+        thickBottomKeys.j1 = true;
+        thickBottomKeys.j4 = true;
+        thickBottomKeys.j6 = true;
+    } else if (layoutRows.some(function (r) { return r.key === "j4"; })) {
+        thickBottomKeys.j0 = true;
+        thickBottomKeys.j3 = true;
+        thickBottomKeys.j4 = true;
+    } else if (layoutRows.some(function (r) { return r.key === "j7"; })) {
+        thickBottomKeys.j7 = true;
+    }
     var swapMode = window._judgesSwapMode;
     var sourceD = swapMode ? swapMode.duelIdx : null;
     var sourceS = swapMode ? swapMode.slotKey : null;
@@ -724,21 +821,28 @@ function renderJudgesLayoutTab() {
         for (var col = 0; col < duels.length; col++) {
             var isPast = isDuelPast(col);
             var isCur = (col === cd);
-            var isExpressCol = isDuelExpress(col);
             var isPairCol = isDuelPair(col);
             if (isPairCol && (row.key === "second1" || row.key === "second2")) continue;
-            var judgeRow = row.key.indexOf("j") === 0;
-            var judgeNum = judgeRow ? parseInt(row.key.slice(1), 10) : -1;
-            var hideInExpress = isExpressCol && judgeRow && (row.label.indexOf("Нанимающиеся") === 0 || row.label.indexOf("Доверяющие") === 0);
-            var personId = getAssignmentSlot(col, row.key);
+            var judgeRow = isLayoutJudgeRowKey(row.key);
+            var cellSlotKey = getLayoutSlotKey(col, row.key);
+            var slotInactive = judgeRow && !cellSlotKey;
+            var personId, confirmed;
+            if (judgeRow) {
+                personId = cellSlotKey ? getAssignmentSlot(col, cellSlotKey) : null;
+                confirmed = cellSlotKey ? getConfirmedSlot(col, cellSlotKey) : false;
+            } else {
+                personId = getAssignmentSlot(col, row.key);
+                confirmed = getConfirmedSlot(col, row.key);
+            }
             var name = getPersonName(personId);
-            var confirmed = getConfirmedSlot(col, row.key);
             var td = document.createElement("td");
             td.setAttribute("data-duel-idx", col);
-            td.setAttribute("data-slot-key", row.key);
+            td.setAttribute("data-layout-row-key", row.key);
+            if (cellSlotKey) td.setAttribute("data-slot-key", cellSlotKey);
+            else if (!judgeRow) td.setAttribute("data-slot-key", row.key);
             if (isPast) td.classList.add("table-secondary");
             else if (isCur && judgeRow) td.classList.add("table-primary");
-            if (hideInExpress) td.classList.add("table-secondary");
+            if (slotInactive) td.classList.add("table-secondary");
             if (isPairCol && (row.key === "player1" || row.key === "player2")) {
                 var secondKey = row.key === "player1" ? "second1" : "second2";
                 var name2 = getPersonName(getAssignmentSlot(col, secondKey));
@@ -763,15 +867,15 @@ function renderJudgesLayoutTab() {
                 if (thickBottomKeys[row.key]) td.style.borderBottom = "3px solid #000";
                 td.textContent = name || "—";
             }
-            if (swapMode && judgeRow && !hideInExpress) {
-                var swapState = isSwapAvailable(col, row.key);
+            if (swapMode && judgeRow && !slotInactive && cellSlotKey) {
+                var swapState = isSwapAvailable(col, cellSlotKey);
                 if (swapState === "source") td.classList.add("judges-swap-source");
                 else if (swapState === "available") td.classList.add("judges-swap-available");
                 else if (swapState === "unavailable" && !isPast) td.classList.add("judges-swap-unavailable");
             }
             td.style.minWidth = "100px";
             td.style.cursor = isPast ? "default" : "pointer";
-            if (!isPast && !hideInExpress) {
+            if (!isPast && !slotInactive) {
                 td.addEventListener("click", function (e) {
                     if (e.detail === 2) return;
                     var d = parseInt(this.getAttribute("data-duel-idx"), 10);
@@ -799,7 +903,7 @@ function renderJudgesLayoutTab() {
                     if (window._judgesSwapMode || window._judgesSwapJustHandled) return;
                     var d = parseInt(this.getAttribute("data-duel-idx"), 10);
                     var s = this.getAttribute("data-slot-key");
-                    if (isDuelPast(d) || hideInExpress) return;
+                    if (isDuelPast(d) || !s || !isJudgeSlotUsedInDuel(d, s)) return;
                     openJudgesCellCombobox(d, s, this);
                 });
                 td.addEventListener("contextmenu", function (e) {
@@ -1270,6 +1374,7 @@ function runJudgesAutofill(debugMode) {
         if (n === 0) break;
     }
     onePassSimple(function (id) { return people[id].experience === "org"; }, 999, {}, null, "орги");
+    fillRemainingExpressJudgeSlots();
     if (debugMode) {
         var lines = ["Автоназначение судей — порядок назначений", "Дата: " + new Date().toLocaleString("ru-RU"), ""];
         autofillLog.forEach(function (entry, i) {
@@ -1286,6 +1391,20 @@ function runJudgesAutofill(debugMode) {
         URL.revokeObjectURL(a.href);
     }
     renderJudgesLayoutTab();
+}
+
+function fillRemainingExpressJudgeSlots() {
+    if (!duelsList) return;
+    for (var d = 0; d < duelsList.length; d++) {
+        if (!isDuelExpress(d) || isDuelPast(d)) continue;
+        var slots = getJudgeSlotsForDuel(d);
+        for (var i = 0; i < slots.length; i++) {
+            var slotKey = slots[i];
+            if (getAssignmentSlot(d, slotKey)) continue;
+            var pid = findBestCandidateForSlot(d, slotKey);
+            if (pid) setAssignmentSlot(d, slotKey, pid);
+        }
+    }
 }
 
 function showJudgesCellContextMenu(duelIdx, slotKey, x, y) {
