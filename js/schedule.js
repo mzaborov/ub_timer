@@ -153,7 +153,7 @@ function applyRestoredSessionState(data) {
     document.getElementById("start_stop_duel").classList.remove("btn-primary");
     document.getElementById("start_stop_duel").classList.add("btn-danger");
     enable_disable_duel_options_conrols("visible", true);
-    if (duelType === "classic") {
+    if (isClassicLikeType(duelType)) {
         var duel = duelsList[currentDuel];
         if (duel && duel.SituationRoles) {
             var role1Text = null, role2Text = null;
@@ -246,7 +246,7 @@ function restoreProtocolStateFromLocalStorage() {
                 var figure = document.createElement("figure");
                 figure.innerHTML = "<a class=\"icon-link\" href=\"#\" onclick='duelChoosed(\"" + index + "\")'>" +
                     "<blockquote class=\"blockquote\"><p>№" + (duel.DuelNum || (index + 1)) + " :: " + (duel.SituationName || "") + "</p></blockquote></a>" +
-                    "<figcaption class=\"blockquote-footer\">" + (duel.Player1 || "") + " VS " + (duel.Player2 || "") + "</figcaption>";
+                    "<figcaption class=\"blockquote-footer\">" + formatDuelPlayersCaption(duel) + "</figcaption>";
                 duelChooser.appendChild(figure);
             });
         }
@@ -256,7 +256,7 @@ function restoreProtocolStateFromLocalStorage() {
         if (currentDuelNum !== undefined && currentDuelNum !== null && !isNaN(currentDuelNum) && currentDuelNum >= 0 && currentDuelNum < duelsList.length) {
             duelChoosed(String(currentDuelNum));
         }
-        if (data.phase === "idle" && (data.currentRoundRole1 || data.currentRoundRole2) && duelType === "classic") {
+        if (data.phase === "idle" && (data.currentRoundRole1 || data.currentRoundRole2) && isClassicLikeType(duelType)) {
             var duel = duelsList[currentDuel];
             if (duel && duel.SituationRoles) {
                 var sel1 = document.getElementById("Player1Roles"), sel2 = document.getElementById("Player2Roles");
@@ -475,7 +475,7 @@ var JUDGES_LAYOUT_BASE_ROWS = [
 function getJudgeSlotsForDuel(duelIdx) {
     if (!duelsList || duelIdx < 0 || duelIdx >= duelsList.length) return [];
     var duel = duelsList[duelIdx];
-    var express = (duel.Type || "").toString().toLowerCase().indexOf("экспресс") !== -1;
+    var express = normalizeDuelTypeStr(duel.Type) === "express";
     var q = duel.RefereeQty;
     if (q !== 9 && q !== 7 && q !== 5) q = 9;
     if (express) return ["j3", "j4", "j5", "j6", "j7"];
@@ -490,8 +490,8 @@ function getJudgesLayoutRows() {
     var allExpress = true, allClassic = true;
     var maxQty = 0;
     for (var i = 0; i < duelsList.length; i++) {
-        var t = (duelsList[i].Type || "").toString().toLowerCase();
-        if (t.indexOf("экспресс") !== -1) allClassic = false; else allExpress = false;
+        var t = normalizeDuelTypeStr(duelsList[i].Type);
+        if (t === "express") allClassic = false; else allExpress = false;
         var q = duelsList[i].RefereeQty;
         if (q === 9 || q === 7 || q === 5) maxQty = Math.max(maxQty, q); else maxQty = Math.max(maxQty, 9);
     }
@@ -524,7 +524,55 @@ function isDuelPast(duelIdx) {
 
 function isDuelExpress(duelIdx) {
     if (duelIdx < 0 || !duelsList || duelIdx >= duelsList.length) return false;
-    return (duelsList[duelIdx].Type || "").toString().toLowerCase().indexOf("экспресс") !== -1;
+    return normalizeDuelTypeStr(duelsList[duelIdx].Type) === "express";
+}
+
+function normalizeDuelTypeStr(typeStr) {
+    var t = (typeStr || "").toString().toLowerCase();
+    if (t.indexOf("экспресс") !== -1) return "express";
+    if (t.indexOf("парн") !== -1) return "pair";
+    return "classic";
+}
+
+function isDuelPair(duelIdx) {
+    if (duelIdx < 0 || !duelsList || duelIdx >= duelsList.length) return false;
+    return normalizeDuelTypeStr(duelsList[duelIdx].Type) === "pair";
+}
+
+function isClassicLikeType(type) {
+    return type === "classic" || type === "pair";
+}
+
+function formatPlayerSideDisplay(duel, side) {
+    if (!duel) return "";
+    var player = side === 1 ? (duel.Player1 || "") : (duel.Player2 || "");
+    var second = side === 1 ? (duel.Second1 || "") : (duel.Second2 || "");
+    player = String(player).trim();
+    second = String(second).trim();
+    if (!player) return "";
+    var kind = normalizeDuelTypeStr(duel.Type);
+    if (kind === "express" || !second) return player;
+    if (kind === "pair") return player + " + " + second;
+    return player + " (" + second + ")";
+}
+
+function formatDuelPlayersCaption(duel) {
+    return formatPlayerSideDisplay(duel, 1) + " VS " + formatPlayerSideDisplay(duel, 2);
+}
+
+function applyPlayerNameFieldsFromDuel(duel) {
+    var el1 = document.getElementById("Player1Name");
+    var el2 = document.getElementById("Player2Name");
+    if (el1) el1.value = formatPlayerSideDisplay(duel, 1);
+    if (el2) el2.value = formatPlayerSideDisplay(duel, 2);
+}
+
+function scheduleHasPairDuels() {
+    if (!duelsList || !duelsList.length) return false;
+    for (var i = 0; i < duelsList.length; i++) {
+        if (normalizeDuelTypeStr(duelsList[i].Type) === "pair") return true;
+    }
+    return false;
 }
 
 function getPersonName(personId) {
@@ -558,6 +606,10 @@ function setAssignmentSlot(duelIdx, slotKey, personId) {
     else if (slotKey.indexOf("j") === 0) {
         var j = parseInt(slotKey.slice(1), 10);
         if (a.judges[j]) a.judges[j].personId = personId;
+    }
+    var cd = (currentDuel != null && currentDuel !== "-1") ? (typeof currentDuel === "string" ? parseInt(currentDuel, 10) : currentDuel) : -1;
+    if (duelIdx === cd && duelsList && duelsList[duelIdx] && (slotKey === "player1" || slotKey === "player2" || slotKey === "second1" || slotKey === "second2")) {
+        applyPlayerNameFieldsFromDuel(duelsList[duelIdx]);
     }
     saveProtocolStateToLocalStorage();
 }
@@ -665,8 +717,10 @@ function renderJudgesLayoutTab() {
     layoutRows.forEach(function (row) {
         var tr = document.createElement("tr");
         var cellTitle = (row.key === "second1" || row.key === "second2") ? " title=\"Заполняется из файла расписания (колонки Cornerman 1, Cornerman 2). Автоназначение судей секундантов не заполняет.\"" : "";
+        var rowLabel = row.label;
+        if ((row.key === "second1" || row.key === "second2") && scheduleHasPairDuels()) rowLabel = "Секундант/игрок";
         if (thickBottomKeys[row.key]) tr.style.borderBottom = "3px solid #000";
-        tr.innerHTML = "<td class=\"text-nowrap\"" + cellTitle + ">" + row.label + "</td>";
+        tr.innerHTML = "<td class=\"text-nowrap\"" + cellTitle + ">" + rowLabel + "</td>";
         for (var col = 0; col < duels.length; col++) {
             var isPast = isDuelPast(col);
             var isCur = (col === cd);
@@ -684,7 +738,11 @@ function renderJudgesLayoutTab() {
             else if (isCur && judgeRow) td.classList.add("table-primary");
             if (hideInExpress) td.classList.add("table-secondary");
             if (confirmed) td.style.backgroundColor = "rgba(200,255,200,0.5)";
-            else if (isPlayerOnly(row.key)) td.style.backgroundColor = "rgba(173, 216, 230, 0.5)";
+            else if (isPlayerOnly(row.key) || ((row.key === "second1" || row.key === "second2") && isDuelPair(col))) td.style.backgroundColor = "rgba(173, 216, 230, 0.5)";
+            if (isDuelPair(col)) {
+                if (row.key === "player1" || row.key === "player2") td.classList.add("judges-pair-join-bottom");
+                else if (row.key === "second1" || row.key === "second2") td.classList.add("judges-pair-join-top");
+            }
             if (swapMode && judgeRow && !hideInExpress) {
                 var swapState = isSwapAvailable(col, row.key);
                 if (swapState === "source") td.classList.add("judges-swap-source");
@@ -1285,7 +1343,7 @@ function processDuelsJson(file) {
             </a>
 
             <figcaption class="blockquote-footer">
-                ${duel.Player1} VS ${duel.Player2}
+                ${formatDuelPlayersCaption(duel)}
             </figcaption>
         `
         duelChooser.appendChild(figure);
@@ -1422,13 +1480,30 @@ function changeDuelType(type)
 
 }
 
+function setupClassicLikeRolesUI(duel, select1, select2) {
+    var RolesText = "<b>Роли и интересы:</b>";
+    select1.appendChild(createOption("-1", "Выберите Роль...", true));
+    select2.appendChild(createOption("-1", "Выберите Роль...", true));
+    for (var i in duel.SituationRoles) {
+        select1.appendChild(createOption(i, duel.SituationRoles[i].Role, false));
+        select2.appendChild(createOption(i, duel.SituationRoles[i].Role, false));
+        RolesText += "<br><b>" + duel.SituationRoles[i].Role + "</b> - " + duel.SituationRoles[i].Goals;
+        select1.disabled = false;
+        select2.disabled = false;
+    }
+    document.getElementById("Duel_Roles").innerHTML = RolesText;
+    document.getElementById("Player1RoleGoallabel").innerHTML = "Интересы:";
+    document.getElementById("Player2RoleGoallabel").innerHTML = "Интересы:";
+    document.getElementById("Player1RoleGoal").innerHTML = "";
+    document.getElementById("Player2RoleGoal").innerHTML = "";
+}
+
 function duelChoosed(currentDuelRef) {
     currentDuel = currentDuelRef;
     if (currentDuel != "-1") {
         const duel = duelsList[currentDuel]
         document.getElementById("players-name").innerHTML = `Ситуация №${duel.SituationNum} ${duel.SituationName}`;
-        document.getElementById("Player1Name").value = duel.Player1;
-        document.getElementById("Player2Name").value = duel.Player2;
+        applyPlayerNameFieldsFromDuel(duel);
         document.getElementById("Player1Name").disabled = true;
         document.getElementById("Player2Name").disabled = true;  
         document.getElementById("Duel_Num").textContent = "Ситуация №" + duel.SituationNum +" (" +duel.Type +"). \"" + duel.SituationName + "\"";
@@ -1452,38 +1527,27 @@ function duelChoosed(currentDuelRef) {
         }     
         document.getElementById("5min").disabled = true;
         document.getElementById("4min").disabled = true;
-        document.getElementById("1min").disabled = true;       
-        if (duel.Type=== "Классика") { 
-            duelType="classic"; 
-            var RolesText = "<b>Роли и интересы:</b>";
-            select1.appendChild(createOption("-1", "Выберите Роль...",true));
-            select2.appendChild(createOption("-1", "Выберите Роль...",true));
-            for (var i in duel.SituationRoles) {
-                select1.appendChild(createOption(i, duel.SituationRoles[i].Role, false));
-                select2.appendChild(createOption(i, duel.SituationRoles[i].Role, false));
-                RolesText += "<br><b>" + duel.SituationRoles[i].Role + "</b> - " + duel.SituationRoles[i].Goals;
-                select1.disabled=false;
-                select2.disabled=false;
-            };
-            document.getElementById("Duel_Roles").innerHTML = RolesText;            
-            document.getElementById("Player1RoleGoallabel").innerHTML="Интересы:";
-            document.getElementById("Player2RoleGoallabel").innerHTML="Интересы:";
-            document.getElementById("Player1RoleGoal").innerHTML ="";
-            document.getElementById("Player2RoleGoal").innerHTML ="";
-         }  else  { 
-            select1.appendChild(createOption(0, duel.SituationRoles[0].Role,true));
-            select2.appendChild(createOption(0, duel.SituationRoles[1].Role,true));
-            select1.disabled=true;
-            select2.disabled=true;
-            document.getElementById("Player1RoleGoallabel").innerHTML="Агрессивная фраза:";
-            document.getElementById("Player2RoleGoallabel").innerHTML="Агрессивная фраза:";
-            document.getElementById("Player1RoleGoal").innerHTML =duel.SituationRoles[0].Phrase;
-            document.getElementById("Player2RoleGoal").innerHTML ="";
-            document.getElementById("Duel_Roles").innerHTML = "";            
-            duelType="express";
-        };        
+        document.getElementById("1min").disabled = true;
+        var kind = normalizeDuelTypeStr(duel.Type);
+        if (kind === "express") {
+            select1.appendChild(createOption(0, duel.SituationRoles[0].Role, true));
+            select2.appendChild(createOption(0, duel.SituationRoles[1].Role, true));
+            select1.disabled = true;
+            select2.disabled = true;
+            document.getElementById("Player1RoleGoallabel").innerHTML = "Агрессивная фраза:";
+            document.getElementById("Player2RoleGoallabel").innerHTML = "Агрессивная фраза:";
+            document.getElementById("Player1RoleGoal").innerHTML = duel.SituationRoles[0].Phrase;
+            document.getElementById("Player2RoleGoal").innerHTML = "";
+            document.getElementById("Duel_Roles").innerHTML = "";
+            duelType = "express";
+        } else {
+            duelType = kind;
+            setupClassicLikeRolesUI(duel, select1, select2);
+        }
         document.getElementById("classic").disabled = true;
         document.getElementById("express").disabled = true;
+        var pairEl = document.getElementById("pair");
+        if (pairEl) pairEl.disabled = true;
         var typeEl = document.getElementById(duelType);
         if (typeEl) typeEl.checked = true;
     }
@@ -1506,7 +1570,7 @@ function roleChoosed(player) {
             select.options[i].disabled = (select.options[i].value === role);
         }
     }
-    if (duelType === "classic" && sessionPhase === "round" && current_round >= 1) {
+    if (isClassicLikeType(duelType) && sessionPhase === "round" && current_round >= 1) {
         var sel1 = document.getElementById("Player1Roles");
         var sel2 = document.getElementById("Player2Roles");
         var r1 = (sel1 && sel1.options[sel1.selectedIndex]) ? sel1.options[sel1.selectedIndex].text : "";
