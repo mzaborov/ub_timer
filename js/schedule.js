@@ -725,6 +725,8 @@ function renderJudgesLayoutTab() {
             var isPast = isDuelPast(col);
             var isCur = (col === cd);
             var isExpressCol = isDuelExpress(col);
+            var isPairCol = isDuelPair(col);
+            if (isPairCol && (row.key === "second1" || row.key === "second2")) continue;
             var judgeRow = row.key.indexOf("j") === 0;
             var judgeNum = judgeRow ? parseInt(row.key.slice(1), 10) : -1;
             var hideInExpress = isExpressCol && judgeRow && (row.label.indexOf("Нанимающиеся") === 0 || row.label.indexOf("Доверяющие") === 0);
@@ -737,25 +739,36 @@ function renderJudgesLayoutTab() {
             if (isPast) td.classList.add("table-secondary");
             else if (isCur && judgeRow) td.classList.add("table-primary");
             if (hideInExpress) td.classList.add("table-secondary");
-            if (confirmed) td.style.backgroundColor = "rgba(200,255,200,0.5)";
-            else if (isPlayerOnly(row.key) || ((row.key === "second1" || row.key === "second2") && isDuelPair(col))) td.style.backgroundColor = "rgba(173, 216, 230, 0.5)";
-            if (isDuelPair(col)) {
-                if (row.key === "player1" || row.key === "player2") {
-                    td.classList.add("judges-pair-join-bottom");
-                    td.style.borderBottom = "none";
-                } else if (row.key === "second1" || row.key === "second2") {
-                    td.classList.add("judges-pair-join-top");
-                    td.style.borderTop = "none";
-                }
+            if (isPairCol && (row.key === "player1" || row.key === "player2")) {
+                var secondKey = row.key === "player1" ? "second1" : "second2";
+                var name2 = getPersonName(getAssignmentSlot(col, secondKey));
+                var confirmed2 = getConfirmedSlot(col, secondKey);
+                td.rowSpan = 2;
+                td.classList.add("judges-pair-block");
+                if (confirmed && confirmed2) td.style.backgroundColor = "rgba(200,255,200,0.5)";
+                else td.style.backgroundColor = "rgba(173, 216, 230, 0.5)";
+                if (row.key === "player2") td.style.borderBottom = "3px solid #000";
+                td.textContent = "";
+                var line1 = document.createElement("div");
+                line1.className = "judges-pair-block-line";
+                line1.textContent = name || "—";
+                var line2 = document.createElement("div");
+                line2.className = "judges-pair-block-line";
+                line2.textContent = name2 || "—";
+                td.appendChild(line1);
+                td.appendChild(line2);
+            } else {
+                if (confirmed) td.style.backgroundColor = "rgba(200,255,200,0.5)";
+                else if (isPlayerOnly(row.key)) td.style.backgroundColor = "rgba(173, 216, 230, 0.5)";
+                if (thickBottomKeys[row.key]) td.style.borderBottom = "3px solid #000";
+                td.textContent = name || "—";
             }
-            if (thickBottomKeys[row.key]) td.style.borderBottom = "3px solid #000";
             if (swapMode && judgeRow && !hideInExpress) {
                 var swapState = isSwapAvailable(col, row.key);
                 if (swapState === "source") td.classList.add("judges-swap-source");
                 else if (swapState === "available") td.classList.add("judges-swap-available");
                 else if (swapState === "unavailable" && !isPast) td.classList.add("judges-swap-unavailable");
             }
-            td.textContent = name || "—";
             td.style.minWidth = "100px";
             td.style.cursor = isPast ? "default" : "pointer";
             if (!isPast && !hideInExpress) {
