@@ -719,7 +719,7 @@ function renderJudgesLayoutTab() {
         var cellTitle = (row.key === "second1" || row.key === "second2") ? " title=\"Заполняется из файла расписания (колонки Cornerman 1, Cornerman 2). Автоназначение судей секундантов не заполняет.\"" : "";
         var rowLabel = row.label;
         if ((row.key === "second1" || row.key === "second2") && scheduleHasPairDuels()) rowLabel = "Секундант/игрок";
-        if (thickBottomKeys[row.key]) tr.style.borderBottom = "3px solid #000";
+        if (thickBottomKeys[row.key]) tr.classList.add("judges-row-thick-bottom");
         tr.innerHTML = "<td class=\"text-nowrap\"" + cellTitle + ">" + rowLabel + "</td>";
         for (var col = 0; col < duels.length; col++) {
             var isPast = isDuelPast(col);
@@ -740,9 +740,15 @@ function renderJudgesLayoutTab() {
             if (confirmed) td.style.backgroundColor = "rgba(200,255,200,0.5)";
             else if (isPlayerOnly(row.key) || ((row.key === "second1" || row.key === "second2") && isDuelPair(col))) td.style.backgroundColor = "rgba(173, 216, 230, 0.5)";
             if (isDuelPair(col)) {
-                if (row.key === "player1" || row.key === "player2") td.classList.add("judges-pair-join-bottom");
-                else if (row.key === "second1" || row.key === "second2") td.classList.add("judges-pair-join-top");
+                if (row.key === "player1" || row.key === "player2") {
+                    td.classList.add("judges-pair-join-bottom");
+                    td.style.borderBottom = "none";
+                } else if (row.key === "second1" || row.key === "second2") {
+                    td.classList.add("judges-pair-join-top");
+                    td.style.borderTop = "none";
+                }
             }
+            if (thickBottomKeys[row.key]) td.style.borderBottom = "3px solid #000";
             if (swapMode && judgeRow && !hideInExpress) {
                 var swapState = isSwapAvailable(col, row.key);
                 if (swapState === "source") td.classList.add("judges-swap-source");
