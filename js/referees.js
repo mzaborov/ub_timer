@@ -57,8 +57,9 @@ function applyJudgesNamesFromAssignments() {
     var judges = duelAssignments[cd].judges;
     var vis = [];
     for (var i = 0; i < 11; i++) if (refereeList[i].visible) vis.push(i);
-    for (var k = 0; k < vis.length && k < judges.length; k++) {
-        var pid = judges[k].personId;
+    for (var k = 0; k < vis.length; k++) {
+        var judgeIdx = vis[k];
+        var pid = (judges[judgeIdx] && judges[judgeIdx].personId) || null;
         var full = pid && people[pid] ? people[pid].fullName : "";
         refereeList[vis[k]].Caption = full ? full.trim() : ("Судья " + (k + 1));
         refereeList[vis[k]]._fullName = full;
