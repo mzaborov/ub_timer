@@ -1,4 +1,4 @@
-/* deploy-version: 20 */
+/* deploy-version: 21 */
 @keyframes pulse {
   0%  { opacity: 0;  transform: scale(0.2);}
   20% { opacity: 0.3; transform: scale(0.4);}
@@ -365,6 +365,16 @@ body.dice-blink-active #Player2Label {
 }
 #judges-layout-table tbody td:last-child {
   border-right: 3px solid #000;
+}
+
+/* Bootstrap table-bordered: горизонтальные линии на <tr> — переносим на <td>, чтобы убирать их в паре по колонке */
+#judges-layout-table.table-bordered > :not(caption) > tbody > tr {
+  border-top-width: 0 !important;
+  border-bottom-width: 0 !important;
+}
+#judges-layout-table.table-bordered > :not(caption) > tbody > tr > td {
+  border-top: 1px solid #000;
+  border-bottom: 1px solid #000;
 }
 #judges-layout-table tbody tr:first-child td {
   border-top: 2px solid #000;
