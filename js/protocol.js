@@ -143,6 +143,7 @@ function buildSessionStatePayload() {
     }
     payload.duelAssignments = da;
     payload.peopleNextId = peopleNextId;
+    payload.revealedSituationIndices = getRevealedSituationIndicesForPayload();
     return payload;
 }
 
@@ -255,7 +256,7 @@ function exportOnlineStatusToFile() {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(roundsRows), "Раунды");
     var payload = payloadExport;
     var sessionRows = [["Поле", "Значение"]];
-    var keys = ["scheduleFileName", "phase", "currentDuel", "time0", "time1", "roundStartRemaining0", "roundStartRemaining1", "roundDurations", "current_round", "current_player", "game_time", "duelType", "refereeQty", "player1Name", "player2Name", "roundRoles", "pauseProtestEvents", "refereeVotes", "activeReferee", "currentRoundRole1", "currentRoundRole2", "lastCompletedDuelIndex", "people", "duelAssignments", "peopleNextId"];
+    var keys = ["scheduleFileName", "phase", "currentDuel", "time0", "time1", "roundStartRemaining0", "roundStartRemaining1", "roundDurations", "current_round", "current_player", "game_time", "duelType", "refereeQty", "player1Name", "player2Name", "roundRoles", "pauseProtestEvents", "refereeVotes", "activeReferee", "currentRoundRole1", "currentRoundRole2", "lastCompletedDuelIndex", "people", "duelAssignments", "peopleNextId", "revealedSituationIndices"];
     for (var ki = 0; ki < keys.length; ki++) {
         var k = keys[ki];
         if (payload[k] === undefined) continue;
@@ -447,6 +448,9 @@ function importOnlineStatusFromFile(ev) {
                     else if (key === "people") { try { data.people = typeof val === "string" ? JSON.parse(val) : val; } catch (e) {} }
                     else if (key === "duelAssignments") { try { data.duelAssignments = typeof val === "string" ? JSON.parse(val) : val; } catch (e) {} }
                     else if (key === "peopleNextId") data.peopleNextId = typeof val === "number" ? val : parseInt(val, 10);
+                    else if (key === "revealedSituationIndices") {
+                        try { data.revealedSituationIndices = typeof val === "string" ? JSON.parse(val) : val; } catch (e) {}
+                    }
                 }
                 if (data.people && typeof data.people === "object") { people = data.people; peopleNextId = (data.peopleNextId != null && !isNaN(data.peopleNextId)) ? data.peopleNextId : (function () { var max = 0; for (var k in people) { var n = parseInt(String(k).replace(/^p_/, ""), 10); if (!isNaN(n) && n > max) max = n; } return max + 1; })(); }
                 if (data.duelAssignments && Array.isArray(data.duelAssignments)) {
@@ -455,19 +459,11 @@ function importOnlineStatusFromFile(ev) {
                 }
                 if (data.scheduleFileName != null && data.scheduleFileName !== "") scheduleFileName = data.scheduleFileName;
             }
+            normalizeDuelsListHiddenFlags(duelsList);
+            restoreRevealedSituationIndicesFromPayload(data);
             var fileNameEl = document.getElementById("file-name");
             if (fileNameEl) fileNameEl.innerHTML = scheduleFileName;
-            var duelChooser = document.getElementById("duel-chooser");
-            if (duelChooser) {
-                duelChooser.innerHTML = "";
-                duelsList.forEach(function (duel, index) {
-                    var figure = document.createElement("figure");
-                    figure.innerHTML = "<a class=\"icon-link\" href=\"#\" onclick='duelChoosed(\"" + index + "\")'>" +
-                        "<blockquote class=\"blockquote\"><p>№" + (duel.DuelNum || (index + 1)) + " :: " + (duel.SituationName || "") + "</p></blockquote></a>" +
-                        "<figcaption class=\"blockquote-footer\">" + formatDuelPlayersCaption(duel) + "</figcaption>";
-                    duelChooser.appendChild(figure);
-                });
-            }
+            renderDuelChooser();
             switchToFileDropdown();
             if (data.currentDuel !== undefined && data.currentDuel !== null && !isNaN(data.currentDuel) && data.currentDuel >= 0 && data.currentDuel < duelsList.length) {
                 duelChoosed(String(data.currentDuel));
