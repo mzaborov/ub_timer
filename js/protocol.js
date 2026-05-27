@@ -464,7 +464,7 @@ function importOnlineStatusFromFile(ev) {
                     var figure = document.createElement("figure");
                     figure.innerHTML = "<a class=\"icon-link\" href=\"#\" onclick='duelChoosed(\"" + index + "\")'>" +
                         "<blockquote class=\"blockquote\"><p>№" + (duel.DuelNum || (index + 1)) + " :: " + (duel.SituationName || "") + "</p></blockquote></a>" +
-                        "<figcaption class=\"blockquote-footer\">" + (duel.Player1 || "") + " VS " + (duel.Player2 || "") + "</figcaption>";
+                        "<figcaption class=\"blockquote-footer\">" + formatDuelPlayersCaption(duel) + "</figcaption>";
                     duelChooser.appendChild(figure);
                 });
             }

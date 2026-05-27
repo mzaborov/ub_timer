@@ -206,13 +206,19 @@ function setDiceBlinkHighlight(playerNum) {
 }
 
 function blinkingIntroStep(qty) {
-    var a = document.getElementById("Player1Name").value;
-    var b = document.getElementById("Player2Name").value;
-    document.getElementById("Player1Name").value = b;
-    document.getElementById("Player2Name").value = a;
     if (duelsList && duelsList[currentDuel]) {
-        duelsList[currentDuel].Player1 = b;
-        duelsList[currentDuel].Player2 = a;
+        var duel = duelsList[currentDuel];
+        var tp = duel.Player1, tsp = duel.Player2, ts1 = duel.Second1, ts2 = duel.Second2;
+        duel.Player1 = tsp;
+        duel.Player2 = tp;
+        duel.Second1 = ts2;
+        duel.Second2 = ts1;
+        applyPlayerNameFieldsFromDuel(duel);
+    } else {
+        var a = document.getElementById("Player1Name").value;
+        var b = document.getElementById("Player2Name").value;
+        document.getElementById("Player1Name").value = b;
+        document.getElementById("Player2Name").value = a;
     }
     var newPlayer = (qty % 2) + 1;
     setDiceBlinkHighlight(newPlayer);
@@ -355,7 +361,7 @@ function changePlayer() {
     current_round++;
     document.getElementById("current_round").textContent = "Раунд №" + current_round;
     document.getElementById("change_player").disabled = true;
-    if (duelType==="classic")
+    if (isClassicLikeType(duelType))
      {
       // Сохраняем роли завершённого раунда для протокола (читаем до сброса селектов)
       var sel1 = document.getElementById('Player1Roles');
@@ -415,6 +421,8 @@ function enable_disable_duel_options_conrols(visibility, disabled) {
        document.getElementById("Player2Name").disabled = disabled; 
        document.getElementById("classic").disabled = disabled;
        document.getElementById("express").disabled = disabled;
+       var pairEl = document.getElementById("pair");
+       if (pairEl) pairEl.disabled = disabled;
        document.getElementById("duel_time_picker").disabled = disabled;
        document.getElementById("5min").disabled = disabled;
        document.getElementById("4min").disabled = disabled;
@@ -439,7 +447,7 @@ function start_duel() {
     roundDurations = [];
     roundRoles = [];
     pauseProtestEvents = [];
-    if (duelType === "classic") {
+    if (isClassicLikeType(duelType)) {
         var sel1 = document.getElementById('Player1Roles');
         var sel2 = document.getElementById('Player2Roles');
         var r1 = (sel1 && sel1.options[sel1.selectedIndex]) ? sel1.options[sel1.selectedIndex].text : "";
@@ -465,7 +473,7 @@ function stop_duel() {
     // Сохраняем длительность последнего сегмента при завершении поединка
     var durationSec = roundStartRemaining[current_player - 1] - time[current_player - 1];
     if (durationSec > 0) roundDurations.push(durationSec);
-    if (duelType === "classic") {
+    if (isClassicLikeType(duelType)) {
         var sel1 = document.getElementById('Player1Roles');
         var sel2 = document.getElementById('Player2Roles');
         var r1 = (sel1 && sel1.options[sel1.selectedIndex]) ? sel1.options[sel1.selectedIndex].text : "";
@@ -494,7 +502,7 @@ function stop_duel() {
         refereeQty = (q === 9 || q === 7 || q === 5) ? q : 9;
     }
     var openJudgesFormBtn = document.getElementById("open_judges_form_btn");
-    if (openJudgesFormBtn) openJudgesFormBtn.style.visibility = (duelType === "classic" ? "visible" : "hidden");
+    if (openJudgesFormBtn) openJudgesFormBtn.style.visibility = (isClassicLikeType(duelType) ? "visible" : "hidden");
     refereeTimer("start");
     var myModal = bootstrap.Modal.getOrCreateInstance(document.getElementById("finishDuelModal"));
     var reopenBtn = document.getElementById("reopen_judges_form_btn");
@@ -610,7 +618,7 @@ function start_timer() {
     timerID = setInterval(changeTime, 1000)
     document.getElementById("start_stop_timer").innerText = "Остановить часы";
     clock_is_active = true;
-    if (duelType==="classic"){
+    if (isClassicLikeType(duelType)){
         document.getElementById("pause").classList.add("active");
         document.getElementById("pause").classList.remove("disabled");
         document.getElementById("protest").classList.add("active");

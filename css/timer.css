@@ -370,6 +370,14 @@ body.dice-blink-active #Player2Label {
   border-top: 2px solid #000;
 }
 
+/* Парный поединок: без горизонтальной границы между игроком и секундантом в паре */
+#judges-layout-table td.judges-pair-join-bottom {
+  border-bottom: none !important;
+}
+#judges-layout-table td.judges-pair-join-top {
+  border-top: none !important;
+}
+
 /* Режим «Поменять местами»: подсветка ячеек */
 #judges-layout-table .judges-swap-source {
   background-color: #fff3cd !important;

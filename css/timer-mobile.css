@@ -570,6 +570,12 @@
   #judges-layout-table tbody tr:first-child td {
     border-top: 2px solid #000;
   }
+  #judges-layout-table td.judges-pair-join-bottom {
+    border-bottom: none !important;
+  }
+  #judges-layout-table td.judges-pair-join-top {
+    border-top: none !important;
+  }
   #judges-layout-table th,
   #judges-layout-table td {
     min-width: 80px;
