@@ -1,4 +1,4 @@
-/* deploy-version: 22 */
+/* deploy-version: 23 */
 @keyframes pulse {
   0%  { opacity: 0;  transform: scale(0.2);}
   20% { opacity: 0.3; transform: scale(0.4);}
@@ -380,20 +380,18 @@ body.dice-blink-active #Player2Label {
   border-top: 2px solid #000;
 }
 
-/* Парный поединок: без горизонтальной границы между игроком и секундантом в паре */
-#judges-layout-table td.judges-pair-join-bottom {
-  border-bottom: none !important;
+#judges-layout-table td.judges-pair-block {
+  background-color: rgba(173, 216, 230, 0.5);
+  vertical-align: middle;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
 }
-#judges-layout-table td.judges-pair-join-top {
-  border-top: none !important;
+#judges-layout-table td.judges-pair-block .judges-pair-block-line {
+  line-height: 1.35;
+  padding: 0.15rem 0;
 }
-
-/* Толстая линия между блоком участников и судей — на ячейках, не на <tr> */
-#judges-layout-table tr.judges-row-thick-bottom > td {
+#judges-layout-table tr.judges-row-thick-bottom > td:first-child {
   border-bottom: 3px solid #000 !important;
-}
-#judges-layout-table tr.judges-row-thick-bottom > td.judges-pair-join-top {
-  border-top: none !important;
 }
 
 /* Режим «Поменять местами»: подсветка ячеек */
