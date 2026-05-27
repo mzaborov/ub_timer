@@ -51,4 +51,7 @@ var people = {}; // id -> { id, fullName, isActive, experience, notes? }; experi
 var duelAssignments = []; // по duelIndex: { player1Id, player2Id, second1Id?, second2Id?, judges: [ { personId, category }, ... ] (max 9), confirmed: {} (slotKey -> true для зелёного) }
 var peopleNextId = 1;
 
+/** Индексы поединков, название ситуации которых уже раскрыли кликом в выпадашке (колонка Hidden). */
+var revealedSituationIndices = {};
+
 var donut1, donut2, pause_donut, referee_donut;

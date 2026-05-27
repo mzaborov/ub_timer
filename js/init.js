@@ -1,4 +1,4 @@
-// deploy-version: 24
+// deploy-version: 25
 /*--------------------------инициализирующий код----------------------------*/
 donut1 = new Donutty(document.getElementById("donut1"), { min: 0, max: game_time, value: game_time, round: false, color: inactiveTimerColor, bg: donuttyTrackColor });
 donut2 = new Donutty(document.getElementById("donut2"), { min: 0, max: game_time, value: game_time, round: false, color: inactiveTimerColor, bg: donuttyTrackColor });

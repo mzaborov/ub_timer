@@ -101,6 +101,100 @@ function showLoadDiagnostics(fileName, errors, warnings, summary) {
     }
 }
 
+function parseTruthyCell(v) {
+    if (v === undefined || v === null) return false;
+    if (typeof v === "boolean") return v;
+    if (typeof v === "number") return v !== 0;
+    var s = String(v).trim().toLowerCase();
+    if (!s || s === "0" || s === "false" || s === "нет" || s === "no") return false;
+    if (s === "1" || s === "true" || s === "да" || s === "yes" || s === "+" || s === "x") return true;
+    return false;
+}
+
+function normalizeDuelHiddenFlag(duel) {
+    if (!duel) return;
+    if (duel.hideSituationName !== true && duel.hideSituationName !== false) {
+        duel.hideSituationName = parseTruthyCell(
+            duel.Hidden != null ? duel.Hidden
+                : (duel.HideSituationName != null ? duel.HideSituationName
+                    : (duel.HideSituation != null ? duel.HideSituation
+                        : (duel["Скрыть название"] != null ? duel["Скрыть название"]
+                            : duel["Случайная ситуация"])))
+        );
+    }
+    delete duel.Hidden;
+    delete duel.HideSituationName;
+    delete duel.HideSituation;
+    delete duel["Скрыть название"];
+    delete duel["Случайная ситуация"];
+}
+
+function normalizeDuelsListHiddenFlags(list) {
+    if (!list || !list.length) return;
+    for (var i = 0; i < list.length; i++) normalizeDuelHiddenFlag(list[i]);
+}
+
+function escapeHtmlForChooser(str) {
+    if (str == null) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
+function isSituationNameHiddenInChooser(duel, index) {
+    return !!(duel && duel.hideSituationName && !revealedSituationIndices[index]);
+}
+
+function formatSituationNameForChooser(duel, index) {
+    var name = (duel && duel.SituationName != null) ? String(duel.SituationName) : "";
+    if (!isSituationNameHiddenInChooser(duel, index)) return escapeHtmlForChooser(name);
+    return '<span class="situation-name-blurred" aria-hidden="true">' + escapeHtmlForChooser(name || "—") + "</span>";
+}
+
+function restoreRevealedSituationIndicesFromPayload(data) {
+    revealedSituationIndices = {};
+    if (!data || data.revealedSituationIndices == null) return;
+    var src = data.revealedSituationIndices;
+    if (Array.isArray(src)) {
+        for (var i = 0; i < src.length; i++) {
+            var idx = parseInt(src[i], 10);
+            if (!isNaN(idx) && idx >= 0) revealedSituationIndices[idx] = true;
+        }
+    } else if (typeof src === "object") {
+        for (var k in src) {
+            if (src.hasOwnProperty(k) && src[k]) revealedSituationIndices[k] = true;
+        }
+    }
+}
+
+function getRevealedSituationIndicesForPayload() {
+    var out = [];
+    for (var k in revealedSituationIndices) {
+        if (!revealedSituationIndices.hasOwnProperty(k) || !revealedSituationIndices[k]) continue;
+        var idx = parseInt(k, 10);
+        if (!isNaN(idx) && idx >= 0) out.push(idx);
+    }
+    out.sort(function (a, b) { return a - b; });
+    return out;
+}
+
+function renderDuelChooser() {
+    var duelChooser = document.getElementById("duel-chooser");
+    if (!duelChooser || !duelsList) return;
+    duelChooser.innerHTML = "";
+    duelsList.forEach(function (duel, index) {
+        var figure = document.createElement("figure");
+        var duelNum = duel.DuelNum != null ? duel.DuelNum : (index + 1);
+        var situationHtml = formatSituationNameForChooser(duel, index);
+        figure.innerHTML = '<a class="icon-link" href="#" onclick=\'duelChoosed("' + index + '"); return false;\'>' +
+            '<blockquote class="blockquote"><p>№' + duelNum + " :: " + situationHtml + "</p></blockquote></a>" +
+            '<figcaption class="blockquote-footer">' + formatDuelPlayersCaption(duel) + "</figcaption>";
+        duelChooser.appendChild(figure);
+    });
+}
+
 function saveProtocolStateToLocalStorage() {
     try {
         if (!scheduleFileName && (!duelsList || duelsList.length === 0)) return;
@@ -219,6 +313,8 @@ function restoreProtocolStateFromLocalStorage() {
         if (!data.duelsList || !Array.isArray(data.duelsList) || data.duelsList.length === 0) return false;
         scheduleFileName = data.scheduleFileName || "";
         duelsList = data.duelsList;
+        normalizeDuelsListHiddenFlags(duelsList);
+        restoreRevealedSituationIndicesFromPayload(data);
         if (data.people && typeof data.people === "object") {
             people = data.people;
             peopleNextId = (data.peopleNextId != null && !isNaN(data.peopleNextId)) ? data.peopleNextId : (function () { var max = 0; for (var k in people) { var n = parseInt(String(k).replace(/^p_/, ""), 10); if (!isNaN(n) && n > max) max = n; } return max + 1; })();
@@ -239,17 +335,7 @@ function restoreProtocolStateFromLocalStorage() {
         }
         var fileNameEl = document.getElementById("file-name");
         if (fileNameEl) fileNameEl.innerHTML = scheduleFileName || "Восстановлено";
-        var duelChooser = document.getElementById("duel-chooser");
-        if (duelChooser) {
-            duelChooser.innerHTML = "";
-            duelsList.forEach(function (duel, index) {
-                var figure = document.createElement("figure");
-                figure.innerHTML = "<a class=\"icon-link\" href=\"#\" onclick='duelChoosed(\"" + index + "\")'>" +
-                    "<blockquote class=\"blockquote\"><p>№" + (duel.DuelNum || (index + 1)) + " :: " + (duel.SituationName || "") + "</p></blockquote></a>" +
-                    "<figcaption class=\"blockquote-footer\">" + formatDuelPlayersCaption(duel) + "</figcaption>";
-                duelChooser.appendChild(figure);
-            });
-        }
+        renderDuelChooser();
         switchToFileDropdown();
         hideRestoreProtocolBanner();
         var currentDuelNum = data.currentDuel;
@@ -1462,30 +1548,16 @@ function showJudgesCellContextMenu(duelIdx, slotKey, x, y) {
 
 function processDuelsJson(file) {
     const fileName = document.getElementById('file-name');
-    const duelChooser = document.getElementById('duel-chooser');
 
     fileName.innerHTML = file.name.split('.').slice(0, -1).join('');
     scheduleFileName = (file && file.name) ? file.name.replace(/\.(xlsx|json)$/i, '') : '';
 
+    revealedSituationIndices = {};
+    normalizeDuelsListHiddenFlags(duelsList);
     ensurePeopleFromSchedule();
     initDuelAssignmentsFromDuels();
 
-    duelChooser.innerHTML = ''
-    duelsList.forEach((duel, index) => {
-        var figure = document.createElement('figure');
-        figure.innerHTML = `
-            <a class="icon-link" href="#" onclick='duelChoosed("${index}")'>
-                <blockquote class="blockquote">
-                    <p>№${duel.DuelNum} :: ${duel.SituationName}</p>
-                </blockquote>
-            </a>
-
-            <figcaption class="blockquote-footer">
-                ${formatDuelPlayersCaption(duel)}
-            </figcaption>
-        `
-        duelChooser.appendChild(figure);
-    });
+    renderDuelChooser();
     sessionPhase = "idle";
     saveProtocolStateToLocalStorage();
     switchToFileDropdown();
@@ -1541,6 +1613,7 @@ function loadFile(event) {
                                 continue;
                             }
                         }
+                        normalizeDuelHiddenFlag(duel);
                         validRows.push(duel);
                     }
                     duelsList = validRows;
@@ -1639,6 +1712,11 @@ function setupClassicLikeRolesUI(duel, select1, select2) {
 function duelChoosed(currentDuelRef) {
     currentDuel = currentDuelRef;
     if (currentDuel != "-1") {
+        var duelIdx = typeof currentDuelRef === "string" ? parseInt(currentDuelRef, 10) : currentDuelRef;
+        if (!isNaN(duelIdx) && duelIdx >= 0) {
+            revealedSituationIndices[duelIdx] = true;
+            renderDuelChooser();
+        }
         const duel = duelsList[currentDuel]
         document.getElementById("players-name").innerHTML = `Ситуация №${duel.SituationNum} ${duel.SituationName}`;
         applyPlayerNameFieldsFromDuel(duel);
