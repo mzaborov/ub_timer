@@ -1,4 +1,4 @@
-/* deploy-version: 24 */
+/* deploy-version: 25 */
 @keyframes pulse {
   0%  { opacity: 0;  transform: scale(0.2);}
   20% { opacity: 0.3; transform: scale(0.4);}
@@ -215,6 +215,14 @@ body.dice-blink-active #Player2Label {
   display: flex;
   flex-direction: column;
 }
+/* Скрытое название ситуации в выпадашке выбора поединка (колонка Hidden в расписании) */
+.situation-name-blurred {
+  display: inline-block;
+  filter: blur(6px);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* Элементы с классом mobile-only по умолчанию скрыты; на мобильном показываются в timer-mobile.css */
 .mobile-only {
   display: none;
