@@ -403,6 +403,32 @@ function getDuelSecondName(duel, which) {
     return (v != null && String(v).trim() !== "") ? String(v).trim() : null;
 }
 
+function getDuelSidePlayerName(duel, which) {
+    if (!duel) return null;
+    var v = which === 1 ? duel.Player1 : duel.Player2;
+    return (v != null && String(v).trim() !== "") ? String(v).trim() : null;
+}
+
+/** Заголовок модалки паузы: три строки по центру. */
+function applyPauseModalLabel(playerNum) {
+    var titleEl = document.getElementById("pauseModalLabel");
+    if (!titleEl) return;
+    var n = playerNum || 1;
+    var duel = (typeof duelsList !== "undefined" && duelsList && typeof currentDuel !== "undefined") ? duelsList[currentDuel] : null;
+    var playerName = duel ? getDuelSidePlayerName(duel, n) : null;
+    var secondName = duel ? getDuelSecondName(duel, n) : null;
+    var line1 = "Секундант" + (secondName ? " (" + secondName + ")" : "");
+    var line2 = "Игрока № " + n + (playerName ? "(" + playerName + ")" : "");
+    var line3 = "взял паузу";
+    titleEl.textContent = "";
+    [line1, line2, line3].forEach(function (line) {
+        var row = document.createElement("span");
+        row.className = "d-block pause-modal-title-line";
+        row.textContent = line;
+        titleEl.appendChild(row);
+    });
+}
+
 function initDuelAssignmentsFromDuels() {
     var list = [];
     if (!duelsList || !duelsList.length) { duelAssignments = list; return; }
