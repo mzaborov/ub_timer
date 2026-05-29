@@ -555,7 +555,8 @@ function pause(regime)
         case   "start" : 
                 stop_timer();
                 pauseProtestEvents.push({ type: "pause", round: current_round, player: current_player, gameTimeLeft: time[current_player - 1] });
-                document.getElementById("pauseModalLabel").textContent = "Секундант Игрока №"+current_player+" взял паузу";
+                if (typeof applyPauseModalLabel === "function") applyPauseModalLabel(current_player);
+                else document.getElementById("pauseModalLabel").textContent = "Секундант Игрока №" + current_player + " взял паузу";
                 pauseTime=60; 
                 pause_donut.setState({ value: pauseTime, color: secondaryTimerColor});
                 document.getElementById("pause_timer").textContent = formatTime(pauseTime);                
