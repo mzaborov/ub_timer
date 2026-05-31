@@ -228,7 +228,7 @@ function applyRestoredSessionState(data) {
     current_round = data.current_round != null ? data.current_round : 1;
     current_player = data.current_player === 1 || data.current_player === 2 ? data.current_player : 1;
     if (data.duelType) duelType = data.duelType;
-    if (data.refereeQty != null && (data.refereeQty === 9 || data.refereeQty === 7 || data.refereeQty === 5)) refereeQty = data.refereeQty;
+    if (data.refereeQty != null) refereeQty = normalizeRefereeQty(data.refereeQty);
     roundRoles = (data.roundRoles && Array.isArray(data.roundRoles)) ? data.roundRoles.slice() : [];
     pauseProtestEvents = (data.pauseProtestEvents && Array.isArray(data.pauseProtestEvents)) ? data.pauseProtestEvents.slice() : [];
     if (data.player1Name) { var el1 = document.getElementById("Player1Name"); if (el1) el1.value = data.player1Name; }
@@ -565,6 +565,13 @@ function openParticipantsJudgesModal() {
     else if (tabParticipants) tabParticipants.click();
     renderParticipantsTab();
     var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    var newNameInput = document.getElementById("participants-new-name");
+    if (newNameInput && !newNameInput._enterListener) {
+        newNameInput._enterListener = true;
+        newNameInput.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") { e.preventDefault(); addParticipantFromModal(); }
+        });
+    }
     var tabsEl = document.getElementById("participantsJudgesTabs");
     if (tabsEl && !tabsEl._tabShownListener) {
         tabsEl._tabShownListener = true;
@@ -574,7 +581,66 @@ function openParticipantsJudgesModal() {
             else if (target === "#tab-judges") renderJudgesLayoutTab();
         });
     }
+    if (!modalEl._judgesQtySyncListener) {
+        modalEl._judgesQtySyncListener = true;
+        modalEl.addEventListener("hidden.bs.modal", function () {
+            if (typeof syncVotingFormFromCurrentDuel === "function") syncVotingFormFromCurrentDuel();
+        });
+    }
     modal.show();
+}
+
+function captureRefereeVotesBySlot(duelIdx) {
+    var votes = {};
+    if (!refereeList || typeof getJudgeSlotsForDuel !== "function") return votes;
+    var slots = getJudgeSlotsForDuel(duelIdx);
+    var vis = [];
+    for (var i = 0; i < 11; i++) if (refereeList[i].visible) vis.push(i);
+    for (var k = 0; k < vis.length && k < slots.length; k++) {
+        var v = refereeList[vis[k]].vote;
+        if (v === 1 || v === 2) votes[slots[k]] = v;
+    }
+    return votes;
+}
+
+function applyRefereeVotesBySlot(duelIdx, votesBySlot) {
+    if (!refereeList || !votesBySlot || typeof getJudgeSlotsForDuel !== "function") return;
+    var slots = getJudgeSlotsForDuel(duelIdx);
+    var vis = [];
+    for (var i = 0; i < 11; i++) if (refereeList[i].visible) vis.push(i);
+    for (var k = 0; k < vis.length && k < slots.length; k++) {
+        var v = votesBySlot[slots[k]];
+        refereeList[vis[k]].vote = (v === 1 || v === 2) ? v : 0;
+    }
+    if (typeof highlightReferee === "function") highlightReferee();
+}
+
+function syncVotingFormFromCurrentDuel() {
+    if (sessionPhase !== "judges" || currentDuel == null || currentDuel === "-1") return;
+    var cd = typeof currentDuel === "string" ? parseInt(currentDuel, 10) : currentDuel;
+    if (isNaN(cd) || !duelsList || !duelsList[cd]) return;
+    var votesBySlot = captureRefereeVotesBySlot(cd);
+    var q = normalizeRefereeQty(duelsList[cd].RefereeQty);
+    duelsList[cd].RefereeQty = q;
+    refereeQty = q;
+    if (typeof initRefereeStructure === "function") initRefereeStructure(q);
+    applyRefereeVotesBySlot(cd, votesBySlot);
+    saveProtocolStateToLocalStorage();
+}
+
+function setDuelRefereeQty(duelIdx, qty) {
+    if (!duelsList || duelIdx < 0 || duelIdx >= duelsList.length) return;
+    if (isDuelPast(duelIdx) || isDuelExpress(duelIdx)) return;
+    var q = normalizeRefereeQty(qty);
+    if (duelsList[duelIdx].RefereeQty === q) return;
+    duelsList[duelIdx].RefereeQty = q;
+    var cd = (currentDuel != null && currentDuel !== "-1") ? (typeof currentDuel === "string" ? parseInt(currentDuel, 10) : currentDuel) : -1;
+    if (cd === duelIdx) {
+        refereeQty = q;
+        if (sessionPhase === "judges") syncVotingFormFromCurrentDuel();
+    }
+    renderJudgesLayoutTab();
+    saveProtocolStateToLocalStorage();
 }
 
 var JUDGES_LAYOUT_BASE_ROWS = [
@@ -588,8 +654,7 @@ function getJudgeSlotsForDuel(duelIdx) {
     if (!duelsList || duelIdx < 0 || duelIdx >= duelsList.length) return [];
     var duel = duelsList[duelIdx];
     var express = normalizeDuelTypeStr(duel.Type) === "express";
-    var q = duel.RefereeQty;
-    if (q !== 9 && q !== 7 && q !== 5) q = 9;
+    var q = normalizeRefereeQty(duel.RefereeQty);
     if (express) return ["j3", "j4", "j5", "j6", "j7"];
     if (q === 9) return ["j0", "j1", "j2", "j3", "j4", "j5", "j6", "j7", "j8"];
     if (q === 7) return ["j0", "j1", "j2", "j3", "j4", "j5", "j6"];
@@ -598,6 +663,21 @@ function getJudgeSlotsForDuel(duelIdx) {
 
 function isJudgeSlotUsedInDuel(duelIdx, slotKey) {
     return getJudgeSlotsForDuel(duelIdx).indexOf(slotKey) !== -1;
+}
+
+var PARTICIPANT_ASSIGNMENT_SLOTS = ["player1", "player2", "second1", "second2"];
+
+function getParticipantAssignmentSlotsForDuel(duelIdx) {
+    if (isDuelPair(duelIdx) || isDuelExpress(duelIdx)) return ["player1", "player2"];
+    return PARTICIPANT_ASSIGNMENT_SLOTS.slice();
+}
+
+function getEditableAssignmentSlotsForDuel(duelIdx) {
+    return getParticipantAssignmentSlotsForDuel(duelIdx).concat(getJudgeSlotsForDuel(duelIdx));
+}
+
+function isEditableAssignmentSlot(duelIdx, slotKey) {
+    return getEditableAssignmentSlotsForDuel(duelIdx).indexOf(slotKey) !== -1;
 }
 
 function isLayoutJudgeRowKey(layoutRowKey) {
@@ -612,8 +692,7 @@ function getLayoutSlotKey(duelIdx, layoutRowKey) {
         return isJudgeSlotUsedInDuel(duelIdx, layoutRowKey) ? layoutRowKey : null;
     }
     var express = isDuelExpress(duelIdx);
-    var q = duelsList[duelIdx].RefereeQty;
-    if (q !== 9 && q !== 7 && q !== 5) q = 9;
+    var q = normalizeRefereeQty(duelsList[duelIdx].RefereeQty);
     var negM = layoutRowKey.match(/^neg([1-5])$/);
     if (negM) {
         var n = parseInt(negM[1], 10);
@@ -668,12 +747,16 @@ function getJudgesLayoutRows() {
         var t = normalizeDuelTypeStr(duelsList[i].Type);
         if (t === "express") allClassic = false; else allExpress = false;
         var q = duelsList[i].RefereeQty;
-        if (q === 9 || q === 7 || q === 5) maxQty = Math.max(maxQty, q); else maxQty = Math.max(maxQty, 9);
+        maxQty = Math.max(maxQty, normalizeRefereeQty(q));
     }
     if (maxQty === 0) maxQty = 9;
     if (allExpress) {
-        for (var k = 1; k <= 5; k++) base.push({ key: "neg" + k, label: "Отправляющие " + k });
-        return base;
+        var expressRows = [
+            { key: "player1", label: "Игрок" },
+            { key: "player2", label: "Игрок" }
+        ];
+        for (var k = 1; k <= 5; k++) expressRows.push({ key: "neg" + k, label: "Отправляющие " + k });
+        return expressRows;
     }
     if (!allExpress && scheduleHasExpressDuels()) return getMixedJudgesLayoutRows(maxQty);
     if (maxQty === 9) {
@@ -861,7 +944,14 @@ function renderJudgesLayoutTab() {
         if (isPast) {
             headerRow += "<th class=\"" + thClass + "\" data-duel-idx=\"" + c + "\">" + title + "</th>";
         } else {
-            headerRow += "<th class=\"" + thClass + "\" data-duel-idx=\"" + c + "\"><div class=\"dropdown\"><button type=\"button\" class=\"btn btn-link btn-sm p-0 text-dark text-decoration-none dropdown-toggle\" data-bs-toggle=\"dropdown\" aria-haspopup=\"true\">" + title + "</button><ul class=\"dropdown-menu\"><li><a class=\"dropdown-item\" href=\"#\" data-autofill-duel=\"" + c + "\">Назначить судей на этот поединок</a></li></ul></div></th>";
+            var qtyMenu = "";
+            if (!isDuelExpress(c)) {
+                qtyMenu = "<li><hr class=\"dropdown-divider\"></li>"
+                    + "<li><a class=\"dropdown-item\" href=\"#\" data-referee-qty-duel=\"" + c + "\" data-referee-qty=\"5\">5 судей</a></li>"
+                    + "<li><a class=\"dropdown-item\" href=\"#\" data-referee-qty-duel=\"" + c + "\" data-referee-qty=\"7\">7 судей</a></li>"
+                    + "<li><a class=\"dropdown-item\" href=\"#\" data-referee-qty-duel=\"" + c + "\" data-referee-qty=\"9\">9 судей</a></li>";
+            }
+            headerRow += "<th class=\"" + thClass + "\" data-duel-idx=\"" + c + "\"><div class=\"dropdown\"><button type=\"button\" class=\"btn btn-link btn-sm p-0 text-dark text-decoration-none dropdown-toggle\" data-bs-toggle=\"dropdown\" aria-haspopup=\"true\">" + title + "</button><ul class=\"dropdown-menu\"><li><a class=\"dropdown-item\" href=\"#\" data-autofill-duel=\"" + c + "\">Назначить судей на этот поединок</a></li>" + qtyMenu + "</ul></div></th>";
         }
     }
     thead.innerHTML = headerRow + "</tr>";
@@ -870,7 +960,15 @@ function renderJudgesLayoutTab() {
         table._autofillDelegate = true;
         table.addEventListener("click", function (e) {
             var t = e.target.closest ? e.target.closest("[data-autofill-duel]") : null;
-            if (t) { e.preventDefault(); runJudgesAutofillForDuel(parseInt(t.getAttribute("data-autofill-duel"), 10)); }
+            if (t) { e.preventDefault(); runJudgesAutofillForDuel(parseInt(t.getAttribute("data-autofill-duel"), 10)); return; }
+            var qtyEl = e.target.closest ? e.target.closest("[data-referee-qty-duel]") : null;
+            if (qtyEl) {
+                e.preventDefault();
+                setDuelRefereeQty(
+                    parseInt(qtyEl.getAttribute("data-referee-qty-duel"), 10),
+                    parseInt(qtyEl.getAttribute("data-referee-qty"), 10)
+                );
+            }
         });
     }
     tbody.innerHTML = "";
@@ -879,6 +977,9 @@ function renderJudgesLayoutTab() {
     var thickBottomKeys = { second2: true };
     var lastRow = layoutRows[layoutRows.length - 1];
     if (lastRow) thickBottomKeys[lastRow.key] = true;
+    if (!layoutRows.some(function (r) { return r.key === "second2"; }) && layoutRows.some(function (r) { return r.key === "player2"; })) {
+        thickBottomKeys.player2 = true;
+    }
     if (layoutRows.some(function (r) { return r.key === "j8"; })) {
         thickBottomKeys.j2 = true;
         thickBottomKeys.j5 = true;
@@ -915,8 +1016,7 @@ function renderJudgesLayoutTab() {
     function isSwapAvailable(tdD, tdS) {
         if (sourceD === tdD && sourceS === tdS) return "source";
         if (sourceD == null || !sourcePerson) return null;
-        var slots = getJudgeSlotsForDuel(tdD);
-        if (slots.indexOf(tdS) === -1) return null;
+        if (!isEditableAssignmentSlot(tdD, tdS)) return null;
         if (isDuelPast(tdD)) return "unavailable";
         var targetPerson = getAssignmentSlot(tdD, tdS);
         if (!targetPerson) return "unavailable";
@@ -927,7 +1027,7 @@ function renderJudgesLayoutTab() {
     }
     layoutRows.forEach(function (row) {
         var tr = document.createElement("tr");
-        var cellTitle = (row.key === "second1" || row.key === "second2") ? " title=\"Заполняется из файла расписания (колонки Cornerman 1, Cornerman 2). Автоназначение судей секундантов не заполняет.\"" : "";
+        var cellTitle = "";
         var rowLabel = row.label;
         if ((row.key === "second1" || row.key === "second2") && scheduleHasPairDuels()) rowLabel = "Секундант/игрок";
         if (thickBottomKeys[row.key]) tr.classList.add("judges-row-thick-bottom");
@@ -936,7 +1036,8 @@ function renderJudgesLayoutTab() {
             var isPast = isDuelPast(col);
             var isCur = (col === cd);
             var isPairCol = isDuelPair(col);
-            if (isPairCol && (row.key === "second1" || row.key === "second2")) continue;
+            var isExpressCol = isDuelExpress(col);
+            if ((isPairCol || isExpressCol) && (row.key === "second1" || row.key === "second2")) continue;
             var judgeRow = isLayoutJudgeRowKey(row.key);
             var cellSlotKey = getLayoutSlotKey(col, row.key);
             var slotInactive = judgeRow && !cellSlotKey;
@@ -955,7 +1056,7 @@ function renderJudgesLayoutTab() {
             if (cellSlotKey) td.setAttribute("data-slot-key", cellSlotKey);
             else if (!judgeRow) td.setAttribute("data-slot-key", row.key);
             if (isPast) td.classList.add("table-secondary");
-            else if (isCur && judgeRow) td.classList.add("table-primary");
+            else if (isCur && (judgeRow || isPlayerOnly(row.key))) td.classList.add("table-primary");
             if (slotInactive) td.classList.add("table-secondary");
             if (isPairCol && (row.key === "player1" || row.key === "player2")) {
                 var secondKey = row.key === "player1" ? "second1" : "second2";
@@ -975,14 +1076,22 @@ function renderJudgesLayoutTab() {
                 line2.textContent = name2 || "—";
                 td.appendChild(line1);
                 td.appendChild(line2);
+            } else if (isExpressCol && (row.key === "player1" || row.key === "player2")) {
+                td.rowSpan = 2;
+                td.classList.add("judges-pair-block");
+                if (confirmed) td.style.backgroundColor = "rgba(200,255,200,0.5)";
+                else td.style.backgroundColor = "rgba(173, 216, 230, 0.5)";
+                if (row.key === "player2") td.style.borderBottom = "3px solid #000";
+                td.textContent = name || "—";
             } else {
                 if (confirmed) td.style.backgroundColor = "rgba(200,255,200,0.5)";
                 else if (isPlayerOnly(row.key)) td.style.backgroundColor = "rgba(173, 216, 230, 0.5)";
                 if (thickBottomKeys[row.key]) td.style.borderBottom = "3px solid #000";
                 td.textContent = name || "—";
             }
-            if (swapMode && judgeRow && !slotInactive && cellSlotKey) {
-                var swapState = isSwapAvailable(col, cellSlotKey);
+            var swapSlotKey = td.getAttribute("data-slot-key");
+            if (swapMode && !slotInactive && swapSlotKey && isEditableAssignmentSlot(col, swapSlotKey)) {
+                var swapState = isSwapAvailable(col, swapSlotKey);
                 if (swapState === "source") td.classList.add("judges-swap-source");
                 else if (swapState === "available") td.classList.add("judges-swap-available");
                 else if (swapState === "unavailable" && !isPast) td.classList.add("judges-swap-unavailable");
@@ -992,8 +1101,9 @@ function renderJudgesLayoutTab() {
             if (!isPast && !slotInactive) {
                 td.addEventListener("click", function (e) {
                     if (e.detail === 2) return;
-                    var d = parseInt(this.getAttribute("data-duel-idx"), 10);
-                    var s = this.getAttribute("data-slot-key");
+                    var self = this;
+                    var d = parseInt(self.getAttribute("data-duel-idx"), 10);
+                    var s = self.getAttribute("data-slot-key");
                     if (window._judgesSwapMode) {
                         var st = isSwapAvailable(d, s);
                         if (st === "available") {
@@ -1010,15 +1120,21 @@ function renderJudgesLayoutTab() {
                         return;
                     }
                     if (d !== cd) return;
-                    setConfirmedSlot(d, s, !getConfirmedSlot(d, s));
-                    renderJudgesLayoutTab();
+                    if (self._judgesConfirmTimer) clearTimeout(self._judgesConfirmTimer);
+                    self._judgesConfirmTimer = setTimeout(function () {
+                        self._judgesConfirmTimer = null;
+                        setConfirmedSlot(d, s, !getConfirmedSlot(d, s));
+                        renderJudgesLayoutTab();
+                    }, 250);
                 });
                 td.addEventListener("dblclick", function () {
+                    var self = this;
+                    if (self._judgesConfirmTimer) { clearTimeout(self._judgesConfirmTimer); self._judgesConfirmTimer = null; }
                     if (window._judgesSwapMode || window._judgesSwapJustHandled) return;
-                    var d = parseInt(this.getAttribute("data-duel-idx"), 10);
-                    var s = this.getAttribute("data-slot-key");
-                    if (isDuelPast(d) || !s || !isJudgeSlotUsedInDuel(d, s)) return;
-                    openJudgesCellCombobox(d, s, this);
+                    var d = parseInt(self.getAttribute("data-duel-idx"), 10);
+                    var s = self.getAttribute("data-slot-key");
+                    if (isDuelPast(d) || !s || !isEditableAssignmentSlot(d, s)) return;
+                    openJudgesCellCombobox(d, s, self);
                 });
                 td.addEventListener("contextmenu", function (e) {
                     e.preventDefault();
@@ -1038,6 +1154,8 @@ function renderJudgesLayoutTab() {
 
 function openJudgesCellCombobox(duelIdx, slotKey, cellEl) {
     var busy = getBusyInDuel(duelIdx);
+    var currentId = getAssignmentSlot(duelIdx, slotKey);
+    if (currentId) delete busy[currentId];
     var list = [];
     for (var id in people) {
         if (busy[id]) continue;
@@ -1765,11 +1883,8 @@ function duelChoosed(currentDuelRef) {
         } else {
             setDuelTime(game_time || 300);
         }
-        refereeQty = duel.RefereeQty;
-        if (refereeQty !== 9 && refereeQty !== 7 && refereeQty !== 5) {
-            refereeQty = 9;
-            duel.RefereeQty = refereeQty;
-        }     
+        refereeQty = normalizeRefereeQty(duel.RefereeQty);
+        duel.RefereeQty = refereeQty;     
         document.getElementById("5min").disabled = true;
         document.getElementById("4min").disabled = true;
         document.getElementById("1min").disabled = true;

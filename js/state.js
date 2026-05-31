@@ -35,6 +35,24 @@ var activeReferee = 0;
 var refereeQty = 9;
 var refereeList;
 
+/** Ближайшее из 5, 7, 9; при равной дистанции — вверх (6→7, 8→9). */
+function normalizeRefereeQty(q) {
+    if (q === 5 || q === 7 || q === 9) return q;
+    var n = (typeof q === "number" && !isNaN(q)) ? q : parseInt(q, 10);
+    if (isNaN(n)) return 9;
+    var options = [5, 7, 9];
+    var best = 9;
+    var bestDist = Infinity;
+    for (var i = 0; i < options.length; i++) {
+        var d = Math.abs(n - options[i]);
+        if (d < bestDist || (d === bestDist && options[i] > best)) {
+            bestDist = d;
+            best = options[i];
+        }
+    }
+    return best;
+}
+
 // протокол онлайна: длительность раундов по игровому времени (бублики), без пауз
 var scheduleFileName = "";
 var roundStartRemaining = [0, 0]; // остаток времени игрока 1 и 2 на старте текущего сегмента

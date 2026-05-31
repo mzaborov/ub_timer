@@ -1,4 +1,4 @@
-/* deploy-version: 34 */
+/* deploy-version: 37 */
 @keyframes pulse {
   0%  { opacity: 0;  transform: scale(0.2);}
   20% { opacity: 0.3; transform: scale(0.4);}
@@ -448,4 +448,20 @@ body.dice-blink-active #Player2Label {
 #judges-layout-table .judges-swap-unavailable {
   background-color: #f8d7da !important;
   outline: 1px solid #dc3545;
+}
+
+.tooltip.tooltip-finish-duel {
+  opacity: 0.75;
+}
+.tooltip.tooltip-finish-duel .tooltip-inner {
+  font-size: 0.7rem;
+  font-weight: 400;
+  padding: 0.2rem 0.45rem;
+  max-width: 200px;
+  background-color: #adb5bd;
+  color: #fff;
+  box-shadow: none;
+}
+.tooltip.tooltip-finish-duel.bs-tooltip-bottom .tooltip-arrow::before {
+  border-bottom-color: #adb5bd;
 }
