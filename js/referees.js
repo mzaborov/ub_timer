@@ -299,9 +299,11 @@ function highlightReferee ()
         {
          var but = document.getElementById("refBut"+i);
          but.style.visibility = "visible";
-         but.innerHTML = refereeList[i].Caption || refereeList[i].Сaption || "";
-         but.title = refereeList[i]._fullName || refereeList[i].Caption || refereeList[i].Сaption || "";
-         but.style.fontSize = (refereeList[i]._fullName ? "0.85em" : "");
+         var full = refereeList[i]._fullName || refereeList[i].Caption || refereeList[i].Сaption || "";
+         var display = full ? shortNameForPerson(full) : (refereeList[i].Caption || refereeList[i].Сaption || "");
+         but.innerHTML = display || (refereeList[i].Caption || refereeList[i].Сaption || "");
+         but.title = full || display;
+         but.style.fontSize = "";
         }
       else
        {

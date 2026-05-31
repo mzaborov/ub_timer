@@ -1,4 +1,4 @@
-/* deploy-version: 29 */
+/* deploy-version: 30 */
 @keyframes pulse {
   0%  { opacity: 0;  transform: scale(0.2);}
   20% { opacity: 0.3; transform: scale(0.4);}
@@ -318,16 +318,28 @@ body.dice-blink-active #Player2Label {
   padding-left: 1rem;
   padding-right: 1rem;
 }
-#finishDuelModal .referee-category .btn-group {
+#finishDuelModal .referee-categories-row {
   flex-wrap: nowrap;
+}
+#finishDuelModal .referee-categories-row .referee-category {
+  min-width: 0;
+  flex: 1 1 0;
+}
+#finishDuelModal .referee-category .btn-group {
+  display: flex;
+  flex-wrap: nowrap;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 #finishDuelModal .referee-category .btn-group .btn {
   min-width: 0;
-  flex: 0 1 auto;
-  max-width: 8rem;
-  min-height: 2.25rem;
-  height: 2.25rem;
-  padding: 0.35rem 0.6rem;
+  flex: 1 1 0;
+  max-width: none;
+  min-height: 2rem;
+  height: 2rem;
+  padding: 0.25rem 0.35rem;
+  font-size: 0.78rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

@@ -406,6 +406,13 @@
     justify-content: center !important;
     align-items: center;
   }
+  #finishDuelModal .referee-categories-row {
+    flex-wrap: nowrap;
+  }
+  #finishDuelModal .referee-categories-row .referee-category {
+    min-width: 0;
+    flex: 1 1 0;
+  }
   #finishDuelModal .referee-category-label {
     font-size: 0.65rem;
     line-height: 1.2;
@@ -428,7 +435,8 @@
     min-width: 0;
     min-height: 2rem;
     height: 2rem;
-    flex: 1 1 auto;
+    flex: 1 1 0;
+    max-width: none;
     padding: 0.25rem 0.35rem;
     font-size: 0.7rem;
     white-space: nowrap;
