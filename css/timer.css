@@ -1,4 +1,4 @@
-/* deploy-version: 27 */
+/* deploy-version: 28 */
 @keyframes pulse {
   0%  { opacity: 0;  transform: scale(0.2);}
   20% { opacity: 0.3; transform: scale(0.4);}
@@ -331,6 +331,17 @@ body.dice-blink-active #Player2Label {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+#finishDuelModal .referee-categories-row.referee-categories-express {
+  justify-content: center;
+}
+#finishDuelModal .referee-category-full {
+  flex: 0 0 100%;
+  max-width: 100%;
+}
+#finishDuelModal .referee-categories-express .referee-category-full .btn-group {
+  justify-content: center;
+  flex-wrap: wrap;
 }
 #finishDuelModal .modal-footer .btn {
   min-height: 2.25rem;

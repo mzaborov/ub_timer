@@ -264,6 +264,33 @@ function calcAndShowScore()
     }
 }
 
+function updateRefereeCategoryColumns() {
+    if (!refereeList) return;
+    var groups = [[0, 1, 2], [3, 4, 5, 6, 7], [8, 9, 10]];
+    var row = document.querySelector("#finishDuelModal .referee-categories-row");
+    groups.forEach(function (indices) {
+        var anyVisible = false;
+        for (var gi = 0; gi < indices.length; gi++) {
+            if (refereeList[indices[gi]].visible) { anyVisible = true; break; }
+        }
+        var btn = document.getElementById("refBut" + indices[0]);
+        if (!btn) return;
+        var col = btn.closest(".referee-category");
+        if (!col) return;
+        col.style.display = anyVisible ? "" : "none";
+        col.classList.remove("referee-category-full");
+    });
+    if (row) {
+        var isExpress = duelType === "express";
+        row.classList.toggle("referee-categories-express", isExpress);
+        if (isExpress) {
+            var dealBtn = document.getElementById("refBut3");
+            var dealCol = dealBtn && dealBtn.closest(".referee-category");
+            if (dealCol) dealCol.classList.add("referee-category-full");
+        }
+    }
+}
+
 function highlightReferee ()
 {
     for (let i=0; i<11;i++)
@@ -292,6 +319,7 @@ function highlightReferee ()
         } ;                                                   
        document.getElementById("refBut"+i).classList.add(bstyle);
     }
+    updateRefereeCategoryColumns();
     calcAndShowScore();
 }
 
