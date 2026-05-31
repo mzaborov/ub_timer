@@ -54,12 +54,12 @@ function shortNameForPerson(fullName) {
 function applyJudgesNamesFromAssignments() {
     var cd = (currentDuel != null && currentDuel !== "-1") ? (typeof currentDuel === "string" ? parseInt(currentDuel, 10) : currentDuel) : 0;
     if (isNaN(cd) || cd < 0 || !duelAssignments[cd] || !duelAssignments[cd].judges) return;
-    var judges = duelAssignments[cd].judges;
+    var slots = (typeof getJudgeSlotsForDuel === "function") ? getJudgeSlotsForDuel(cd) : [];
     var vis = [];
     for (var i = 0; i < 11; i++) if (refereeList[i].visible) vis.push(i);
     for (var k = 0; k < vis.length; k++) {
-        var judgeIdx = vis[k];
-        var pid = (judges[judgeIdx] && judges[judgeIdx].personId) || null;
+        var slotKey = (k < slots.length) ? slots[k] : null;
+        var pid = slotKey ? getAssignmentSlot(cd, slotKey) : null;
         var full = pid && people[pid] ? people[pid].fullName : "";
         refereeList[vis[k]].Caption = full ? full.trim() : ("Судья " + (k + 1));
         refereeList[vis[k]]._fullName = full;
