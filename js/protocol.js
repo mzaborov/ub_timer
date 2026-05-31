@@ -30,7 +30,7 @@ function buildProtocolAndDownload() {
     var maxRef = 0;
     for (var d = 0; d < duelsList.length; d++) {
         var q = duelsList[d].RefereeQty;
-        maxRef = Math.max(maxRef, q === 9 || q === 7 || q === 5 ? q : 9);
+        maxRef = Math.max(maxRef, normalizeRefereeQty(q));
     }
     if (maxRef === 0) maxRef = 9;
     var headers = [""];
@@ -171,7 +171,7 @@ function exportOnlineStatusToFile() {
     var maxRef = 0;
     for (var d = 0; d < listToExport.length; d++) {
         var q = listToExport[d].RefereeQty;
-        maxRef = Math.max(maxRef, q === 9 || q === 7 || q === 5 ? q : 9);
+        maxRef = Math.max(maxRef, normalizeRefereeQty(q));
     }
     if (maxRef === 0) maxRef = 9;
     var payloadExport = sessionData || buildSessionStatePayload();
@@ -379,8 +379,7 @@ function importOnlineStatusFromFile(ev) {
                         }
                     }
                 }
-                duel.RefereeQty = duel.JudgeVotes ? duel.JudgeVotes.length : 9;
-                if (duel.RefereeQty !== 9 && duel.RefereeQty !== 7 && duel.RefereeQty !== 5) duel.RefereeQty = 9;
+                duel.RefereeQty = normalizeRefereeQty(duel.JudgeVotes ? duel.JudgeVotes.length : 9);
             }
             var idxRounds = wb.SheetNames.indexOf("Раунды");
             if (idxRounds >= 0) {
@@ -436,7 +435,7 @@ function importOnlineStatusFromFile(ev) {
                     else if (key === "current_player") data.current_player = val === 1 || val === 2 ? val : 1;
                     else if (key === "game_time") data.game_time = typeof val === "number" ? val : parseInt(val, 10);
                     else if (key === "duelType") data.duelType = val != null ? String(val) : "classic";
-                    else if (key === "refereeQty") data.refereeQty = typeof val === "number" ? val : parseInt(val, 10);
+                    else if (key === "refereeQty") data.refereeQty = normalizeRefereeQty(typeof val === "number" ? val : parseInt(val, 10));
                     else if (key === "player1Name") data.player1Name = val != null ? String(val) : "";
                     else if (key === "player2Name") data.player2Name = val != null ? String(val) : "";
                     else if (key === "roundDurations" || key === "roundRoles" || key === "pauseProtestEvents" || key === "refereeVotes") {

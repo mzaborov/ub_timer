@@ -117,8 +117,8 @@ function reopenJudgesForm() {
         var prevDuel = duelsList[lastCompletedDuelIndex];
         currentDuel = lastCompletedDuelIndex;
         duelChoosed(String(lastCompletedDuelIndex));
-        var q = prevDuel.RefereeQty;
-        if (q !== 9 && q !== 7 && q !== 5) q = 9;
+        var q = normalizeRefereeQty(prevDuel.RefereeQty);
+        prevDuel.RefereeQty = q;
         refereeQty = q;
         initRefereeStructure(refereeQty);
         var votes = prevDuel.JudgeVotes;
