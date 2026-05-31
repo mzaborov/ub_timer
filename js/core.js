@@ -495,12 +495,14 @@ function stop_duel() {
           document.getElementById("Player1RoleGoal").innerHTML =duelsList[currentDuel].SituationRoles[0].Phrase;       
           document.getElementById("Player2RoleGoal").innerHTML ="";
     }
-    // - форма оценок судей 
-    initRefereeStructure(-1);
+    // - форма оценок судей
+    var q = normalizeRefereeQty(refereeQty || 9);
     if (duelsList && duelsList[currentDuel]) {
-        var q = duelsList[currentDuel].RefereeQty || refereeQty || 9;
-        refereeQty = (q === 9 || q === 7 || q === 5) ? q : 9;
+        q = normalizeRefereeQty(duelsList[currentDuel].RefereeQty != null ? duelsList[currentDuel].RefereeQty : q);
+        duelsList[currentDuel].RefereeQty = q;
     }
+    refereeQty = q;
+    initRefereeStructure(refereeQty);
     var openJudgesFormBtn = document.getElementById("open_judges_form_btn");
     if (openJudgesFormBtn) openJudgesFormBtn.style.visibility = (isClassicLikeType(duelType) ? "visible" : "hidden");
     refereeTimer("start");
