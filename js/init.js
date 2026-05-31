@@ -1,4 +1,4 @@
-// deploy-version: 30
+// deploy-version: 34
 /*--------------------------инициализирующий код----------------------------*/
 donut1 = new Donutty(document.getElementById("donut1"), { min: 0, max: game_time, value: game_time, round: false, color: inactiveTimerColor, bg: donuttyTrackColor });
 donut2 = new Donutty(document.getElementById("donut2"), { min: 0, max: game_time, value: game_time, round: false, color: inactiveTimerColor, bg: donuttyTrackColor });
@@ -40,3 +40,9 @@ var audioIntro = null;
     }
 })();
 var introTracksListFallback = introTracksList.slice();
+
+(function initFinishDuelButtonTooltip() {
+    var btn = document.getElementById("finish_duel_button");
+    if (!btn || !window.bootstrap || !bootstrap.Tooltip) return;
+    new bootstrap.Tooltip(btn, { container: "body", trigger: "hover focus" });
+})();

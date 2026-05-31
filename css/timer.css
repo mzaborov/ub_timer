@@ -1,4 +1,4 @@
-/* deploy-version: 30 */
+/* deploy-version: 34 */
 @keyframes pulse {
   0%  { opacity: 0;  transform: scale(0.2);}
   20% { opacity: 0.3; transform: scale(0.4);}
@@ -318,34 +318,36 @@ body.dice-blink-active #Player2Label {
   padding-left: 1rem;
   padding-right: 1rem;
 }
-#finishDuelModal .referee-categories-row {
-  flex-wrap: nowrap;
-}
-#finishDuelModal .referee-categories-row .referee-category {
-  min-width: 0;
-  flex: 1 1 0;
+#finishDuelModal .referee-categories-row:not(.referee-categories-express) .referee-category {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 #finishDuelModal .referee-category .btn-group {
-  display: flex;
   flex-wrap: nowrap;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
+}
+#finishDuelModal .referee-categories-row:not(.referee-categories-express) .referee-category .btn-group {
+  justify-content: center;
 }
 #finishDuelModal .referee-category .btn-group .btn {
   min-width: 0;
-  flex: 1 1 0;
-  max-width: none;
-  min-height: 2rem;
-  height: 2rem;
-  padding: 0.25rem 0.35rem;
-  font-size: 0.78rem;
+  flex: 0 1 auto;
+  max-width: 8.5rem;
+  min-height: 2.35rem;
+  height: 2.35rem;
+  padding: 0.35rem 0.55rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 #finishDuelModal .referee-categories-row.referee-categories-express {
+  flex-wrap: nowrap;
   justify-content: center;
+}
+#finishDuelModal .referee-categories-express .referee-category-full {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 #finishDuelModal .referee-category-full {
   flex: 0 0 100%;
@@ -354,6 +356,10 @@ body.dice-blink-active #Player2Label {
 #finishDuelModal .referee-categories-express .referee-category-full .btn-group {
   justify-content: center;
   flex-wrap: wrap;
+}
+#finishDuelModal .referee-categories-express .referee-category .btn-group .btn {
+  flex: 0 1 auto;
+  max-width: 8.5rem;
 }
 #finishDuelModal .modal-footer .btn {
   min-height: 2.25rem;
