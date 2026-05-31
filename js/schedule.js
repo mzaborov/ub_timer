@@ -854,8 +854,10 @@ function renderJudgesLayoutTab() {
         var isCur = (c === cd);
         var thClass = "table-secondary";
         var duel = duels[c];
-        var situationName = (duel && duel.SituationName && String(duel.SituationName).trim()) ? String(duel.SituationName).trim() : "";
-        var title = "Поединок " + (c + 1) + (situationName ? "<br>" + situationName : "");
+        var name = (duel && duel.SituationName != null) ? String(duel.SituationName).trim() : "";
+        var situationHtml = formatSituationNameForChooser(duel, c);
+        var title = "Поединок " + (c + 1);
+        if (name || isSituationNameHiddenInChooser(duel, c)) title += "<br>" + situationHtml;
         if (isPast) {
             headerRow += "<th class=\"" + thClass + "\" data-duel-idx=\"" + c + "\">" + title + "</th>";
         } else {
@@ -1742,6 +1744,7 @@ function duelChoosed(currentDuelRef) {
         if (!isNaN(duelIdx) && duelIdx >= 0) {
             revealedSituationIndices[duelIdx] = true;
             renderDuelChooser();
+            renderJudgesLayoutTab();
         }
         const duel = duelsList[currentDuel]
         document.getElementById("players-name").innerHTML = `Ситуация №${duel.SituationNum} ${duel.SituationName}`;
