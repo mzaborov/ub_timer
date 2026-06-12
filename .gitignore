@@ -2,3 +2,4 @@
 git_hint.txt
 .gitignore
 secrets.env
+scripts/google-apps-script/enrich-situations.gs
