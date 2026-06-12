@@ -362,16 +362,48 @@ ub-timer/
 
 Банк ситуаций хранится в Google-таблице (лист **Ситуации**). Для ub-timer в расписании используются колонки **SituationDescription** (HTML с `<strong>` для ролей) и **SituationRoles** (JSON).
 
-**Автозаполнение пустых колонок** — Google Apps Script + Qwen API (DashScope):
+### Просмотр (этап 1 — готово)
 
-- Шаблон: [`scripts/google-apps-script/enrich-situations.gs`](scripts/google-apps-script/enrich-situations.gs)
-- Инструкция: [`scripts/google-apps-script/README.md`](scripts/google-apps-script/README.md)
+Отдельная страница [situations-bank.html](situations-bank.html) (прод: `https://timer.zaborov.ru/situations-bank.html`):
 
-Скрипт добавляет меню **«Банк ситуаций»** в таблице. Уже заполненные `SituationDescription` и `SituationRoles` **не перезаписываются**. Промпты различаются для **Классика/Парный** (`Goals`) и **Экспресс** (`Phrase` + выделение агрессивных реплик в HTML).
+- mobile-first, вёрстка в стиле AppSheet (оранжевая шапка, список → карточка);
+- ссылка из таймера: **«Выберите файл» → «Банк ситуаций»**;
+- данные из published CSV; кэш `sessionStorage` (1 ч);
+- фильтр пустых и служебных строк; свайп между ситуациями; кнопка «Поделиться»;
+- HTML/JSON при наличии, иначе plain text; для **Экспресс** блок ролей в карточке скрыт.
 
-**Просмотр:** отдельная страница [situations-bank.html](situations-bank.html) (на проде: `https://timer.zaborov.ru/situations-bank.html`) — mobile-first, вёрстка как в AppSheet (список Код/Тип → карточка). Ссылка из меню таймера **«Выберите файл» → «Банк ситуаций»**. HTML/JSON при наличии, иначе plain text. Файлы: `situations-bank.html`, `css/situations-bank.css`, `js/situations-bank.js`.
+Файлы: `situations-bank.html`, `css/situations-bank.css`, `js/situations-bank.js`.
 
-**Локально:** не открывайте `situations-bank.html` двойным кликом (`file://` — будет «Failed to fetch»). Из корня репо: `python -m http.server 8765` → [http://localhost:8765/situations-bank.html](http://localhost:8765/situations-bank.html).
+**Локально:** не открывайте `situations-bank.html` через `file://` (будет «Failed to fetch»). Из корня репо: `python -m http.server 8765` → [http://localhost:8765/situations-bank.html](http://localhost:8765/situations-bank.html).
+
+### Автогенерация (этап 2 — готово)
+
+Google Apps Script + LLM (OpenRouter или DashScope):
+
+- шаблон: [`scripts/google-apps-script/enrich-situations.gs`](scripts/google-apps-script/enrich-situations.gs) (локально, в `.gitignore`);
+- инструкция: [`scripts/google-apps-script/README.md`](scripts/google-apps-script/README.md);
+- версия скрипта — в заголовке `.gs` (сейчас **1.2.5**).
+
+Меню **«Банк ситуаций»** в таблице:
+
+| Пункт | Назначение |
+|-------|------------|
+| Сгенерировать для пустых / выделенных | LLM заполняет пустые `SituationDescription` / `SituationRoles` |
+| Исправить экспрессы | Чинит JSON экспрессов **без токенов** |
+| Проверить API-ключ | Тест OpenRouter / DashScope |
+
+**Промпты по типу:** Классика/Парный — `{Role, Goals}`; Экспресс — `[{"Role","Phrase"},{"Role"}]` (Phrase только у первой роли).
+
+Уже заполненные ячейки **не перезаписываются**. Лог — лист `_enrich_log`.
+
+**Настройка LLM** (Script Properties таблицы): `QWEN_API_KEY`, `LLM_PROVIDER` (`openrouter` | `dashscope`), опционально `QWEN_MODEL`.
+
+### Не в scope (следующий этап)
+
+- подтягивание текста ситуации в расписание по `SituationNum` при загрузке `.xlsx`;
+- импорт расписания из Google Doc.
+
+План задачи: [docs/Архив/банк_ситуаций_ub-timer_fcad0beb.plan.md](docs/Архив/банк_ситуаций_ub-timer_fcad0beb.plan.md).
 
 ## Технологии
 - Фронтенд без сборки: HTML, CSS, JavaScript.
