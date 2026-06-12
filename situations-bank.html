@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<!-- deploy-version: 40 -->
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Ситуации — банк</title>
+    <meta name="description" content="Банк ситуаций для управленческих поединков">
+    <link rel="stylesheet" href="fontawesome/css/all.min.css?v=40">
+    <link rel="stylesheet" href="css/situations-bank.css?v=40">
+</head>
+
+<body class="sb-app">
+    <!-- Экран списка -->
+    <div id="sb-screen-list" class="sb-screen">
+        <header class="sb-header">
+            <button type="button" class="sb-header-btn sb-header-btn--ghost" aria-label="Меню" disabled>
+                <i class="fa-solid fa-bars"></i>
+            </button>
+            <h1 class="sb-header-title">Ситуации</h1>
+            <button type="button" class="sb-header-btn" id="sb-search-toggle" aria-label="Поиск">
+                <i class="fa-solid fa-magnifying-glass"></i>
+            </button>
+            <button type="button" class="sb-header-btn" onclick="refreshSituationsBank()" aria-label="Обновить">
+                <i class="fa-solid fa-rotate"></i>
+            </button>
+        </header>
+
+        <div id="sb-search-panel" class="sb-search-panel sb-hidden">
+            <input type="search" id="situations-bank-search" class="sb-search-input"
+                placeholder="Поиск по коду, тексту, ролям…" autocomplete="off"
+                oninput="onSituationsBankSearchInput_(event)">
+        </div>
+
+        <div id="situations-bank-status" class="sb-status sb-hidden"></div>
+        <div id="situations-bank-loading" class="sb-loading sb-hidden">
+            <div class="sb-spinner"></div>
+        </div>
+
+        <div class="sb-table-wrap">
+            <table class="sb-table" aria-label="Список ситуаций">
+                <thead>
+                    <tr>
+                        <th class="sb-th-code">Код</th>
+                        <th class="sb-th-type">Тип</th>
+                        <th class="sb-th-chevron" aria-hidden="true"></th>
+                    </tr>
+                </thead>
+                <tbody id="situations-bank-list"></tbody>
+            </table>
+        </div>
+
+        <footer class="sb-footer">
+            <i class="fa-solid fa-list"></i>
+            <span>Ситуации</span>
+        </footer>
+    </div>
+
+    <!-- Экран карточки -->
+    <div id="sb-screen-detail" class="sb-screen sb-hidden">
+        <header class="sb-header">
+            <button type="button" class="sb-header-btn" onclick="situationsBankPageBack_()" aria-label="Назад">
+                <i class="fa-solid fa-arrow-left"></i>
+            </button>
+            <h1 class="sb-header-title">Ситуация</h1>
+            <button type="button" class="sb-header-btn" onclick="shareSituationBank_()" aria-label="Поделиться" title="Поделиться текстом">
+                <i class="fa-solid fa-share-nodes"></i>
+            </button>
+            <button type="button" class="sb-header-btn" onclick="refreshSituationsBank()" aria-label="Обновить">
+                <i class="fa-solid fa-rotate"></i>
+            </button>
+        </header>
+
+        <div id="situations-bank-detail" class="sb-detail" tabindex="0"></div>
+        <div id="sb-share-toast" class="sb-share-toast sb-hidden" role="status"></div>
+
+        <footer class="sb-footer">
+            <i class="fa-solid fa-list"></i>
+            <span>Ситуации</span>
+        </footer>
+    </div>
+
+    <script src="js/situations-bank.js?v=40"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", initSituationsBankPage_);
+        document.getElementById("sb-search-toggle").addEventListener("click", function () {
+            var panel = document.getElementById("sb-search-panel");
+            panel.classList.toggle("sb-hidden");
+            if (!panel.classList.contains("sb-hidden")) {
+                document.getElementById("situations-bank-search").focus();
+            }
+        });
+    </script>
+</body>
+
+</html>

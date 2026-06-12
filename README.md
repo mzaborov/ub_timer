@@ -358,6 +358,21 @@ ub-timer/
 Форма завершения поединка (модалка «Поединок завершен» — судьи, выбор игрока, таймер, кнопки):
 ![Форма завершения поединка на мобильном](docs/screenshot-mobile-modal.png)
 
+## Банк ситуаций (Google Sheets)
+
+Банк ситуаций хранится в Google-таблице (лист **Ситуации**). Для ub-timer в расписании используются колонки **SituationDescription** (HTML с `<strong>` для ролей) и **SituationRoles** (JSON).
+
+**Автозаполнение пустых колонок** — Google Apps Script + Qwen API (DashScope):
+
+- Шаблон: [`scripts/google-apps-script/enrich-situations.gs`](scripts/google-apps-script/enrich-situations.gs)
+- Инструкция: [`scripts/google-apps-script/README.md`](scripts/google-apps-script/README.md)
+
+Скрипт добавляет меню **«Банк ситуаций»** в таблице. Уже заполненные `SituationDescription` и `SituationRoles` **не перезаписываются**. Промпты различаются для **Классика/Парный** (`Goals`) и **Экспресс** (`Phrase` + выделение агрессивных реплик в HTML).
+
+**Просмотр:** отдельная страница [situations-bank.html](situations-bank.html) (на проде: `https://timer.zaborov.ru/situations-bank.html`) — mobile-first, вёрстка как в AppSheet (список Код/Тип → карточка). Ссылка из меню таймера **«Выберите файл» → «Банк ситуаций»**. HTML/JSON при наличии, иначе plain text. Файлы: `situations-bank.html`, `css/situations-bank.css`, `js/situations-bank.js`.
+
+**Локально:** не открывайте `situations-bank.html` двойным кликом (`file://` — будет «Failed to fetch»). Из корня репо: `python -m http.server 8765` → [http://localhost:8765/situations-bank.html](http://localhost:8765/situations-bank.html).
+
 ## Технологии
 - Фронтенд без сборки: HTML, CSS, JavaScript.
 - [SheetJS](https://sheetjs.com/) (XLSX) — чтение расписания и запись протокола онлайна в браузере.

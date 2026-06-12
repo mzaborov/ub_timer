@@ -594,4 +594,21 @@
     min-width: 80px;
     padding: 0.35rem;
   }
+
+  /* Банк ситуаций: список сверху, деталь снизу */
+  .situations-bank-list-col,
+  .situations-bank-detail-col {
+    max-height: none;
+  }
+  .situations-bank-list {
+    max-height: 28vh;
+  }
+  .situations-bank-detail {
+    max-height: 40vh;
+    margin-left: 0 !important;
+  }
+  #situationsBankModal .modal-header .form-control {
+    min-width: 0;
+    flex: 1 1 140px;
+  }
 }

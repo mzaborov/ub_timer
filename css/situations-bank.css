@@ -1,0 +1,362 @@
+/* deploy-version: 40 — банк ситуаций, mobile-first (стиль AppSheet) */
+
+:root {
+  --sb-orange: #f57c00;
+  --sb-orange-dark: #e65100;
+  --sb-header-h: 52px;
+  --sb-footer-h: 56px;
+  --sb-text: #333;
+  --sb-muted: #666;
+  --sb-border: #e0e0e0;
+  --sb-bg: #fff;
+  --sb-row-hover: #fff8f0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body.sb-app {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  color: var(--sb-text);
+  background: var(--sb-bg);
+  -webkit-text-size-adjust: 100%;
+}
+
+.sb-app {
+  overflow: hidden;
+}
+
+.sb-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  height: 100dvh;
+  max-width: 100%;
+}
+
+.sb-hidden {
+  display: none !important;
+}
+
+/* Шапка и подвал AppSheet */
+.sb-header {
+  flex: 0 0 var(--sb-header-h);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  background: var(--sb-orange);
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+}
+
+.sb-header-title {
+  flex: 1;
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sb-header-spacer {
+  width: 40px;
+}
+
+.sb-header-btn {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 1.15rem;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sb-header-btn:active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.sb-header-btn--ghost:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.sb-footer {
+  flex: 0 0 var(--sb-footer-h);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: var(--sb-orange);
+  color: #fff;
+  font-size: 0.7rem;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.sb-footer i {
+  font-size: 1.25rem;
+}
+
+/* Поиск */
+.sb-search-panel {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  background: #fafafa;
+  border-bottom: 1px solid var(--sb-border);
+}
+
+.sb-search-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--sb-border);
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+/* Статус и загрузка */
+.sb-status {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  color: var(--sb-muted);
+  background: #fff3e0;
+}
+
+.sb-status.sb-status--error {
+  color: #c62828;
+  background: #ffebee;
+}
+
+.sb-loading {
+  flex: 0 0 auto;
+  padding: 12px;
+  text-align: center;
+}
+
+.sb-spinner {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border: 3px solid #ffe0b2;
+  border-top-color: var(--sb-orange);
+  border-radius: 50%;
+  animation: sb-spin 0.8s linear infinite;
+}
+
+@keyframes sb-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Таблица-список */
+.sb-table-wrap {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sb-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.sb-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f5f5f5;
+}
+
+.sb-table th {
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--sb-muted);
+  border-bottom: 1px solid var(--sb-border);
+}
+
+.sb-th-code { width: 62%; }
+.sb-th-type { width: 28%; }
+.sb-th-chevron { width: 10%; }
+
+.sb-row {
+  cursor: pointer;
+  border-bottom: 1px solid var(--sb-border);
+}
+
+.sb-row:active,
+.sb-row:hover {
+  background: var(--sb-row-hover);
+}
+
+.sb-row td {
+  padding: 14px 12px;
+  vertical-align: middle;
+  font-size: 0.95rem;
+}
+
+.sb-cell-code {
+  font-weight: 500;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.sb-cell-type {
+  color: var(--sb-muted);
+  font-size: 0.9rem;
+}
+
+.sb-cell-chevron {
+  text-align: right;
+  color: #bbb;
+  font-size: 0.85rem;
+}
+
+.sb-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--sb-muted);
+}
+
+/* Карточка ситуации */
+.sb-detail {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 16px 24px;
+  touch-action: pan-y;
+  outline: none;
+}
+
+.sb-detail.sb-detail--swipe-left {
+  animation: sb-swipe-hint-left 0.22s ease-out;
+}
+
+.sb-detail.sb-detail--swipe-right {
+  animation: sb-swipe-hint-right 0.22s ease-out;
+}
+
+@keyframes sb-swipe-hint-left {
+  from { opacity: 0.55; transform: translateX(28px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes sb-swipe-hint-right {
+  from { opacity: 0.55; transform: translateX(-28px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.sb-nav-hint {
+  margin: 0 0 12px;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  color: var(--sb-muted);
+  text-align: center;
+  background: #f5f5f5;
+  border-radius: 8px;
+}
+
+.sb-share-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--sb-footer-h) + 12px + env(safe-area-inset-bottom, 0));
+  transform: translateX(-50%);
+  max-width: 90%;
+  padding: 10px 16px;
+  font-size: 0.85rem;
+  color: #fff;
+  background: rgba(50, 50, 50, 0.92);
+  border-radius: 8px;
+  z-index: 100;
+  text-align: center;
+  pointer-events: none;
+}
+
+.sb-detail-title {
+  margin: 0 0 16px;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #444;
+}
+
+.sb-field {
+  margin-bottom: 20px;
+}
+
+.sb-field-label {
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--sb-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.sb-field-label--section {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #000;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.sb-field-value {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.sb-description-html strong {
+  font-weight: 700;
+}
+
+.sb-plain {
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.sb-role-line {
+  margin: 0 0 10px;
+  line-height: 1.5;
+}
+
+.sb-role-line b {
+  font-weight: 700;
+}
+
+/* Десктоп: центрируем «телефон» */
+@media (min-width: 600px) {
+  body.sb-app {
+    background: #eceff1;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+  }
+
+  .sb-screen {
+    max-width: 480px;
+    width: 100%;
+    margin: 0 auto;
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.12);
+  }
+}
