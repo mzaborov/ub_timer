@@ -1,4 +1,4 @@
-/* deploy-version: 38 */
+/* deploy-version: 40 */
 @keyframes pulse {
   0%  { opacity: 0;  transform: scale(0.2);}
   20% { opacity: 0.3; transform: scale(0.4);}
@@ -464,4 +464,58 @@ body.dice-blink-active #Player2Label {
 }
 .tooltip.tooltip-finish-duel.bs-tooltip-bottom .tooltip-arrow::before {
   border-bottom-color: #adb5bd;
+}
+
+/* Банк ситуаций */
+.situations-bank-list-col {
+  max-height: 65vh;
+}
+.situations-bank-list {
+  max-height: 65vh;
+  overflow-y: auto;
+  background: #fafafa;
+}
+.situations-bank-list-item {
+  text-align: left;
+  border-left: none;
+  border-right: none;
+}
+.situations-bank-list-item.active {
+  background-color: #e7f1ff;
+  border-color: #dee2e6;
+}
+.situations-bank-list-code {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.situations-bank-fmt-badge {
+  font-size: 0.65rem;
+  flex-shrink: 0;
+}
+.situations-bank-detail-col {
+  max-height: 65vh;
+}
+.situations-bank-detail {
+  max-height: 65vh;
+  overflow-y: auto;
+  background: #fff;
+}
+.situations-bank-description-html {
+  line-height: 1.5;
+}
+.situations-bank-description-html strong {
+  font-weight: 700;
+}
+.situations-bank-plain {
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 0.95rem;
+  background: #f8f9fa;
+  border: none;
+  padding: 0.75rem;
+  border-radius: 0.25rem;
+  margin: 0;
+}
+.situations-bank-roles .situations-bank-plain {
+  margin-top: 0;
 }
