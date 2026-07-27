@@ -1,147 +1,91 @@
-# Автогенерация банка ситуаций (Google Apps Script + LLM)
+# Google Apps Script для таблицы «я-ИТ-ы Управленческие поединки»
 
+Локальные файлы в этой папке → проект Apps Script таблицы:
 
+| Файл | Назначение |
+|------|------------|
+| `Menu.gs` | `onOpen` — оба меню |
+| `enrich-situations.gs` | Банк ситуаций (LLM) |
+| `import-protocols.gs` | Импорт `protocols-batch` v1 |
+| `appsscript.json` | Манифест |
 
-Скрипт заполняет колонки **SituationDescription** (HTML) и **SituationRoles** (JSON) в Google-таблице банка ситуаций. Уже заполненные ячейки **не перезаписываются**.
+Документация протоколов: [`docs/protocol/`](../../docs/protocol/).
 
-**Версия скрипта** — в заголовке `enrich-situations.gs` (строка `Версия: …`). После правок в репозитории сверяйте номер в Apps Script.
+---
 
+## Деплой (Python, рекомендуется)
 
+Node.js **не нужен**. Скрипт [`scripts/deploy_gas.py`](../deploy_gas.py) заливает все `.gs` через **Google Apps Script API**.
 
-## Установка
+### Один раз
 
+1. **Google Cloud Console** → создать/выбрать проект → включить **Google Apps Script API**.
+2. **APIs & Services → Credentials** → **Create OAuth client ID** → тип **Desktop app** → скачать JSON.
+3. Сохранить как `scripts/google-apps-script/gas-oauth-client.json` (в `.gitignore`).
+4. В `secrets.env` (корень репо):
+   ```
+   GAS_SCRIPT_ID=идентификатор_из_Apps_Script_Настройки_проекта
+   ```
+5. Зависимости:
+   ```powershell
+   pip install -r scripts/requirements-gas.txt
+   ```
+6. Первый деплой откроет браузер для входа в Google; токен сохранится в `.gas-token.json`.
 
+### Каждое обновление
 
-1. Откройте **оригинал** Google-таблицы банка ситуаций (не pubhtml-ссылку).
+```powershell
+.\scripts\deploy-gas.ps1
+```
 
-2. **Расширения → Apps Script**.
+или
 
-3. Создайте файл `enrich-situations.gs` в Apps Script. Локальная копия с ключом лежит в `scripts/google-apps-script/enrich-situations.gs` (файл в `.gitignore`, в Git не коммитится).
+```powershell
+python scripts/deploy_gas.py
+```
 
-4. **Проект → Свойства проекта → Свойства скрипта** — добавьте (значения `QWEN_API_KEY` и др. лежат в `secrets.env` в корне репо, файл в `.gitignore`):
+Проверка без загрузки: `python scripts/deploy_gas.py --dry-run`
 
+Обновите страницу таблицы — меню «Банк ситуаций» и «Протоколы игр».
 
+> **Важно:** `updateContent` **заменяет все файлы** проекта. В репозитории должны быть все нужные `.gs` (сейчас три + манифест).
 
-### Вариант A: OpenRouter (рекомендуется, без верификации Alibaba)
+### Ручной деплой (без Python)
 
+**Расширения → Apps Script** — вставить содержимое трёх `.gs` и `appsscript.json`. `onOpen` только в `Menu.gs`.
 
+### Альтернатива: clasp (Node.js)
 
-| Свойство | Значение |
+Если уже есть Node: `npm install -g @google/clasp`, `.clasp.json` из `.clasp.json.example`. Не обязателен при наличии `deploy_gas.py`.
 
-|----------|----------|
+---
 
-| `QWEN_API_KEY` | Ключ с [openrouter.ai/keys](https://openrouter.ai/keys) (`sk-or-v1-...`) |
+# Банк ситуаций (LLM)
 
-| `LLM_PROVIDER` | `openrouter` *(можно не задавать — это значение по умолчанию)* |
+**SituationDescription** / **SituationRoles**. Заполненные ячейки не перезаписываются.
 
-| `QWEN_MODEL` | *(опционально)* `qwen/qwen-plus` (по умолчанию) |
+Версия — в заголовке `enrich-situations.gs`.
 
+## Script Properties (в Google, не в Git)
 
+Ключи LLM — в `secrets.env` локально, в таблице: **Проект → Свойства скрипта**.
 
-На [openrouter.ai/credits](https://openrouter.ai/credits) нужен баланс для платных моделей (обычно от $5). Без пополнения — только free-модели, 50 запросов/день.
+| Свойство | Назначение |
+|----------|------------|
+| `QWEN_API_KEY` | OpenRouter или DashScope |
+| `LLM_PROVIDER` | `openrouter` / `dashscope` |
+| `SITUATIONS_SHEET_NAME` | по умолчанию `Ситуации` |
+| `PROTOCOLS_SHEET_NAME` | по умолчанию `протоколы игр` |
 
+Меню: сгенерировать / исправить экспрессы / проверить API. Лог: `_enrich_log`.
 
+---
 
-**Ключ храните только в Script Properties таблицы, не в Git и не в чатах.**
+# Импорт протоколов
 
+Версия — `PROTO_IMPORT_VERSION` в `import-protocols.gs`.
 
+Меню «Протоколы игр»: `_protocol_import` → предпросмотр → импорт. Лог: `_protocol_import_log`.
 
-### Вариант B: DashScope (Alibaba Cloud)
-
-
-
-| Свойство | Значение |
-
-|----------|----------|
-
-| `QWEN_API_KEY` | Ключ DashScope |
-
-| `LLM_PROVIDER` | `dashscope` |
-
-| `QWEN_MODEL` | *(опционально)* `qwen-plus` |
-
-
-
-### Общее
-
-
-
-| Свойство | Значение |
-
-|----------|----------|
-
-| `SITUATIONS_SHEET_NAME` | *(опционально)* `Ситуации` (по умолчанию) |
-
-
-
-5. Сохраните проект, обновите страницу таблицы — появится меню **«Банк ситуаций»**.
-
-
-
-При первом запуске Google запросит разрешения (доступ к таблице и внешним URL).
-
-
-
-## Меню
-
-
-
-| Пункт | Действие |
-
-|-------|----------|
-
-| **Сгенерировать для пустых строк** | Только строки-кандидаты: пустые `SituationDescription` и/или `SituationRoles`, есть «Полное описание» и «Тип» (служебные пустые строки не обходятся) |
-
-| **Сгенерировать для выделенных строк** | То же для выделенного диапазона |
-
-| **Проверить API-ключ** | Тестовый запрос к LLM |
-
-
-
-## Правила генерации
-
-
-
-- **Классика / Парный** — `SituationRoles` с полями `Role` и `Goals`; нужны «Полное описание» и «Роли и интересы». В HTML выделяются только **участники** поединка (не должность в прошлом у другого лица); блок ролей в `SituationDescription` запрещён.
-
-- **Экспресс** — ровно 2 роли: `[{"Role":"...","Phrase":"..."},{"Role":"..."}]` — **Phrase только у первой**, у второй поля Phrase нет. Меню **«Исправить экспрессы»** чинит JSON без LLM.
-
-- **Пустой «Тип»** — строка пропускается (см. лист `_enrich_log`).
-
-- **Уже заполненные ячейки** — не трогаются (ни в batch, ни для выделения).
-
-
-
-## Лог
-
-
-
-Лист **`_enrich_log`**: время, статус (`OK` / `SKIP` / `ERROR` / `SUMMARY`), номер строки, код ситуации, сообщение, **сырой ответ** (при `ERROR`, до 1500 символов). Создаётся в **конце** книги; при записи **не переключает** активную вкладку.
-
-Запрос к LLM: `response_format: json_object`, `max_tokens: 4096`; парсер вырезает JSON-объект `{…}` даже при markdown вокруг.
-
-
-
-## Рекомендуемый порядок первого запуска
-
-
-
-1. Задать `QWEN_API_KEY` в Script Properties
-
-2. **Проверить API-ключ**
-
-3. Выделить одну строку с пустым `SituationDescription`, например `07-Формальная безопасность` → **Сгенерировать для выделенных строк**
-
-4. Проверить результат в колонках и в `_enrich_log`
-
-5. Запустить **Сгенерировать для пустых строк** (batch; ~600 мс пауза между строками)
-
-
-
-## Связь с ub-timer
-
-
-
-После заполнения таблицы published CSV подхватит новые данные. Просмотр банка в веб-таймере — отдельный этап (модалка «Банк ситуаций» в ub-timer).
-
-
+Workflow: [`data/protocols/kupala-2026.json`](../../data/protocols/kupala-2026.json) → A1 → импорт.  
+Подробнее: [`docs/protocol/import.md`](../../docs/protocol/import.md).
