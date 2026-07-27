@@ -135,3 +135,31 @@
 2026-06-12 18:00 (+03:00)- Закрытие сессии: план банка ситуаций в docs/Архив; README обновлён; этапы 1–2 завершены.
 
 2026-06-12 16:00 (+03:00)- enrich-situations.gs v1.2.3: batch по кандидатам; экспресс — оба Phrase; AccessKey.csv в .gitignore.
+
+2026-06-28 12:00 (+03:00)- Документация протоколов: разделены формат JSON, логика импорта и обзор pipeline; перенесено в docs/protocol/.
+
+2026-06-28 12:15 (+03:00)- docs/protocol/: README, batch-format.md, import.md, pipeline.md; заглушка docs/protocol-import-format.md со ссылками.
+
+2026-06-28 12:30 (+03:00)- matchHints.eventDate в protocols-batch: дата поединка для матчинга row 2 таблицы; kupala-2026.json 27/28.06.
+
+2026-06-28 14:00 (+03:00)- import-protocols.gs v1.0.0: универсальный импорт protocols-batch, меню «Протоколы игр», предпросмотр, лог _protocol_import_log; README-protocol-import.md.
+
+2026-06-28 15:00 (+03:00)- Импорт протоколов влит в enrich-situations.gs v1.3.0 (один файл для ручного деплоя); import-protocols.gs удалён.
+
+2026-06-28 16:00 (+03:00)- GAS multi-file (Menu, enrich, import-protocols) + clasp: deploy-gas.ps1, appsscript.json.
+
+2026-06-29 15:00 (+03:00)- import-protocols v1.2.0: формат 3–12 отдельно от судей; раскладка 5/7/9 по образцу слева; серый с ref; снятие CF на голосах.
+
+2026-06-29 14:00 (+03:00)- import-protocols v1.1.3: без clearFormat; границы/подсветка игроков с колонки слева; серый #999999, чёрные голоса.
+
+2026-06-29 13:00 (+03:00)- import-protocols v1.1.0: центрирование судей 5/7/9, серые пустые слоты, сброс цвета ячеек.
+
+2026-06-28 17:00 (+03:00)- deploy_gas.py: автодеплой GAS через Apps Script API (Python, без Node); requirements-gas.txt, OAuth.
+
+2026-07-27 22:43 (+03:00)- enrich-situations 1.2.6: восстановлен collectEnrichCandidateRows_ (ReferenceError в меню «Сгенерировать для пустых строк»).
+2026-07-27 22:44 (+03:00)- Деплой GAS: enrich-situations 1.2.6 (collectEnrichCandidateRows_) залит в проект таблицы.
+2026-07-27 22:50 (+03:00)- GAS oauthScopes: в appsscript.json добавлен script.external_request (UrlFetchApp) и связанные scope; деплой.
+2026-07-27 22:54 (+03:00)- enrich-situations 1.2.7: фикс OpenRouter/Alibaba 400 — слово json в system и testApiKey; деплой.
+2026-07-27 23:04 (+03:00)- enrich-situations 1.2.8: пост-обработка выделения агрессивных реплик экспресса + усилен промпт; деплой.
+2026-07-27 23:13 (+03:00)- enrich-situations 1.2.9: Phrase экспресса = всегда последняя прямая речь (детерминированно); деплой.
+2026-07-27 23:23 (+03:00)- Закрытие сессии: enrich-situations 1.2.6–1.2.9 (кандидаты, oauthScopes, json_object, highlight реплик, Phrase=последняя речь); GAS задеплоен; временные _tmp_pdf удалены.
