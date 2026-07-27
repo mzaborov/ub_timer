@@ -3,4 +3,10 @@ git_hint.txt
 .gitignore
 secrets.env
 scripts/google-apps-script/enrich-situations.gs
+scripts/google-apps-script/.clasp.json
+scripts/google-apps-script/.clasprc.json
+scripts/google-apps-script/gas-oauth-client.json
+scripts/google-apps-script/.gas-token.json
 AccessKey.csv
+client_secret*.json
+_tmp*
