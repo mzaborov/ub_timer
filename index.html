@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: 41 — счётчик выкладок, обновляется скриптом -->
+<!-- deploy-version: 54 — счётчик выкладок, обновляется скриптом -->
 <html lang="en">
 
 <head>
@@ -20,11 +20,11 @@
         }
       })();
     </script>
-    <link rel="stylesheet" href="fontawesome/css/fontawesome.css?v=41">
-    <link rel="stylesheet" href="fontawesome/css/all.css?v=41">
-    <link rel="stylesheet" href="css/timer.css?v=41">
-    <link rel="stylesheet" href="css/timer-mobile.css?v=41" media="(max-width: 992px)">
-    <script src="js/donutty.js?v=41"></script>
+    <link rel="stylesheet" href="fontawesome/css/fontawesome.css?v=54">
+    <link rel="stylesheet" href="fontawesome/css/all.css?v=54">
+    <link rel="stylesheet" href="css/timer.css?v=54">
+    <link rel="stylesheet" href="css/timer-mobile.css?v=54" media="(max-width: 992px)">
+    <script src="js/donutty.js?v=54"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
         integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
@@ -98,30 +98,50 @@
                             </div>
                             <div class="dropdown inline" id="file-button-dropdown">
                                 <button type="button" class="btn btn-primary the-button" data-bs-toggle="dropdown"
+                                    data-bs-auto-close="outside"
                                     aria-expanded="false" id="Choose_File_Button_Dropdown">
                                     <i class="fa-solid fa-arrow-up-from-bracket"></i>
                                     <span id="file-name">Выберите файл</span>
                                     <i class="fa-solid fa-caret-down ms-1"></i>
                                 </button>
                                 <ul class="dropdown-menu">
-                                    <li><a class="dropdown-item" href="#" onclick="triggerClick(); return false;"><i class="fa-solid fa-arrow-up-from-bracket me-2"></i>Загрузить расписание</a></li>
+                                    <li class="dropend" id="load-schedule-submenu">
+                                        <a class="dropdown-item dropdown-toggle" href="#" role="button"
+                                            id="load-schedule-submenu-toggle" aria-expanded="false"
+                                            onclick="return toggleLoadScheduleSubmenu_(event);">
+                                            <i class="fa-solid fa-arrow-up-from-bracket me-2"></i>Загрузить расписание
+                                        </a>
+                                        <ul class="dropdown-menu" id="load-schedule-submenu-menu"><!-- latest, file, picker -->
+                                            <li><a class="dropdown-item" href="#" onclick="return onLoadScheduleSubmenuItem_(event, 'latest');"><i class="fa-brands fa-google me-2"></i>из Google последний</a></li>
+                                            <li><a class="dropdown-item" href="#" onclick="return onLoadScheduleSubmenuItem_(event, 'file');"><i class="fa-solid fa-floppy-disk me-2"></i>из файла</a></li>
+                                            <li><a class="dropdown-item" href="#" onclick="return onLoadScheduleSubmenuItem_(event, 'picker');"><i class="fa-brands fa-google me-2"></i>из Google выбрать</a></li>
+                                        </ul>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
                                     <li><a class="dropdown-item" href="situations-bank.html"><i class="fa-solid fa-book-open me-2"></i>Банк ситуаций</a></li>
                                     <li><a class="dropdown-item disabled" href="#" id="import-status-menu-item" aria-disabled="true" title="Сначала загрузите файл расписания" onclick="return tryImportOnlineStatus(event);"><i class="fa-solid fa-file-arrow-up me-2"></i>Загрузить статус онлайна</a></li>
                                     <li><a class="dropdown-item disabled" href="#" id="participants-judges-menu-item" aria-disabled="true" title="Сначала загрузите файл расписания" onclick="return tryOpenParticipantsJudges(event);"><i class="fa-solid fa-user-group me-2"></i>Участники и судьи</a></li>
                                     <li><a class="dropdown-item disabled" href="#" id="download-protocol-menu-item" aria-disabled="true" title="Сначала загрузите файл расписания" onclick="return tryBuildProtocolAndDownload(event);"><i class="fa-solid fa-file-arrow-down me-2"></i>Скачать протокол</a></li>
                                 </ul>
                             </div>
-                            <div class="dropdown inline" id="duel-chooser-href">
-                                <button type="button" class="btn btn-primary the-button" data-bs-toggle="dropdown"
-                                    aria-expanded="false" id="Choose_Duel_Button">
-                                    <i class="fa-solid fa-user-group"></i>
-                                    <span id="players-name">Выберите поединок</span>
+                            <div class="d-inline-flex align-items-center gap-1 flex-wrap" id="duel-chooser-row">
+                                <div class="dropdown inline" id="duel-chooser-href">
+                                    <button type="button" class="btn btn-primary the-button" data-bs-toggle="dropdown"
+                                        aria-expanded="false" id="Choose_Duel_Button">
+                                        <i class="fa-solid fa-user-group"></i>
+                                        <span id="players-name">Выберите поединок</span>
+                                    </button>
+                                    <form class="dropdown-menu p-4 m-2" style="width:500px">
+                                        <div id="duel-chooser">
+                                            нет данных
+                                        </div>
+                                    </form>
+                                </div>
+                                <button type="button" class="btn btn-outline-primary the-button" id="random-situation-dice-btn"
+                                    style="display:none" onclick="rollRandomSituation(); return false;"
+                                    title="Случайная ситуация из банка" aria-label="Случайная ситуация">
+                                    <i class="fa-solid fa-dice" aria-hidden="true"></i>
                                 </button>
-                                <form class="dropdown-menu p-4 m-2" style="width:500px">
-                                    <div id="duel-chooser">
-                                        нет данных
-                                    </div>
-                                </form>
                             </div>
                             <div id="load-diagnostics" class="alert mt-2 mb-0 small" style="display:none;" role="alert"></div>
                         </div>
@@ -470,6 +490,27 @@
     </div>
     </div>
 
+    <!-- Выбор онлайна из Google (лист состава) -->
+    <div class="modal fade" id="googleSchedulePickerModal" tabindex="-1" aria-labelledby="googleSchedulePickerModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="googleSchedulePickerModalLabel">Выбор онлайна</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted mb-2" id="google-schedule-picker-status">Загрузка списка…</p>
+                    <select class="form-select" id="google-schedule-meeting-list" size="12" aria-label="Список онлайнов"></select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="google-schedule-refresh-btn" onclick="refreshGoogleScheduleMeetingsList(); return false;">Обновить список</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" id="google-schedule-load-btn" onclick="loadScheduleFromGoogleSelected(); return false;">Загрузить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Участники и судьи (вкладки: Участники, Расписание) -->
     <div class="modal fade" id="participantsJudgesModal" tabindex="-1" aria-labelledby="participantsJudgesModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
         <div class="modal-dialog modal-dialog-centered modal-xl">
@@ -520,16 +561,16 @@
         </div>
     </div>
 
-    <div class="credit-hidden" aria-hidden="true">Исходный код доступен на: https://github.com/mzaborov/ub_timer/ | Версия: 41</div>
-    <div class="app-version text-end small text-muted me-2 mb-1" title="Версия выкладки">v 41</div>
+    <div class="credit-hidden" aria-hidden="true">Исходный код доступен на: https://github.com/mzaborov/ub_timer/ | Версия: 54</div>
+    <div class="app-version text-end small text-muted me-2 mb-1" title="Версия выкладки">v 54</div>
     <script type="application/json" id="intro-tracks-json">["Baba_O_Riley.mp3","Bad_To_The_Bone.mp3","Cant_Stop.mp3","Deutschland.mp3","Eye_Of_The_Tiger.mp3","Jamming.mp3","Masha_i_medvedi.mp3","Misirlou.mp3","Peremen.mp3","Stop_the_Rock.mp3","Sweet_Home_Alabama.mp3","Tatarskaya_plyasovaya.mp3"]</script>
-    <script type="text/javascript" src="js/state.js?v=41"></script>
-    <script type="text/javascript" src="js/core.js?v=41"></script>
-    <script type="text/javascript" src="js/referees.js?v=41"></script>
-    <script type="text/javascript" src="js/schedule.js?v=41"></script>
-    <script type="text/javascript" src="js/toolbar-sound.js?v=41"></script>
-    <script type="text/javascript" src="js/protocol.js?v=41"></script>
-    <script type="text/javascript" src="js/init.js?v=41"></script>
+    <script type="text/javascript" src="js/state.js?v=54"></script>
+    <script type="text/javascript" src="js/core.js?v=54"></script>
+    <script type="text/javascript" src="js/referees.js?v=54"></script>
+    <script type="text/javascript" src="js/schedule.js?v=54"></script>
+    <script type="text/javascript" src="js/toolbar-sound.js?v=54"></script>
+    <script type="text/javascript" src="js/protocol.js?v=54"></script>
+    <script type="text/javascript" src="js/init.js?v=54"></script>
 </body>
 
 </html>

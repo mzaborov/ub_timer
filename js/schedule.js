@@ -114,12 +114,12 @@ function parseTruthyCell(v) {
 function normalizeDuelHiddenFlag(duel) {
     if (!duel) return;
     if (duel.hideSituationName !== true && duel.hideSituationName !== false) {
+        // Секретная (blur) — только явный флаг Hidden / синонимы. «Случайная» (00/00Э) — другое.
         duel.hideSituationName = parseTruthyCell(
             duel.Hidden != null ? duel.Hidden
                 : (duel.HideSituationName != null ? duel.HideSituationName
                     : (duel.HideSituation != null ? duel.HideSituation
-                        : (duel["Скрыть название"] != null ? duel["Скрыть название"]
-                            : duel["Случайная ситуация"])))
+                        : duel["Скрыть название"]))
         );
     }
     delete duel.Hidden;
@@ -302,6 +302,7 @@ function applyRestoredSessionState(data) {
         var reopenBtn = document.getElementById("reopen_judges_form_btn");
         if (reopenBtn) reopenBtn.style.display = "none";
     }
+    updateRandomSituationDiceButton();
 }
 
 function restoreProtocolStateFromLocalStorage() {
@@ -314,6 +315,7 @@ function restoreProtocolStateFromLocalStorage() {
         scheduleFileName = data.scheduleFileName || "";
         duelsList = data.duelsList;
         normalizeDuelsListHiddenFlags(duelsList);
+        ensureRandomSlotFlagsOnDuels_(duelsList);
         restoreRevealedSituationIndicesFromPayload(data);
         if (data.people && typeof data.people === "object") {
             people = data.people;
@@ -1013,6 +1015,9 @@ function renderJudgesLayoutTab() {
     var sourceD = swapMode ? swapMode.duelIdx : null;
     var sourceS = swapMode ? swapMode.slotKey : null;
     var sourcePerson = (sourceD != null && sourceS) ? getAssignmentSlot(sourceD, sourceS) : null;
+    // rowspan=2 для экспресса/пары только если в раскладке есть строки секундантов (смешанное/классика).
+    // В режиме «все экспрессы» строк second нет — rowspan ломает колонки (Player2 уезжает вправо).
+    var layoutHasSecondRows = layoutRows.some(function (r) { return r.key === "second1" || r.key === "second2"; });
     function isSwapAvailable(tdD, tdS) {
         if (sourceD === tdD && sourceS === tdS) return "source";
         if (sourceD == null || !sourcePerson) return null;
@@ -1037,7 +1042,7 @@ function renderJudgesLayoutTab() {
             var isCur = (col === cd);
             var isPairCol = isDuelPair(col);
             var isExpressCol = isDuelExpress(col);
-            if ((isPairCol || isExpressCol) && (row.key === "second1" || row.key === "second2")) continue;
+            if (layoutHasSecondRows && (isPairCol || isExpressCol) && (row.key === "second1" || row.key === "second2")) continue;
             var judgeRow = isLayoutJudgeRowKey(row.key);
             var cellSlotKey = getLayoutSlotKey(col, row.key);
             var slotInactive = judgeRow && !cellSlotKey;
@@ -1058,7 +1063,7 @@ function renderJudgesLayoutTab() {
             if (isPast) td.classList.add("table-secondary");
             else if (isCur && (judgeRow || isPlayerOnly(row.key))) td.classList.add("table-primary");
             if (slotInactive) td.classList.add("table-secondary");
-            if (isPairCol && (row.key === "player1" || row.key === "player2")) {
+            if (layoutHasSecondRows && isPairCol && (row.key === "player1" || row.key === "player2")) {
                 var secondKey = row.key === "player1" ? "second1" : "second2";
                 var name2 = getPersonName(getAssignmentSlot(col, secondKey));
                 var confirmed2 = getConfirmedSlot(col, secondKey);
@@ -1076,7 +1081,7 @@ function renderJudgesLayoutTab() {
                 line2.textContent = name2 || "—";
                 td.appendChild(line1);
                 td.appendChild(line2);
-            } else if (isExpressCol && (row.key === "player1" || row.key === "player2")) {
+            } else if (layoutHasSecondRows && isExpressCol && (row.key === "player1" || row.key === "player2")) {
                 td.rowSpan = 2;
                 td.classList.add("judges-pair-block");
                 if (confirmed) td.style.backgroundColor = "rgba(200,255,200,0.5)";
@@ -1096,7 +1101,7 @@ function renderJudgesLayoutTab() {
                 else if (swapState === "available") td.classList.add("judges-swap-available");
                 else if (swapState === "unavailable" && !isPast) td.classList.add("judges-swap-unavailable");
             }
-            td.style.minWidth = "100px";
+            td.style.minWidth = "140px";
             td.style.cursor = isPast ? "default" : "pointer";
             if (!isPast && !slotInactive) {
                 td.addEventListener("click", function (e) {
@@ -1692,14 +1697,449 @@ function showJudgesCellContextMenu(duelIdx, slotKey, x, y) {
     setTimeout(function () { document.addEventListener("click", window._judgesContextMenuClose); }, 0);
 }
 
+/* ---------- Расписание из Google: лист состава (1–21) + банк ситуаций ---------- */
+
+var GOOGLE_COMPOSITION_CSV_URL =
+    "https://docs.google.com/spreadsheets/d/1-qUmFGvuG2SOvueNUWr55zTZyFEXFFqiWTz8m-OVHZg/export?format=csv&gid=1172864695";
+var GOOGLE_SITUATIONS_CSV_URL =
+    "https://docs.google.com/spreadsheets/d/1-qUmFGvuG2SOvueNUWr55zTZyFEXFFqiWTz8m-OVHZg/export?format=csv&gid=94326902";
+var GOOGLE_COMPOSITION_CACHE_KEY = "ub-timer-composition-meetings-v1";
+var GOOGLE_COMPOSITION_CACHE_TTL_MS = 60 * 60 * 1000;
+var GOOGLE_COMPOSITION_MAX_SCAN_ROWS = 35;
+
+var googleCompositionMeetingsCache = null;
+
+function googleScheduleCsvToAoa_(text) {
+    if (typeof XLSX === "undefined") throw new Error("SheetJS (XLSX) не загружен");
+    var wb = XLSX.read(String(text || ""), { type: "string", raw: true, codepage: 65001 });
+    var sheet = wb.Sheets[wb.SheetNames[0]];
+    return XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: "" });
+}
+
+function googleScheduleCell_(matrix, row, col) {
+    if (!matrix || row < 0 || col < 0 || row >= matrix.length) return "";
+    var line = matrix[row];
+    if (!line || col >= line.length) return "";
+    return line[col] == null ? "" : String(line[col]).trim();
+}
+
+function googleScheduleFindRowByLabel_(matrix, col, label, maxRows) {
+    var limit = Math.min(matrix.length, maxRows == null ? GOOGLE_COMPOSITION_MAX_SCAN_ROWS : maxRows);
+    var want = String(label || "").trim().toLowerCase();
+    for (var i = 0; i < limit; i++) {
+        if (googleScheduleCell_(matrix, i, col).toLowerCase() === want) return i;
+    }
+    return -1;
+}
+
+function googleScheduleParseSituationCell_(cell) {
+    var s = String(cell || "").trim().replace(/\s+/g, " ");
+    if (!s) return { num: "", name: "" };
+    var m = s.match(/^([0-9]+Э?)\s*[-–—]\s*(.+)$/i);
+    if (m) return { num: m[1], name: m[2].trim() };
+    m = s.match(/^([0-9]+Э?)(.*)$/i);
+    if (m) return { num: m[1], name: String(m[2] || "").replace(/^[\s\-–—]+/, "").trim() };
+    return { num: "", name: s };
+}
+
+function googleScheduleDefaultsForType_(typeStr) {
+    var kind = normalizeDuelTypeStr(typeStr);
+    if (kind === "express") return { refereeQty: 5, minutes: 1, typeLabel: "Экспресс" };
+    if (kind === "pair") return { refereeQty: 9, minutes: 5, typeLabel: "Парный" };
+    return { refereeQty: 9, minutes: 5, typeLabel: typeStr && String(typeStr).trim() ? String(typeStr).trim() : "Классика" };
+}
+
+function parseGoogleCompositionMeetings_(matrix) {
+    var meetingRow = googleScheduleFindRowByLabel_(matrix, 3, "Встреча");
+    var situationRow = googleScheduleFindRowByLabel_(matrix, 1, "Ситуация");
+    if (meetingRow < 0) throw new Error('Не найдена строка «Встреча» в листе состава');
+    if (situationRow < 0) throw new Error('Не найдена строка «Ситуация» в листе состава');
+
+    var player1Row = -1, second1Row = -1, player2Row = -1, second2Row = -1;
+    for (var r = situationRow + 1; r < Math.min(matrix.length, GOOGLE_COMPOSITION_MAX_SCAN_ROWS); r++) {
+        var role = googleScheduleCell_(matrix, r, 3).toLowerCase();
+        if (role === "участник") {
+            if (player1Row < 0) player1Row = r;
+            else if (player2Row < 0) player2Row = r;
+        } else if (role === "секундант") {
+            if (player1Row >= 0 && second1Row < 0) second1Row = r;
+            else if (player2Row >= 0 && second2Row < 0) second2Row = r;
+        }
+    }
+    if (player1Row < 0 || player2Row < 0) {
+        throw new Error("Не найдены строки участников в листе состава");
+    }
+
+    var width = 0;
+    for (var wi = 0; wi < Math.min(matrix.length, GOOGLE_COMPOSITION_MAX_SCAN_ROWS); wi++) {
+        if (matrix[wi] && matrix[wi].length > width) width = matrix[wi].length;
+    }
+
+    var meetings = [];
+    var current = null;
+    for (var c = 0; c < width; c++) {
+        var meetingName = googleScheduleCell_(matrix, meetingRow, c);
+        if (!meetingName) continue;
+        var sitCell = googleScheduleCell_(matrix, situationRow, c);
+        var p1 = googleScheduleCell_(matrix, player1Row, c);
+        var p2 = googleScheduleCell_(matrix, player2Row, c);
+        if (!sitCell && !p1 && !p2) continue;
+
+        if (!current || current.name !== meetingName) {
+            current = { name: meetingName, columns: [], duels: [] };
+            meetings.push(current);
+        }
+        var sit = googleScheduleParseSituationCell_(sitCell);
+        current.columns.push(c);
+        current.duels.push({
+            situationNum: sit.num,
+            situationName: sit.name,
+            player1: p1,
+            second1: second1Row >= 0 ? googleScheduleCell_(matrix, second1Row, c) : "",
+            player2: p2,
+            second2: second2Row >= 0 ? googleScheduleCell_(matrix, second2Row, c) : ""
+        });
+    }
+    if (!meetings.length) throw new Error("В листе состава не найдено ни одной встречи");
+    return meetings;
+}
+
+function readGoogleCompositionCache_() {
+    try {
+        var raw = sessionStorage.getItem(GOOGLE_COMPOSITION_CACHE_KEY);
+        if (!raw) return null;
+        var data = JSON.parse(raw);
+        if (!data || !data.fetchedAt || !data.meetings || !data.meetings.length) return null;
+        if (Date.now() - data.fetchedAt > GOOGLE_COMPOSITION_CACHE_TTL_MS) return null;
+        return data.meetings;
+    } catch (e) {
+        return null;
+    }
+}
+
+function writeGoogleCompositionCache_(meetings) {
+    try {
+        sessionStorage.setItem(GOOGLE_COMPOSITION_CACHE_KEY, JSON.stringify({
+            fetchedAt: Date.now(),
+            meetings: meetings
+        }));
+    } catch (e) {
+        console.warn("google schedule: cache write failed", e);
+    }
+}
+
+function fetchGoogleCompositionMeetings_(force) {
+    if (!force) {
+        if (googleCompositionMeetingsCache && googleCompositionMeetingsCache.length) {
+            return Promise.resolve(googleCompositionMeetingsCache);
+        }
+        var cached = readGoogleCompositionCache_();
+        if (cached && cached.length) {
+            googleCompositionMeetingsCache = cached;
+            return Promise.resolve(cached);
+        }
+    }
+    if (location.protocol === "file:") {
+        return Promise.reject(new Error(
+            "Страница открыта как file:// — браузер блокирует загрузку из Google. Откройте через http://localhost или прод."
+        ));
+    }
+    return fetch(GOOGLE_COMPOSITION_CSV_URL)
+        .then(function (resp) {
+            if (!resp.ok) throw new Error("Состав онлайна: HTTP " + resp.status);
+            return resp.text();
+        })
+        .then(function (text) {
+            var meetings = parseGoogleCompositionMeetings_(googleScheduleCsvToAoa_(text));
+            googleCompositionMeetingsCache = meetings;
+            writeGoogleCompositionCache_(meetings);
+            return meetings;
+        });
+}
+
+function fetchGoogleSituationsBankMap_() {
+    if (location.protocol === "file:") {
+        return Promise.reject(new Error(
+            "Страница открыта как file:// — браузер блокирует загрузку из Google. Откройте через http://localhost или прод."
+        ));
+    }
+    return fetch(GOOGLE_SITUATIONS_CSV_URL)
+        .then(function (resp) {
+            if (!resp.ok) throw new Error("Банк ситуаций: HTTP " + resp.status);
+            return resp.text();
+        })
+        .then(function (text) {
+            var aoa = googleScheduleCsvToAoa_(text);
+            if (!aoa || aoa.length < 2) throw new Error("Банк ситуаций: пустой CSV");
+            var headers = aoa[0].map(function (h) { return String(h || "").trim(); });
+            var map = {};
+            for (var r = 1; r < aoa.length; r++) {
+                var obj = {};
+                var line = aoa[r] || [];
+                for (var c = 0; c < headers.length; c++) {
+                    if (!headers[c]) continue;
+                    obj[headers[c]] = line[c] != null ? line[c] : "";
+                }
+                var num = String(obj["Номер"] != null ? obj["Номер"] : "").trim();
+                if (!num) continue;
+                map[num] = obj;
+                map[num.toUpperCase()] = obj;
+            }
+            return map;
+        });
+}
+
+function buildDuelsListFromGoogleMeeting_(meeting, bankMap) {
+    var list = [];
+    var errors = [];
+    var warnings = [];
+    var duels = meeting.duels || [];
+    for (var i = 0; i < duels.length; i++) {
+        var src = duels[i];
+        var num = String(src.situationNum || "").trim();
+        var bank = (num && (bankMap[num] || bankMap[num.toUpperCase()])) || null;
+        var typeFromBank = bank ? String(bank["Тип"] || bank["Type"] || "").trim() : "";
+        var defaults = googleScheduleDefaultsForType_(typeFromBank);
+        var name = (src.situationName || (bank && (bank["Название ситуации"] || bank["SituationName"])) || "").toString().trim();
+        var desc = bank ? String(bank["SituationDescription"] || "").trim() : "";
+        var rolesRaw = bank ? bank["SituationRoles"] : "";
+        var roles = null;
+        if (rolesRaw != null && String(rolesRaw).trim()) {
+            try {
+                roles = JSON.parse(String(rolesRaw).trim().replace(/^"(.*)"$/, "$1"));
+            } catch (parseErr) {
+                errors.push("Поединок " + (i + 1) + " (ситуация " + (num || "?") + "): невалидный SituationRoles в банке.");
+                continue;
+            }
+        }
+        if (!num && !src.player1 && !src.player2) continue;
+        if (!bank) {
+            warnings.push("Поединок " + (i + 1) + ": ситуация «" + (num || src.situationName || "?") + "» не найдена в банке — тип/текст по умолчанию.");
+        }
+        var duel = {
+            DuelNum: i + 1,
+            Player1: src.player1 || "",
+            Player2: src.player2 || "",
+            Second1: src.second1 || "",
+            Second2: src.second2 || "",
+            "Cornerman 1": src.second1 || "",
+            "Cornerman 2": src.second2 || "",
+            SituationNum: num,
+            SituationName: name,
+            RefereeQty: defaults.refereeQty,
+            Type: defaults.typeLabel,
+            DuelMinutesLength: defaults.minutes,
+            SituationDescription: desc,
+            SituationRoles: roles || []
+        };
+        // 00/00Э (и синонимы по имени) — случайная ситуация, не секретная: blur Hidden не ставим.
+        if (isRandomSituationPlaceholderDuel_(duel)) {
+            duel.wasRandomSlot = true;
+            duel.randomSlotKind = inferRandomSlotKindFromDuel_(duel);
+            if (duel.randomSlotKind === "express" && normalizeDuelTypeStr(duel.Type) !== "express") {
+                var expressDefaults = googleScheduleDefaultsForType_("Экспресс");
+                duel.Type = expressDefaults.typeLabel;
+                duel.DuelMinutesLength = expressDefaults.minutes;
+                duel.RefereeQty = expressDefaults.refereeQty;
+            }
+        }
+        normalizeDuelHiddenFlag(duel);
+        list.push(duel);
+    }
+    return { list: list, errors: errors, warnings: warnings };
+}
+
+function applyGoogleScheduleMeeting_(meeting, bankMap) {
+    var built = buildDuelsListFromGoogleMeeting_(meeting, bankMap);
+    duelsList = built.list;
+    var fakeName = String(meeting.name || "Онлайн").trim() + ".xlsx";
+    var summary = "Загружено дуэлей: " + duelsList.length + " («" + meeting.name + "»).";
+    if (built.errors.length) summary += " Ошибок: " + built.errors.length + ".";
+    if (built.warnings.length) summary += " Предупреждений: " + built.warnings.length + ".";
+    showLoadDiagnostics(fakeName, built.errors, built.warnings, summary);
+    if (!duelsList.length) {
+        throw new Error("После разбора встречи «" + meeting.name + "» не осталось поединков");
+    }
+    processDuelsJson({ name: fakeName });
+}
+
+function setGoogleSchedulePickerStatus_(msg, isError) {
+    var el = document.getElementById("google-schedule-picker-status");
+    if (!el) return;
+    el.textContent = msg || "";
+    el.className = "small mb-2 " + (isError ? "text-danger" : "text-muted");
+}
+
+function fillGoogleScheduleMeetingsSelect_(meetings, selectLatest) {
+    var sel = document.getElementById("google-schedule-meeting-list");
+    if (!sel) return;
+    sel.innerHTML = "";
+    for (var i = meetings.length - 1; i >= 0; i--) {
+        var opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = meetings[i].name + " (" + (meetings[i].duels ? meetings[i].duels.length : 0) + ")";
+        sel.appendChild(opt);
+    }
+    // Последний онлайн = правый край сетки = конец массива
+    if (selectLatest && sel.options.length) sel.selectedIndex = sel.options.length - 1;
+}
+
+function loadScheduleFromGoogleMeetingIndex_(meetingIndex, forceRefresh) {
+    showLoadDiagnostics("Google", [], [], "Загрузка расписания из Google…");
+    return fetchGoogleCompositionMeetings_(!!forceRefresh)
+        .then(function (meetings) {
+            if (!meetings.length) throw new Error("Список встреч пуст");
+            var idx = (typeof meetingIndex === "number" && !isNaN(meetingIndex)) ? meetingIndex : -1;
+            if (idx < 0 || idx >= meetings.length) idx = meetings.length - 1;
+            return fetchGoogleSituationsBankMap_().then(function (bankMap) {
+                applyGoogleScheduleMeeting_(meetings[idx], bankMap);
+                return meetings[idx];
+            });
+        })
+        .catch(function (err) {
+            var msg = (err && err.message) ? err.message : String(err);
+            showLoadDiagnostics("Google", [msg], [], null);
+            console.error("loadScheduleFromGoogle", err);
+            alert("Не удалось загрузить расписание из Google:\n" + msg);
+            throw err;
+        });
+}
+
+function closeLoadScheduleSubmenu_() {
+    var li = document.getElementById("load-schedule-submenu");
+    if (li) li.classList.remove("show");
+    var toggle = document.getElementById("load-schedule-submenu-toggle");
+    if (toggle) toggle.setAttribute("aria-expanded", "false");
+}
+
+function toggleLoadScheduleSubmenu_(event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    var li = document.getElementById("load-schedule-submenu");
+    if (!li) return false;
+    var open = !li.classList.contains("show");
+    li.classList.toggle("show", open);
+    var toggle = document.getElementById("load-schedule-submenu-toggle");
+    if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    return false;
+}
+
+function onLoadScheduleSubmenuItem_(event, action) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
+    }
+    // Сначала действие — чтобы клик не «съедался» родителем
+    if (action === "file") {
+        closeFileMenuDropdown_();
+        triggerClick();
+    } else if (action === "latest") {
+        loadScheduleFromGoogleLatest();
+    } else if (action === "picker") {
+        openGoogleSchedulePicker();
+    }
+    return false;
+}
+
+function closeFileMenuDropdown_() {
+    closeLoadScheduleSubmenu_();
+    var btn = document.getElementById("Choose_File_Button_Dropdown");
+    if (btn && typeof bootstrap !== "undefined") {
+        var dd = bootstrap.Dropdown.getInstance(btn);
+        if (dd) dd.hide();
+    }
+}
+
+(function wireLoadScheduleSubmenuClose_() {
+    function bind() {
+        var btn = document.getElementById("Choose_File_Button_Dropdown");
+        if (!btn || btn._loadScheduleSubmenuWired) return;
+        btn._loadScheduleSubmenuWired = true;
+        btn.addEventListener("hidden.bs.dropdown", closeLoadScheduleSubmenu_);
+        btn.addEventListener("hide.bs.dropdown", closeLoadScheduleSubmenu_);
+    }
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", bind);
+    } else {
+        bind();
+    }
+})();
+
+function loadScheduleFromGoogleLatest() {
+    closeFileMenuDropdown_();
+    // -1 → последний онлайн в сетке (правый край)
+    return loadScheduleFromGoogleMeetingIndex_(-1, false);
+}
+
+function openGoogleSchedulePicker() {
+    closeFileMenuDropdown_();
+    var modalEl = document.getElementById("googleSchedulePickerModal");
+    if (!modalEl || typeof bootstrap === "undefined") {
+        alert("Модалка выбора онлайна недоступна");
+        return;
+    }
+    setGoogleSchedulePickerStatus_("Загрузка списка…", false);
+    fillGoogleScheduleMeetingsSelect_([], false);
+    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+    fetchGoogleCompositionMeetings_(false)
+        .then(function (meetings) {
+            fillGoogleScheduleMeetingsSelect_(meetings, true);
+            setGoogleSchedulePickerStatus_("Встреч: " + meetings.length + ". По умолчанию выбран последний онлайн (конец списка).", false);
+        })
+        .catch(function (err) {
+            setGoogleSchedulePickerStatus_((err && err.message) || String(err), true);
+        });
+}
+
+function refreshGoogleScheduleMeetingsList() {
+    setGoogleSchedulePickerStatus_("Обновление…", false);
+    fetchGoogleCompositionMeetings_(true)
+        .then(function (meetings) {
+            fillGoogleScheduleMeetingsSelect_(meetings, true);
+            setGoogleSchedulePickerStatus_("Обновлено. Встреч: " + meetings.length + ".", false);
+        })
+        .catch(function (err) {
+            setGoogleSchedulePickerStatus_((err && err.message) || String(err), true);
+        });
+}
+
+function loadScheduleFromGoogleSelected() {
+    var sel = document.getElementById("google-schedule-meeting-list");
+    if (!sel || sel.selectedIndex < 0 || !sel.value) {
+        alert("Выберите онлайн в списке");
+        return;
+    }
+    var idx = parseInt(sel.value, 10);
+    var modalEl = document.getElementById("googleSchedulePickerModal");
+    var btn = document.getElementById("google-schedule-load-btn");
+    if (btn) btn.disabled = true;
+    loadScheduleFromGoogleMeetingIndex_(idx, false)
+        .then(function () {
+            if (modalEl && typeof bootstrap !== "undefined") {
+                var modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) modal.hide();
+            }
+        })
+        .catch(function () { /* диагностика уже показана */ })
+        .finally(function () {
+            if (btn) btn.disabled = false;
+        });
+}
+
 function processDuelsJson(file) {
     const fileName = document.getElementById('file-name');
 
-    fileName.innerHTML = file.name.split('.').slice(0, -1).join('');
+    // Только расширение .xlsx/.json — не трогаем точки в дате («Онлайн 27 09.08.2026»)
     scheduleFileName = (file && file.name) ? file.name.replace(/\.(xlsx|json)$/i, '') : '';
+    fileName.innerHTML = scheduleFileName;
 
     revealedSituationIndices = {};
     normalizeDuelsListHiddenFlags(duelsList);
+    ensureRandomSlotFlagsOnDuels_(duelsList);
     ensurePeopleFromSchedule();
     initDuelAssignmentsFromDuels();
 
@@ -1709,6 +2149,7 @@ function processDuelsJson(file) {
     switchToFileDropdown();
     hideRestoreProtocolBanner();
     setImportStatusMenuItemEnabled(true);
+    updateRandomSituationDiceButton();
 }
 
 function loadFile(event) {
@@ -1841,10 +2282,11 @@ function setupClassicLikeRolesUI(duel, select1, select2) {
     var RolesText = "<b>Роли и интересы:</b>";
     select1.appendChild(createOption("-1", "Выберите Роль...", true));
     select2.appendChild(createOption("-1", "Выберите Роль...", true));
-    for (var i in duel.SituationRoles) {
-        select1.appendChild(createOption(i, duel.SituationRoles[i].Role, false));
-        select2.appendChild(createOption(i, duel.SituationRoles[i].Role, false));
-        RolesText += "<br><b>" + duel.SituationRoles[i].Role + "</b> - " + duel.SituationRoles[i].Goals;
+    var roles = (duel && Array.isArray(duel.SituationRoles)) ? duel.SituationRoles : [];
+    for (var i in roles) {
+        select1.appendChild(createOption(i, roles[i].Role, false));
+        select2.appendChild(createOption(i, roles[i].Role, false));
+        RolesText += "<br><b>" + roles[i].Role + "</b> - " + roles[i].Goals;
         select1.disabled = false;
         select2.disabled = false;
     }
@@ -1855,63 +2297,335 @@ function setupClassicLikeRolesUI(duel, select1, select2) {
     document.getElementById("Player2RoleGoal").innerHTML = "";
 }
 
+/* ---------- Случайная ситуация (слот 00 / 00Э): кубик у выбора поединка ---------- */
+
+var randomSituationDiceBusy = false;
+var googleSituationsBankMapCache = null;
+
+/** Нормализация маркера слота: 00 / 00Э (+ лат. E, регистр). */
+function normalizeRandomSlotNumKey_(num) {
+    var s = String(num == null ? "" : num).trim().toUpperCase();
+    // латинская E вместо кириллической Э (часто при копипасте)
+    if (s === "00E") return "00Э";
+    return s;
+}
+
+function isRandomSituationSlotNum_(num) {
+    var s = normalizeRandomSlotNumKey_(num);
+    return s === "00" || s === "00Э";
+}
+
+/** Заглушка «Случайная ситуация…» по названию (если номер уже не 00/00Э или пришёл в другом виде). */
+function isRandomSituationName_(name) {
+    var n = String(name || "").trim().toLowerCase();
+    if (!n) return false;
+    return n === "случайная ситуация" || n.indexOf("случайная ситуация") === 0;
+}
+
+function isRandomSituationPlaceholderDuel_(duel) {
+    if (!duel) return false;
+    if (isRandomSituationSlotNum_(duel.SituationNum)) return true;
+    return isRandomSituationName_(duel.SituationName);
+}
+
+function randomSlotKindFromNum_(num) {
+    return normalizeRandomSlotNumKey_(num) === "00Э" ? "express" : "classic";
+}
+
+function inferRandomSlotKindFromDuel_(duel) {
+    if (!duel) return "classic";
+    if (duel.randomSlotKind === "express" || duel.randomSlotKind === "classic") return duel.randomSlotKind;
+    if (isRandomSituationSlotNum_(duel.SituationNum)) return randomSlotKindFromNum_(duel.SituationNum);
+    var name = String(duel.SituationName || "").toLowerCase();
+    // «Экспрес» / «Экспресс» в названии заглушки
+    if (name.indexOf("экспрес") !== -1) return "express";
+    if (normalizeDuelTypeStr(duel.Type) === "express") return "express";
+    return "classic";
+}
+
+function ensureRandomSlotFlagsOnDuels_(list) {
+    if (!list || !list.length) return;
+    for (var i = 0; i < list.length; i++) {
+        var d = list[i];
+        if (!d) continue;
+        if (!isRandomSituationPlaceholderDuel_(d) && !d.wasRandomSlot) continue;
+        d.wasRandomSlot = true;
+        d.randomSlotKind = inferRandomSlotKindFromDuel_(d);
+        if (d.randomSlotKind === "express" && normalizeDuelTypeStr(d.Type) !== "express") {
+            var def = googleScheduleDefaultsForType_("Экспресс");
+            d.Type = def.typeLabel;
+            d.DuelMinutesLength = def.minutes;
+            if (d.RefereeQty == null) d.RefereeQty = def.refereeQty;
+        }
+    }
+}
+
+function getRandomSlotKindForDuel_(duel) {
+    return inferRandomSlotKindFromDuel_(duel);
+}
+
+/** Жребий номера/хода (#dice_button): идёт анимация или уже зафиксирован кто ходит (подсветка Player*Label). */
+function isTurnDiceRolledOrBusy_() {
+    if (document.body.classList.contains("dice-blink-active")) return true;
+    var diceBtn = document.getElementById("dice_button");
+    if (diceBtn && diceBtn.classList.contains("dice-busy")) return true;
+    var l1 = document.getElementById("Player1Label");
+    var l2 = document.getElementById("Player2Label");
+    // После finishDice → setPlayer: у активного игрока color = "white"; initTimers сбрасывает в "black".
+    if (l1 && l1.style.color === "white") return true;
+    if (l2 && l2.style.color === "white") return true;
+    return false;
+}
+
+function canShowRandomSituationDice_(duelRef) {
+    if (sessionPhase !== "idle") return false;
+    if (isTurnDiceRolledOrBusy_()) return false;
+    if (duelRef == null || duelRef === "" || duelRef === "-1") return false;
+    var idx = typeof duelRef === "string" ? parseInt(duelRef, 10) : duelRef;
+    if (isNaN(idx) || !duelsList || idx < 0 || idx >= duelsList.length) return false;
+    if (isDuelPast(idx)) return false;
+    var duel = duelsList[idx];
+    if (!duel) return false;
+    if (duel.wasRandomSlot) return true;
+    return isRandomSituationPlaceholderDuel_(duel);
+}
+
+function updateRandomSituationDiceButton() {
+    var btn = document.getElementById("random-situation-dice-btn");
+    if (!btn) return;
+    var show = canShowRandomSituationDice_(currentDuel);
+    btn.style.display = show ? "" : "none";
+    if (!randomSituationDiceBusy) {
+        btn.disabled = !show;
+        btn.classList.remove("random-situation-dice--spinning");
+    }
+}
+
+function setRandomSituationDiceBusy_(busy) {
+    randomSituationDiceBusy = !!busy;
+    var btn = document.getElementById("random-situation-dice-btn");
+    if (!btn) return;
+    btn.disabled = !!busy || !canShowRandomSituationDice_(currentDuel);
+    btn.classList.toggle("random-situation-dice--spinning", !!busy);
+}
+
+function getOccupiedSituationNumsExcluding_(excludeIdx) {
+    var occupied = {};
+    if (!duelsList) return occupied;
+    for (var i = 0; i < duelsList.length; i++) {
+        if (i === excludeIdx) continue;
+        var num = String(duelsList[i].SituationNum == null ? "" : duelsList[i].SituationNum).trim();
+        if (!num || isRandomSituationSlotNum_(num)) continue;
+        occupied[num] = true;
+        occupied[num.toUpperCase()] = true;
+    }
+    return occupied;
+}
+
+function isUsableBankSituationForRandom_(obj) {
+    if (!obj) return false;
+    var num = String(obj["Номер"] != null ? obj["Номер"] : "").trim();
+    if (!num || isRandomSituationSlotNum_(num)) return false;
+    var name = String(obj["Название ситуации"] || obj["SituationName"] || "").trim().toLowerCase();
+    if (name === "случайная ситуация") return false;
+    var desc = String(obj["SituationDescription"] || "").trim();
+    var roles = String(obj["SituationRoles"] || "").trim();
+    return !!(desc || roles);
+}
+
+function bankObjMatchesRandomKind_(obj, kind) {
+    var n = normalizeDuelTypeStr(obj["Тип"] || obj["Type"]);
+    if (kind === "express") return n === "express";
+    return n === "classic";
+}
+
+function buildRandomSituationPool_(bankMap, kind, occupied) {
+    var pool = [];
+    var seen = {};
+    if (!bankMap) return pool;
+    for (var key in bankMap) {
+        if (!Object.prototype.hasOwnProperty.call(bankMap, key)) continue;
+        var obj = bankMap[key];
+        var num = String(obj["Номер"] != null ? obj["Номер"] : "").trim();
+        if (!num) continue;
+        var numKey = num.toUpperCase();
+        if (seen[numKey]) continue;
+        seen[numKey] = true;
+        if (!isUsableBankSituationForRandom_(obj)) continue;
+        if (!bankObjMatchesRandomKind_(obj, kind)) continue;
+        if (occupied[num] || occupied[numKey]) continue;
+        pool.push(obj);
+    }
+    return pool;
+}
+
+function pickCryptoRandomIndex_(n) {
+    if (n <= 1) return 0;
+    if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+        var u = new Uint32Array(1);
+        crypto.getRandomValues(u);
+        return u[0] % n;
+    }
+    return Math.floor(Math.random() * n);
+}
+
+function applyBankSituationToDuel_(duel, bankObj, kind) {
+    var num = String(bankObj["Номер"] != null ? bankObj["Номер"] : "").trim();
+    var typeFromBank = String(bankObj["Тип"] || bankObj["Type"] || "").trim();
+    var defaults = googleScheduleDefaultsForType_(typeFromBank);
+    var name = String(bankObj["Название ситуации"] || bankObj["SituationName"] || "").trim();
+    var desc = String(bankObj["SituationDescription"] || "").trim();
+    var rolesRaw = bankObj["SituationRoles"];
+    var roles = [];
+    if (rolesRaw != null && String(rolesRaw).trim()) {
+        roles = JSON.parse(String(rolesRaw).trim().replace(/^"(.*)"$/, "$1"));
+    }
+    duel.SituationNum = num;
+    duel.SituationName = name;
+    duel.SituationDescription = desc;
+    duel.SituationRoles = roles;
+    duel.Type = defaults.typeLabel;
+    duel.DuelMinutesLength = defaults.minutes;
+    duel.RefereeQty = defaults.refereeQty;
+    duel.wasRandomSlot = true;
+    duel.randomSlotKind = kind === "express" ? "express" : "classic";
+}
+
+function fetchBankMapForRandom_() {
+    if (googleSituationsBankMapCache) return Promise.resolve(googleSituationsBankMapCache);
+    return fetchGoogleSituationsBankMap_().then(function (map) {
+        googleSituationsBankMapCache = map;
+        return map;
+    });
+}
+
+function rollRandomSituation() {
+    if (randomSituationDiceBusy) return;
+    var idx = typeof currentDuel === "string" ? parseInt(currentDuel, 10) : currentDuel;
+    if (!canShowRandomSituationDice_(idx)) return;
+    var duel = duelsList[idx];
+    if (!duel) return;
+
+    if (isRandomSituationPlaceholderDuel_(duel) || isRandomSituationSlotNum_(duel.SituationNum)) {
+        duel.wasRandomSlot = true;
+        duel.randomSlotKind = inferRandomSlotKindFromDuel_(duel);
+    }
+    var kind = getRandomSlotKindForDuel_(duel);
+    var animMs = 2800;
+    var startedAt = Date.now();
+
+    setRandomSituationDiceBusy_(true);
+    if (typeof playDrumRoll === "function") playDrumRoll();
+
+    fetchBankMapForRandom_()
+        .then(function (bankMap) {
+            var waitMs = Math.max(0, animMs - (Date.now() - startedAt));
+            return new Promise(function (resolve) {
+                setTimeout(function () {
+                    var occupied = getOccupiedSituationNumsExcluding_(idx);
+                    var pool = buildRandomSituationPool_(bankMap, kind, occupied);
+                    if (!pool.length) {
+                        alert("В банке не осталось свободных ситуаций типа «" +
+                            (kind === "express" ? "Экспресс" : "Классика") +
+                            "» (все подходящие номера уже заняты в текущем онлайне).");
+                        resolve(null);
+                        return;
+                    }
+                    var pick = pool[pickCryptoRandomIndex_(pool.length)];
+                    try {
+                        applyBankSituationToDuel_(duel, pick, kind);
+                    } catch (e) {
+                        alert("Не удалось разобрать ситуацию из банка: " + (e.message || e));
+                        resolve(null);
+                        return;
+                    }
+                    duelChoosed(String(idx));
+                    resolve(pick);
+                }, waitMs);
+            });
+        })
+        .catch(function (err) {
+            alert("Не удалось загрузить банк ситуаций: " + (err && err.message ? err.message : err));
+        })
+        .finally(function () {
+            if (typeof stopAudio === "function" && typeof audioDrumRoll !== "undefined") {
+                try { stopAudio(audioDrumRoll); } catch (eStop) { /* ignore */ }
+            }
+            setRandomSituationDiceBusy_(false);
+            updateRandomSituationDiceButton();
+        });
+}
+
 function duelChoosed(currentDuelRef) {
     currentDuel = currentDuelRef;
-    if (currentDuel != "-1") {
-        var duelIdx = typeof currentDuelRef === "string" ? parseInt(currentDuelRef, 10) : currentDuelRef;
-        if (!isNaN(duelIdx) && duelIdx >= 0) {
-            revealedSituationIndices[duelIdx] = true;
-            renderDuelChooser();
-            renderJudgesLayoutTab();
+    try {
+        if (currentDuel != "-1") {
+            var duelIdx = typeof currentDuelRef === "string" ? parseInt(currentDuelRef, 10) : currentDuelRef;
+            if (!isNaN(duelIdx) && duelIdx >= 0) {
+                revealedSituationIndices[duelIdx] = true;
+                renderDuelChooser();
+                renderJudgesLayoutTab();
+            }
+            const duel = duelsList[currentDuel];
+            if (isRandomSituationPlaceholderDuel_(duel)) {
+                duel.wasRandomSlot = true;
+                duel.randomSlotKind = inferRandomSlotKindFromDuel_(duel);
+            }
+            document.getElementById("players-name").innerHTML = `Ситуация №${duel.SituationNum} ${duel.SituationName}`;
+            // Кубик — сразу после заголовка, до разбора ролей (у заглушек 00/00Э роли в банке пустые).
+            updateRandomSituationDiceButton();
+            applyPlayerNameFieldsFromDuel(duel);
+            document.getElementById("Player1Name").disabled = true;
+            document.getElementById("Player2Name").disabled = true;
+            document.getElementById("Duel_Num").textContent = "Ситуация №" + duel.SituationNum +" (" +duel.Type +"). \"" + duel.SituationName + "\"";
+            document.getElementById("Duel_Text").innerHTML = duel.SituationDescription || "";
+            var select1 = document.getElementById('Player1Roles');
+            var select2 = document.getElementById('Player2Roles');
+            select1.innerHTML="";
+            select2.innerHTML="";
+            var mins = duel.DuelMinutesLength;
+            if (mins === 5 || mins === 4 || mins === 1) {
+                setDuelTime(mins * 60);
+                var timeEl = document.getElementById(mins + "min");
+                if (timeEl) timeEl.checked = true;
+            } else {
+                setDuelTime(game_time || 300);
+            }
+            refereeQty = normalizeRefereeQty(duel.RefereeQty);
+            duel.RefereeQty = refereeQty;
+            document.getElementById("5min").disabled = true;
+            document.getElementById("4min").disabled = true;
+            document.getElementById("1min").disabled = true;
+            var kind = normalizeDuelTypeStr(duel.Type);
+            var roles = Array.isArray(duel.SituationRoles) ? duel.SituationRoles : [];
+            if (kind === "express") {
+                var r0 = roles[0] || {};
+                var r1 = roles[1] || {};
+                select1.appendChild(createOption(0, r0.Role || "—", true));
+                select2.appendChild(createOption(0, r1.Role || "—", true));
+                select1.disabled = true;
+                select2.disabled = true;
+                document.getElementById("Player1RoleGoallabel").innerHTML = "Агрессивная фраза:";
+                document.getElementById("Player2RoleGoallabel").innerHTML = "Агрессивная фраза:";
+                document.getElementById("Player1RoleGoal").innerHTML = r0.Phrase || "";
+                document.getElementById("Player2RoleGoal").innerHTML = "";
+                document.getElementById("Duel_Roles").innerHTML = "";
+                duelType = "express";
+            } else {
+                duelType = kind;
+                setupClassicLikeRolesUI(duel, select1, select2);
+            }
+            document.getElementById("classic").disabled = true;
+            document.getElementById("express").disabled = true;
+            var pairEl = document.getElementById("pair");
+            if (pairEl) pairEl.disabled = true;
+            var typeEl = document.getElementById(duelType);
+            if (typeEl) typeEl.checked = true;
         }
-        const duel = duelsList[currentDuel]
-        document.getElementById("players-name").innerHTML = `Ситуация №${duel.SituationNum} ${duel.SituationName}`;
-        applyPlayerNameFieldsFromDuel(duel);
-        document.getElementById("Player1Name").disabled = true;
-        document.getElementById("Player2Name").disabled = true;  
-        document.getElementById("Duel_Num").textContent = "Ситуация №" + duel.SituationNum +" (" +duel.Type +"). \"" + duel.SituationName + "\"";
-        document.getElementById("Duel_Text").innerHTML = duel.SituationDescription;
-        var select1 = document.getElementById('Player1Roles');
-        var select2 = document.getElementById('Player2Roles');
-        select1.innerHTML="";
-        select2.innerHTML="";
-        var mins = duel.DuelMinutesLength;
-        if (mins === 5 || mins === 4 || mins === 1) {
-            setDuelTime(mins * 60);
-            var timeEl = document.getElementById(mins + "min");
-            if (timeEl) timeEl.checked = true;
-        } else {
-            setDuelTime(game_time || 300);
-        }
-        refereeQty = normalizeRefereeQty(duel.RefereeQty);
-        duel.RefereeQty = refereeQty;     
-        document.getElementById("5min").disabled = true;
-        document.getElementById("4min").disabled = true;
-        document.getElementById("1min").disabled = true;
-        var kind = normalizeDuelTypeStr(duel.Type);
-        if (kind === "express") {
-            select1.appendChild(createOption(0, duel.SituationRoles[0].Role, true));
-            select2.appendChild(createOption(0, duel.SituationRoles[1].Role, true));
-            select1.disabled = true;
-            select2.disabled = true;
-            document.getElementById("Player1RoleGoallabel").innerHTML = "Агрессивная фраза:";
-            document.getElementById("Player2RoleGoallabel").innerHTML = "Агрессивная фраза:";
-            document.getElementById("Player1RoleGoal").innerHTML = duel.SituationRoles[0].Phrase;
-            document.getElementById("Player2RoleGoal").innerHTML = "";
-            document.getElementById("Duel_Roles").innerHTML = "";
-            duelType = "express";
-        } else {
-            duelType = kind;
-            setupClassicLikeRolesUI(duel, select1, select2);
-        }
-        document.getElementById("classic").disabled = true;
-        document.getElementById("express").disabled = true;
-        var pairEl = document.getElementById("pair");
-        if (pairEl) pairEl.disabled = true;
-        var typeEl = document.getElementById(duelType);
-        if (typeEl) typeEl.checked = true;
+    } finally {
+        updateRandomSituationDiceButton();
+        if (!isRestoringProtocol) saveProtocolStateToLocalStorage();
     }
-    if (!isRestoringProtocol) saveProtocolStateToLocalStorage();
 }
 function roleChoosed(player) {
     var sel = document.getElementById("Player" + player + "Roles");
