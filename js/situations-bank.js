@@ -2,7 +2,7 @@
 // Страница: situations-bank.html (mobile-first). Модалка в index.html — опционально.
 
 var SITUATIONS_BANK_CSV_URL =
-    "https://docs.google.com/spreadsheets/d/e/2PACX-1vQdj_LL6itPtL1m5TaoMigxcC3yZSwSa4RRG4Tk1_ro-xblfD1NtmxeuyWbo4mO1OLMvrc54g8s-ZO-/pub?gid=94326902&single=true&output=csv";
+    "https://docs.google.com/spreadsheets/d/1-qUmFGvuG2SOvueNUWr55zTZyFEXFFqiWTz8m-OVHZg/export?format=csv&gid=94326902";
 
 var SITUATIONS_BANK_CACHE_KEY = "ub-timer-situations-bank-v2";
 var SITUATIONS_BANK_CACHE_TTL_MS = 60 * 60 * 1000;

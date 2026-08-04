@@ -459,6 +459,7 @@ function importOnlineStatusFromFile(ev) {
                 if (data.scheduleFileName != null && data.scheduleFileName !== "") scheduleFileName = data.scheduleFileName;
             }
             normalizeDuelsListHiddenFlags(duelsList);
+            if (typeof ensureRandomSlotFlagsOnDuels_ === "function") ensureRandomSlotFlagsOnDuels_(duelsList);
             restoreRevealedSituationIndicesFromPayload(data);
             var fileNameEl = document.getElementById("file-name");
             if (fileNameEl) fileNameEl.innerHTML = scheduleFileName;
