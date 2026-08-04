@@ -172,6 +172,7 @@ function finishDice() {
     document.body.classList.remove("dice-blink-active");
     document.getElementById("dice_button").classList.remove("dice-busy");
     document.getElementById("dice_button").disabled = duel_is_active;
+    if (typeof updateRandomSituationDiceButton === "function") updateRandomSituationDiceButton();
 }
 
 function setDiceBlinkHighlight(playerNum) {
@@ -232,6 +233,7 @@ function dice() {
     }
     document.getElementById("dice_button").classList.add("dice-busy");
     document.body.classList.add("dice-blink-active");
+    if (typeof updateRandomSituationDiceButton === "function") updateRandomSituationDiceButton();
     donut1.$donut.style.transition = "none";
     donut1.$bg.style.transition = "none";
     donut2.$donut.style.transition = "none";
@@ -464,6 +466,7 @@ function start_duel() {
    lastShiftIsUsed =  false;
     var reopenBtn = document.getElementById("reopen_judges_form_btn");
     if (reopenBtn) reopenBtn.style.display = "none";
+    if (typeof updateRandomSituationDiceButton === "function") updateRandomSituationDiceButton();
     saveProtocolStateToLocalStorage();
 }
 
@@ -486,6 +489,7 @@ function stop_duel() {
     document.getElementById("start_stop_duel").classList.add("btn-primary");
     duel_is_active = false;
     sessionPhase = "judges";
+    if (typeof updateRandomSituationDiceButton === "function") updateRandomSituationDiceButton();
     saveProtocolStateToLocalStorage();
     initTimers();
     if (duelType==="express" && duelsList && duelsList[currentDuel]) { 

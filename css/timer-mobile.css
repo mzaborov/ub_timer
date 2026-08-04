@@ -36,6 +36,7 @@
     padding-bottom: 4px;
   }
   .header .the-button,
+  .header #random-situation-dice-btn,
   .header .btn-group .btn,
   .header .btn-group label.btn {
     min-height: 2.25rem;
@@ -44,6 +45,11 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+  }
+  .header #random-situation-dice-btn {
+    min-width: 2.25rem;
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
   }
   .header .the-button span,
   .header .btn-group .btn {
@@ -545,7 +551,8 @@
   #judges-layout-table {
     font-size: 0.8rem;
     border: 3px solid #000;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
   }
   #judges-layout-table thead th {
     border: 2px solid #000;
@@ -555,11 +562,18 @@
   #judges-layout-table thead th .dropdown-toggle {
     font-weight: bold;
   }
+  #judges-layout-table thead th:first-child,
   #judges-layout-table tbody td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
     border-left: 3px solid #000;
     border-right: 2px solid #000;
     font-weight: bold;
     background-color: var(--bs-secondary-bg, #e9ecef);
+  }
+  #judges-layout-table thead th:first-child {
+    z-index: 3;
   }
   #judges-layout-table tbody td:not(:first-child) {
     border-left: 3px solid #000;
@@ -591,8 +605,11 @@
   }
   #judges-layout-table th,
   #judges-layout-table td {
-    min-width: 80px;
+    min-width: 100px;
     padding: 0.35rem;
+  }
+  #judges-layout-table tbody td:not(:first-child) {
+    white-space: nowrap;
   }
 
   /* Банк ситуаций: список сверху, деталь снизу */

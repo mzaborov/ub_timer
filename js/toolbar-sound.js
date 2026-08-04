@@ -107,6 +107,8 @@ function finishDuelAndClose(ev) {
     var currentDuelNum = currentDuel === undefined || currentDuel === null ? 0 : (typeof currentDuel === "string" ? parseInt(currentDuel, 10) : currentDuel);
     if (allVoted && duelsList && !isNaN(currentDuelNum) && currentDuelNum >= 0 && currentDuelNum < duelsList.length - 1) {
         duelChoosed(String(currentDuelNum + 1));
+    } else if (typeof updateRandomSituationDiceButton === "function") {
+        updateRandomSituationDiceButton();
     }
     var reopenBtn = document.getElementById("reopen_judges_form_btn");
     if (reopenBtn) reopenBtn.style.display = "block";
