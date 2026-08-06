@@ -881,6 +881,7 @@ function setAssignmentSlot(duelIdx, slotKey, personId) {
         applyPlayerNameFieldsFromDuel(duelsList[duelIdx]);
     }
     saveProtocolStateToLocalStorage();
+    if (typeof notifyLiveProtocolComposition_ === "function") notifyLiveProtocolComposition_(duelIdx);
 }
 
 function getConfirmedSlot(duelIdx, slotKey) {
@@ -1217,65 +1218,76 @@ function closeJudgesCellDropdown() {
 
 function runJudgesAutofillForOneDuel(d) {
     if (!duelsList || d < 0 || d >= duelsList.length || isDuelPast(d)) return;
-    var timesJudged = {};
-    for (var id in people) timesJudged[id] = countTimesJudged(id);
-    var busy = getBusyInDuel(d);
-    var slots = getJudgeSlotsForDuel(d);
-    var express = isDuelExpress(d);
-    var hiringFirst = [];
-    var preferExperiencedSlots = {};
-    if (!express && slots.length >= 5) {
-        var n = Math.ceil(slots.length / 3);
-        for (var hi = 0; hi < n; hi++) hiringFirst.push(slots[hi]);
-        for (var pi = slots.length - n; pi < slots.length; pi++) preferExperiencedSlots[slots[pi]] = true;
-    }
-    for (var hi = 0; hi < hiringFirst.length; hi++) preferExperiencedSlots[hiringFirst[hi]] = true;
-    function rolePriority(p) {
-        var play = countTimesPlayed(p.id), second = countTimesSeconded(p.id);
-        if (play === 0 && second === 0) return 0;
-        if (second > 0) return 1;
-        if (play > 0) return 2;
-        return 3;
-    }
-    function expRank(p, preferN, preferE) {
-        if (preferN && p.experience === "novice") return 0;
-        if (preferE && p.experience === "experienced") return 0;
-        if (p.experience === "novice") return 1;
-        if (p.experience === "experienced") return 2;
-        if (p.experience === "org") return 3;
-        return 4;
-    }
-    var excluded = getExcludedFromDuel(d);
-    function fillPass(excludeOrg) {
-        slots.forEach(function (slotKey) {
-            if (excludeOrg === false && getAssignmentSlot(d, slotKey)) return;
-            var candidates = [];
-            for (var id in people) {
-                if (people[id].isActive === false) continue;
-                if (busy[id]) continue;
-                if (excluded[id]) continue;
-                if (excludeOrg && people[id].experience === "org") continue;
-                candidates.push(people[id]);
-            }
-            var preferNovice = hiringFirst.indexOf(slotKey) !== -1 && d < (duelsList.length * 0.4);
-            var preferExperienced = !!preferExperiencedSlots[slotKey];
-            candidates.sort(function (a, b) {
-                var ra = rolePriority(a), rb = rolePriority(b);
-                if (ra !== rb) return ra - rb;
-                var ta = timesJudged[a.id] || 0, tb = timesJudged[b.id] || 0;
-                if (ta !== tb) return ta - tb;
-                var ea = expRank(a, preferNovice, preferExperienced), eb = expRank(b, preferNovice, preferExperienced);
-                if (ea !== eb) return ea - eb;
-                return Math.random() - 0.5;
+    var runBody = function () {
+        var timesJudged = {};
+        for (var id in people) timesJudged[id] = countTimesJudged(id);
+        var busy = getBusyInDuel(d);
+        var slots = getJudgeSlotsForDuel(d);
+        var express = isDuelExpress(d);
+        var hiringFirst = [];
+        var preferExperiencedSlots = {};
+        if (!express && slots.length >= 5) {
+            var n = Math.ceil(slots.length / 3);
+            for (var hi = 0; hi < n; hi++) hiringFirst.push(slots[hi]);
+            for (var pi = slots.length - n; pi < slots.length; pi++) preferExperiencedSlots[slots[pi]] = true;
+        }
+        for (var hi = 0; hi < hiringFirst.length; hi++) preferExperiencedSlots[hiringFirst[hi]] = true;
+        function rolePriority(p) {
+            var play = countTimesPlayed(p.id), second = countTimesSeconded(p.id);
+            if (play === 0 && second === 0) return 0;
+            if (second > 0) return 1;
+            if (play > 0) return 2;
+            return 3;
+        }
+        function expRank(p, preferN, preferE) {
+            if (preferN && p.experience === "novice") return 0;
+            if (preferE && p.experience === "experienced") return 0;
+            if (p.experience === "novice") return 1;
+            if (p.experience === "experienced") return 2;
+            if (p.experience === "org") return 3;
+            return 4;
+        }
+        var excluded = getExcludedFromDuel(d);
+        function fillPass(excludeOrg) {
+            slots.forEach(function (slotKey) {
+                if (excludeOrg === false && getAssignmentSlot(d, slotKey)) return;
+                var candidates = [];
+                for (var id in people) {
+                    if (people[id].isActive === false) continue;
+                    if (busy[id]) continue;
+                    if (excluded[id]) continue;
+                    if (excludeOrg && people[id].experience === "org") continue;
+                    candidates.push(people[id]);
+                }
+                var preferNovice = hiringFirst.indexOf(slotKey) !== -1 && d < (duelsList.length * 0.4);
+                var preferExperienced = !!preferExperiencedSlots[slotKey];
+                candidates.sort(function (a, b) {
+                    var ra = rolePriority(a), rb = rolePriority(b);
+                    if (ra !== rb) return ra - rb;
+                    var ta = timesJudged[a.id] || 0, tb = timesJudged[b.id] || 0;
+                    if (ta !== tb) return ta - tb;
+                    var ea = expRank(a, preferNovice, preferExperienced), eb = expRank(b, preferNovice, preferExperienced);
+                    if (ea !== eb) return ea - eb;
+                    return Math.random() - 0.5;
+                });
+                var chosen = candidates.length ? candidates[0] : null;
+                setAssignmentSlot(d, slotKey, chosen ? chosen.id : null);
+                if (chosen) { busy[chosen.id] = true; timesJudged[chosen.id] = (timesJudged[chosen.id] || 0) + 1; }
             });
-            var chosen = candidates.length ? candidates[0] : null;
-            setAssignmentSlot(d, slotKey, chosen ? chosen.id : null);
-            if (chosen) { busy[chosen.id] = true; timesJudged[chosen.id] = (timesJudged[chosen.id] || 0) + 1; }
-        });
+        }
+        fillPass(true);
+        fillPass(false);
+        renderJudgesLayoutTab();
+    };
+    if (typeof withLiveProtocolCompositionSuppressed_ === "function") {
+        withLiveProtocolCompositionSuppressed_(runBody);
+    } else {
+        runBody();
     }
-    fillPass(true);
-    fillPass(false);
-    renderJudgesLayoutTab();
+    if (typeof isLiveProtocolCompositionSuppressed_ === "function" && isLiveProtocolCompositionSuppressed_()) return;
+    if (typeof notifyLiveProtocolCompositionBatch_ === "function") {
+        notifyLiveProtocolCompositionBatch_([d]);
+    }
 }
 
 function runJudgesAutofillForDuel(duelIdx) {
@@ -1331,19 +1343,36 @@ function findBestCandidateForSlot(duelIdx, slotKey) {
 
 function recalcFutureDuels(fromDuelIdx) {
     if (!duelsList || fromDuelIdx < 0) return;
-    for (var d = fromDuelIdx; d < duelsList.length; d++) {
-        if (isDuelPast(d)) continue;
-        var slots = getJudgeSlotsForDuel(d);
-        for (var i = 0; i < slots.length; i++) setAssignmentSlot(d, slots[i], null);
+    var affected = [];
+    var runBody = function () {
+        for (var d = fromDuelIdx; d < duelsList.length; d++) {
+            if (isDuelPast(d)) continue;
+            var slots = getJudgeSlotsForDuel(d);
+            for (var i = 0; i < slots.length; i++) setAssignmentSlot(d, slots[i], null);
+        }
+        for (var d = fromDuelIdx; d < duelsList.length; d++) {
+            if (isDuelPast(d)) continue;
+            affected.push(d);
+            runJudgesAutofillForOneDuel(d);
+        }
+    };
+    if (typeof withLiveProtocolCompositionSuppressed_ === "function") {
+        withLiveProtocolCompositionSuppressed_(runBody);
+    } else {
+        runBody();
     }
-    for (var d = fromDuelIdx; d < duelsList.length; d++) {
-        if (isDuelPast(d)) continue;
-        runJudgesAutofillForOneDuel(d);
+    if (typeof notifyLiveProtocolCompositionBatch_ === "function") {
+        notifyLiveProtocolCompositionBatch_(affected);
     }
 }
 
 function runJudgesAutofill(debugMode) {
     if (!duelsList || !duelsList.length) return;
+    var affectedDuels = [];
+    for (var ad = 0; ad < duelsList.length; ad++) {
+        if (!isDuelPast(ad)) affectedDuels.push(ad);
+    }
+    var runBody = function () {
     for (var d = 0; d < duelsList.length; d++) {
         if (isDuelPast(d)) continue;
         var slots = getJudgeSlotsForDuel(d);
@@ -1628,6 +1657,15 @@ function runJudgesAutofill(debugMode) {
         URL.revokeObjectURL(a.href);
     }
     renderJudgesLayoutTab();
+    }; // end runBody (suppress Live per-slot)
+    if (typeof withLiveProtocolCompositionSuppressed_ === "function") {
+        withLiveProtocolCompositionSuppressed_(runBody);
+    } else {
+        runBody();
+    }
+    if (typeof notifyLiveProtocolCompositionBatch_ === "function") {
+        notifyLiveProtocolCompositionBatch_(affectedDuels);
+    }
 }
 
 function fillRemainingExpressJudgeSlots() {
@@ -1749,6 +1787,56 @@ function googleScheduleDefaultsForType_(typeStr) {
     return { refereeQty: 9, minutes: 5, typeLabel: typeStr && String(typeStr).trim() ? String(typeStr).trim() : "Классика" };
 }
 
+/** Слепок ячеек протокола из CSV-матрицы (для «Очистить Google»). Колонки — 0-based. */
+function buildGoogleProtocolSnapshotFromMatrix_(matrix, columns0Based) {
+    var startedRow = googleScheduleFindRowByLabel_(matrix, 3, "Начинал");
+    var situationRow = googleScheduleFindRowByLabel_(matrix, 1, "Ситуация");
+    var player1Row = -1, second1Row = -1, player2Row = -1, second2Row = -1;
+    if (situationRow >= 0) {
+        for (var r = situationRow + 1; r < Math.min(matrix.length, GOOGLE_COMPOSITION_MAX_SCAN_ROWS); r++) {
+            var role = googleScheduleCell_(matrix, r, 3).toLowerCase();
+            if (role === "участник") {
+                if (player1Row < 0) player1Row = r;
+                else if (player2Row < 0) player2Row = r;
+            } else if (role === "секундант") {
+                if (player1Row >= 0 && second1Row < 0) second1Row = r;
+                else if (player2Row >= 0 && second2Row < 0) second2Row = r;
+            }
+        }
+    }
+    var judgeRows = [];
+    var voteRows = [];
+    for (var j = 1; j <= 9; j++) {
+        judgeRows.push(googleScheduleFindRowByLabel_(matrix, 3, "Судья " + j));
+        voteRows.push(googleScheduleFindRowByLabel_(matrix, 3, "Судья " + j + " Голос"));
+    }
+    var cells = [];
+    function pushCell(r0, c0) {
+        if (r0 < 0 || c0 < 0) return;
+        cells.push({
+            r: r0 + 1,
+            c: c0 + 1,
+            v: googleScheduleCell_(matrix, r0, c0)
+        });
+    }
+    var cols = columns0Based || [];
+    for (var i = 0; i < cols.length; i++) {
+        var c0 = cols[i];
+        if (typeof c0 !== "number" || isNaN(c0) || c0 < 0) continue;
+        pushCell(startedRow, c0);
+        pushCell(situationRow, c0);
+        pushCell(player1Row, c0);
+        pushCell(second1Row, c0);
+        pushCell(player2Row, c0);
+        pushCell(second2Row, c0);
+        for (var ji = 0; ji < 9; ji++) {
+            pushCell(judgeRows[ji], c0);
+            pushCell(voteRows[ji], c0);
+        }
+    }
+    return cells;
+}
+
 function parseGoogleCompositionMeetings_(matrix) {
     var meetingRow = googleScheduleFindRowByLabel_(matrix, 3, "Встреча");
     var situationRow = googleScheduleFindRowByLabel_(matrix, 1, "Ситуация");
@@ -1801,7 +1889,18 @@ function parseGoogleCompositionMeetings_(matrix) {
         });
     }
     if (!meetings.length) throw new Error("В листе состава не найдено ни одной встречи");
+    for (var mi = 0; mi < meetings.length; mi++) {
+        meetings[mi].snapshotCells = buildGoogleProtocolSnapshotFromMatrix_(matrix, meetings[mi].columns);
+    }
     return meetings;
+}
+
+function googleCompositionMeetingsHaveSnapshots_(meetings) {
+    if (!meetings || !meetings.length) return false;
+    for (var i = 0; i < meetings.length; i++) {
+        if (!meetings[i].snapshotCells || !meetings[i].snapshotCells.length) return false;
+    }
+    return true;
 }
 
 function readGoogleCompositionCache_() {
@@ -1830,11 +1929,12 @@ function writeGoogleCompositionCache_(meetings) {
 
 function fetchGoogleCompositionMeetings_(force) {
     if (!force) {
-        if (googleCompositionMeetingsCache && googleCompositionMeetingsCache.length) {
+        if (googleCompositionMeetingsCache && googleCompositionMeetingsCache.length
+            && googleCompositionMeetingsHaveSnapshots_(googleCompositionMeetingsCache)) {
             return Promise.resolve(googleCompositionMeetingsCache);
         }
         var cached = readGoogleCompositionCache_();
-        if (cached && cached.length) {
+        if (cached && cached.length && googleCompositionMeetingsHaveSnapshots_(cached)) {
             googleCompositionMeetingsCache = cached;
             return Promise.resolve(cached);
         }
@@ -1960,7 +2060,13 @@ function applyGoogleScheduleMeeting_(meeting, bankMap) {
     if (!duelsList.length) {
         throw new Error("После разбора встречи «" + meeting.name + "» не осталось поединков");
     }
+    if (typeof setGoogleCompositionContext_ === "function") setGoogleCompositionContext_(meeting);
     processDuelsJson({ name: fakeName });
+    // Live по умолчанию при загрузке из Google
+    if (typeof setLiveProtocolEnabled === "function") {
+        setLiveProtocolEnabled(true);
+        if (typeof showAppToast_ === "function") showAppToast_("Live-запись включена", "info");
+    }
 }
 
 function setGoogleSchedulePickerStatus_(msg, isError) {
@@ -2046,6 +2152,7 @@ function onLoadScheduleSubmenuItem_(event, action) {
 
 function closeFileMenuDropdown_() {
     closeLoadScheduleSubmenu_();
+    if (typeof closeProtocolSubmenu_ === "function") closeProtocolSubmenu_();
     var btn = document.getElementById("Choose_File_Button_Dropdown");
     if (btn && typeof bootstrap !== "undefined") {
         var dd = bootstrap.Dropdown.getInstance(btn);
@@ -2136,6 +2243,16 @@ function processDuelsJson(file) {
     // Только расширение .xlsx/.json — не трогаем точки в дате («Онлайн 27 09.08.2026»)
     scheduleFileName = (file && file.name) ? file.name.replace(/\.(xlsx|json)$/i, '') : '';
     fileName.innerHTML = scheduleFileName;
+
+    // Контекст колонок задаётся в applyGoogleScheduleMeeting_ до вызова; из файла — сброс при несовпадении имени.
+    if (googleCompositionContext) {
+        var ctxName = String(googleCompositionContext.meetingName || "").trim();
+        if (!ctxName || ctxName !== String(scheduleFileName || "").trim()) {
+            if (typeof clearGoogleCompositionContext_ === "function") clearGoogleCompositionContext_();
+            else googleCompositionContext = null;
+            if (typeof setLiveProtocolEnabled === "function") setLiveProtocolEnabled(false);
+        }
+    }
 
     revealedSituationIndices = {};
     normalizeDuelsListHiddenFlags(duelsList);
@@ -2540,6 +2657,7 @@ function rollRandomSituation() {
                         return;
                     }
                     duelChoosed(String(idx));
+                    if (typeof notifyLiveProtocolSituation_ === "function") notifyLiveProtocolSituation_(idx);
                     resolve(pick);
                 }, waitMs);
             });

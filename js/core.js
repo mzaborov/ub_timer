@@ -173,6 +173,7 @@ function finishDice() {
     document.getElementById("dice_button").classList.remove("dice-busy");
     document.getElementById("dice_button").disabled = duel_is_active;
     if (typeof updateRandomSituationDiceButton === "function") updateRandomSituationDiceButton();
+    if (typeof notifyLiveProtocolStarted_ === "function") notifyLiveProtocolStarted_(currentDuel);
 }
 
 function setDiceBlinkHighlight(playerNum) {
