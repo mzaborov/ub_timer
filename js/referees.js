@@ -245,6 +245,7 @@ function refereeVote(vt)
     }
     highlightReferee();
     saveProtocolStateToLocalStorage();
+    if (typeof notifyLiveProtocolVotes_ === "function") notifyLiveProtocolVotes_(currentDuel);
 }
 
 function calcAndShowScore()
