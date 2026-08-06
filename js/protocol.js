@@ -269,7 +269,7 @@ function exportOnlineStatusToFile() {
 }
 
 function setImportStatusMenuItemEnabled(enabled) {
-    var ids = ["import-status-menu-item", "participants-judges-menu-item", "download-protocol-menu-item"];
+    var ids = ["import-status-menu-item", "participants-judges-menu-item", "protocol-submenu-toggle"];
     for (var i = 0; i < ids.length; i++) {
         var el = document.getElementById(ids[i]);
         if (!el) continue;
@@ -283,6 +283,7 @@ function setImportStatusMenuItemEnabled(enabled) {
             el.setAttribute("title", "Сначала загрузите файл расписания");
         }
     }
+    if (typeof updateProtocolGoogleMenuItems_ === "function") updateProtocolGoogleMenuItems_();
 }
 
 function tryOpenParticipantsJudges(ev) {
