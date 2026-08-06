@@ -64,6 +64,9 @@ var sessionPhase = "idle"; // "idle" | "round" | "judges"
 var isRestoringProtocol = false;
 var lastCompletedDuelIndex = null; // индекс поединка, только что завершённого (для кнопки «Вернуть голосование» в idle)
 
+/** Контекст листа состава Google: { meetingName, columnsSheet1Based } или null (план 3). */
+var googleCompositionContext = null;
+
 // Участники и раскладка судей (план форма судей)
 var people = {}; // id -> { id, fullName, isActive, experience, notes? }; experience: "novice" | "experienced" | "org" | "none"
 var duelAssignments = []; // по duelIndex: { player1Id, player2Id, second1Id?, second2Id?, judges: [ { personId, category }, ... ] (max 9), confirmed: {} (slotKey -> true для зелёного) }

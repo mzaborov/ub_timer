@@ -1,4 +1,4 @@
-/* deploy-version: 54 */
+/* deploy-version: 68 */
 @keyframes pulse {
   0%  { opacity: 0;  transform: scale(0.2);}
   20% { opacity: 0.3; transform: scale(0.4);}
@@ -35,6 +35,64 @@
 }
 #load-schedule-submenu.show > .dropdown-menu {
   display: block;
+}
+
+/* Подменю «Протокол» — выпадает вправо, как «Загрузить расписание» */
+#protocol-submenu {
+  position: relative;
+}
+#protocol-submenu > .dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 100%;
+  margin-top: 0;
+  margin-left: 0.125rem;
+  z-index: 1065;
+}
+#protocol-submenu.show > .dropdown-menu {
+  display: block;
+}
+#protocol-submenu > .dropdown-item.disabled {
+  pointer-events: none;
+}
+#protocol-submenu-menu .dropdown-item.disabled {
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+/* Неблокирующий toast (протокол → Google и др.) */
+.app-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.5rem;
+  transform: translateX(-50%) translateY(120%);
+  max-width: min(92vw, 420px);
+  padding: 0.7rem 1.1rem;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  color: #fff;
+  background: rgba(40, 44, 52, 0.94);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+  z-index: 2000;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.app-toast.app-toast-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.app-toast.app-toast-ok {
+  background: rgba(25, 110, 60, 0.95);
+}
+.app-toast.app-toast-err {
+  background: rgba(150, 40, 40, 0.95);
+}
+.app-toast.app-toast-info {
+  background: rgba(40, 70, 120, 0.95);
 }
 
 .timer {
