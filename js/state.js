@@ -68,7 +68,7 @@ var lastCompletedDuelIndex = null; // индекс поединка, тольк�
 var googleCompositionContext = null;
 
 // Участники и раскладка судей (план форма судей)
-var people = {}; // id -> { id, fullName, isActive, experience, notes? }; experience: "novice" | "experienced" | "org" | "none"
+var people = {}; // id -> { id, fullName, isActive, experience, notes? }; experience: "novice" | "experienced" | "expert" | "org" | "none"
 var duelAssignments = []; // по duelIndex: { player1Id, player2Id, second1Id?, second2Id?, judges: [ { personId, category }, ... ] (max 9), confirmed: {} (slotKey -> true для зелёного) }
 var peopleNextId = 1;
 

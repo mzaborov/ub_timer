@@ -523,6 +523,7 @@ function renderParticipantsTab() {
             "<div class=\"form-check form-check-inline mb-0\"><input class=\"form-check-input\" type=\"radio\" name=\"" + expName + "\" value=\"none\"" + (expVal === "none" ? " checked" : "") + " onchange=\"setPersonExperience('" + p.id.replace(/'/g, "\\'") + "', this.value);\"><label class=\"form-check-label small\">—</label></div>" +
             "<div class=\"form-check form-check-inline mb-0\"><input class=\"form-check-input\" type=\"radio\" name=\"" + expName + "\" value=\"novice\"" + (expVal === "novice" ? " checked" : "") + " onchange=\"setPersonExperience('" + p.id.replace(/'/g, "\\'") + "', this.value);\"><label class=\"form-check-label small\">новичок</label></div>" +
             "<div class=\"form-check form-check-inline mb-0\"><input class=\"form-check-input\" type=\"radio\" name=\"" + expName + "\" value=\"experienced\"" + (expVal === "experienced" ? " checked" : "") + " onchange=\"setPersonExperience('" + p.id.replace(/'/g, "\\'") + "', this.value);\"><label class=\"form-check-label small\">опытный</label></div>" +
+            "<div class=\"form-check form-check-inline mb-0\"><input class=\"form-check-input\" type=\"radio\" name=\"" + expName + "\" value=\"expert\"" + (expVal === "expert" ? " checked" : "") + " onchange=\"setPersonExperience('" + p.id.replace(/'/g, "\\'") + "', this.value);\"><label class=\"form-check-label small\">судья ФУБ</label></div>" +
             "<div class=\"form-check form-check-inline mb-0\"><input class=\"form-check-input\" type=\"radio\" name=\"" + expName + "\" value=\"org\"" + (expVal === "org" ? " checked" : "") + " onchange=\"setPersonExperience('" + p.id.replace(/'/g, "\\'") + "', this.value);\"><label class=\"form-check-label small\">орг</label></div>" +
             "</div></td>" +
             "<td>" + judged + "</td><td>" + played + "</td><td>" + seconded + "</td>";
@@ -538,7 +539,7 @@ function setPersonActive(personId, active) {
 
 function setPersonExperience(personId, experience) {
     if (!people[personId]) return;
-    people[personId].experience = (experience === "novice" || experience === "experienced" || experience === "org") ? experience : "none";
+    people[personId].experience = (experience === "novice" || experience === "experienced" || experience === "expert" || experience === "org") ? experience : "none";
     saveProtocolStateToLocalStorage();
 }
 
@@ -1240,11 +1241,12 @@ function runJudgesAutofillForOneDuel(d) {
             return 3;
         }
         function expRank(p, preferN, preferE) {
+            if (p.experience === "expert") return preferN ? 1 : 0;
             if (preferN && p.experience === "novice") return 0;
             if (preferE && p.experience === "experienced") return 0;
-            if (p.experience === "novice") return 1;
-            if (p.experience === "experienced") return 2;
-            if (p.experience === "org") return 3;
+            if (p.experience === "novice") return 2;
+            if (p.experience === "experienced") return 3;
+            if (p.experience === "org") return 5;
             return 4;
         }
         var excluded = getExcludedFromDuel(d);
@@ -1262,6 +1264,8 @@ function runJudgesAutofillForOneDuel(d) {
                 var preferNovice = hiringFirst.indexOf(slotKey) !== -1 && d < (duelsList.length * 0.4);
                 var preferExperienced = !!preferExperiencedSlots[slotKey];
                 candidates.sort(function (a, b) {
+                    var xa = a.experience === "expert" ? 0 : 1, xb = b.experience === "expert" ? 0 : 1;
+                    if (xa !== xb) return xa - xb;
                     var ra = rolePriority(a), rb = rolePriority(b);
                     if (ra !== rb) return ra - rb;
                     var ta = timesJudged[a.id] || 0, tb = timesJudged[b.id] || 0;
@@ -1313,9 +1317,9 @@ function findBestCandidateForSlot(duelIdx, slotKey) {
         return 3;
     }
     function expRank(p) {
-        if (p.experience === "org") return 3;
+        if (p.experience === "expert") return preferNovice ? 1 : -1;
         if (preferNovice && p.experience === "novice") return 0;
-        if (preferNovice && p.experience === "experienced") return 1;
+        if (preferNovice && p.experience === "experienced") return 2;
         if (!preferNovice && p.experience === "experienced") return 0;
         if (!preferNovice && p.experience === "novice") return 1;
         return 2;
@@ -1330,6 +1334,8 @@ function findBestCandidateForSlot(duelIdx, slotKey) {
     }
     if (candidates.length === 0) return null;
     candidates.sort(function (a, b) {
+        var xa = a.experience === "expert" ? 0 : 1, xb = b.experience === "expert" ? 0 : 1;
+        if (xa !== xb) return xa - xb;
         var ra = rolePriority(a), rb = rolePriority(b);
         if (ra !== rb) return ra - rb;
         var ta = timesJudged[a.id] || 0, tb = timesJudged[b.id] || 0;
@@ -1442,10 +1448,25 @@ function runJudgesAutofill(debugMode) {
                 if (categoryFilter === "hiring" && cat !== "hiring") continue;
                 if (categoryFilter === "non-hiring" && cat === "hiring") continue;
                 if (categoryFilter === "panel23" && cat !== "negotiators" && cat !== "owners") continue;
+                if (categoryFilter === "negotiators" && cat !== "negotiators") continue;
+                if (categoryFilter === "owners" && cat !== "owners") continue;
                 list.push({ d: d, slotKey: slotKey });
             }
         }
         return list;
+    }
+    function countSlotsInCategory(d, cat) {
+        var slots = getJudgeSlotsForDuel(d);
+        var n = 0;
+        for (var i = 0; i < slots.length; i++) {
+            if (getSlotCategory(d, slots[i]) === cat) n++;
+        }
+        return n;
+    }
+    function neighborCostSoft(personId, d, slotKey) {
+        var cat = getSlotCategory(d, slotKey);
+        if (countSlotsInCategory(d, cat) <= 1) return 0;
+        return neighborCost(personId, d, slotKey);
     }
     var autofillLog = [];
     var round = 1;
@@ -1473,10 +1494,45 @@ function runJudgesAutofill(debugMode) {
         });
     }
 
+    function onePassExperts() {
+        var catOrder = ["negotiators", "owners", "hiring"];
+        var n = 0;
+        for (var ci = 0; ci < catOrder.length; ci++) {
+            var cat = catOrder[ci];
+            for (var d = 0; d < duelsList.length; d++) {
+                if (isDuelPast(d)) continue;
+                var slots = getJudgeSlotsForDuel(d);
+                for (var i = 0; i < slots.length; i++) {
+                    var slotKey = slots[i];
+                    if (getSlotCategory(d, slotKey) !== cat) continue;
+                    if (getAssignmentSlot(d, slotKey)) continue;
+                    var busy = getBusyInDuel(d);
+                    var excluded = getExcludedFromDuel(d);
+                    var candidates = [];
+                    for (var id in people) {
+                        if (!people[id].isActive || people[id].experience !== "expert") continue;
+                        if (busy[id] || excluded[id]) continue;
+                        candidates.push(people[id]);
+                    }
+                    if (candidates.length === 0) continue;
+                    candidates.sort(function (a, b) {
+                        var ca = neighborCostSoft(a.id, d, slotKey), cb = neighborCostSoft(b.id, d, slotKey);
+                        if (ca !== cb) return ca - cb;
+                        var ta = timesJudged[a.id] || 0, tb = timesJudged[b.id] || 0;
+                        if (ta !== tb) return ta - tb;
+                        return String(a.id).localeCompare(String(b.id));
+                    });
+                    assignOne(candidates[0].id, d, slotKey, "0-судьи ФУБ", null);
+                    n++;
+                }
+            }
+        }
+        return n;
+    }
     function onePassStep1Round1() {
         var list = [];
         for (var id in people) {
-            if (!people[id].isActive || people[id].experience === "org") continue;
+            if (!people[id].isActive || people[id].experience === "org" || people[id].experience === "expert") continue;
             if (!isOnlyJudge(id) || (assignedOnlyJudge[id] || 0) >= limit1) continue;
             list.push(people[id]);
         }
@@ -1543,7 +1599,7 @@ function runJudgesAutofill(debugMode) {
     function onePassStepByPeopleRound1(filterFn, limit, assignedMap, passLabel, preferHiringForNovices) {
         var list = [];
         for (var id in people) {
-            if (!people[id].isActive || people[id].experience === "org") continue;
+            if (!people[id].isActive || people[id].experience === "org" || people[id].experience === "expert") continue;
             if (!filterFn(id) || (assignedMap[id] || 0) >= limit) continue;
             list.push(people[id]);
         }
@@ -1625,6 +1681,7 @@ function runJudgesAutofill(debugMode) {
         return count;
     }
 
+    onePassExperts();
     var n1 = onePassStep1Round1();
     var n2 = onePassStepByPeopleRound1(function (id) { return countTimesSeconded(id) > 0 && countTimesPlayed(id) === 0; }, limit2, assignedInPass2, "2-секунданты", true);
     var n3 = onePassStepByPeopleRound1(function (id) { return countTimesPlayed(id) > 0; }, limit3, assignedInPass3, "3-игроки", true);
@@ -1634,9 +1691,9 @@ function runJudgesAutofill(debugMode) {
         currentLimit2 = limit2 + (round - 1);
         currentLimit3 = limit3 + (round - 1);
         var n = 0;
-        n += onePassSimple(function (id) { return isOnlyJudge(id) && people[id].experience !== "org"; }, currentLimit1, assignedOnlyJudge, "onlyJudge", "1-только судьи");
-        n += onePassSimple(function (id) { return countTimesSeconded(id) > 0 && countTimesPlayed(id) === 0 && people[id].experience !== "org"; }, currentLimit2, assignedInPass2, "pass2", "2-секунданты");
-        n += onePassSimple(function (id) { return countTimesPlayed(id) > 0 && people[id].experience !== "org"; }, currentLimit3, assignedInPass3, "pass3", "3-игроки");
+        n += onePassSimple(function (id) { return isOnlyJudge(id) && people[id].experience !== "org" && people[id].experience !== "expert"; }, currentLimit1, assignedOnlyJudge, "onlyJudge", "1-только судьи");
+        n += onePassSimple(function (id) { return countTimesSeconded(id) > 0 && countTimesPlayed(id) === 0 && people[id].experience !== "org" && people[id].experience !== "expert"; }, currentLimit2, assignedInPass2, "pass2", "2-секунданты");
+        n += onePassSimple(function (id) { return countTimesPlayed(id) > 0 && people[id].experience !== "org" && people[id].experience !== "expert"; }, currentLimit3, assignedInPass3, "pass3", "3-игроки");
         if (n === 0) break;
     }
     onePassSimple(function (id) { return people[id].experience === "org"; }, 999, {}, null, "орги");
