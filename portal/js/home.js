@@ -93,7 +93,7 @@
                         if (iso === selectedIso) cls.push("sel");
                     }
                     if (dt < today) cls.push("past");
-                    var title = evs.map(function (e) { return e.title; }).join(", ");
+                    var title = evs.map(eventTitleWithTime).join(", ");
                     html += '<td class="' + cls.join(" ") + '" data-iso="' + iso + '"' +
                         (title ? ' title="' + esc(title) + '"' : "") + ">" + String(day) + "</td>";
                 }
@@ -111,12 +111,33 @@
     var meId = lastCard ? parseInt(lastCard.getAttribute("data-me-id") || "0", 10) : 0;
 
     function todayIso() {
+        var attr = lastCard && lastCard.getAttribute("data-today");
+        if (attr && /^\d{4}-\d{2}-\d{2}$/.test(attr)) return attr;
         var t = new Date();
         return t.getFullYear() + "-" + pad(t.getMonth() + 1) + "-" + pad(t.getDate());
     }
 
+    function eventCovers(ev, iso) {
+        var from = (ev.start || "").slice(0, 10);
+        if (!from || !iso) return false;
+        var to = (ev.end || ev.start || "").slice(0, 10);
+        return from <= iso && iso <= to;
+    }
+
+    function isLiveEvent(ev, iso) {
+        return isPlanned(ev.status) && eventCovers(ev, iso) && iso === todayIso();
+    }
+
+    function isLiveDay(evs, iso) {
+        return (evs || []).some(function (e) { return isLiveEvent(e, iso); });
+    }
+
     function defaultMeetingIso() {
         var today = todayIso();
+        var todayEvs = byDay[today] || [];
+        if (todayEvs.some(function (e) { return isPlanned(e.status); })) {
+            return today;
+        }
         var best = null;
         events.forEach(function (ev) {
             if (ev.type !== "онлайн" || ev.status !== "Проведено") return;
@@ -136,8 +157,39 @@
         return p[2] + "." + p[1] + "." + p[0];
     }
 
-    function meetingHeading(evs, iso, isPlan) {
-        var head = isPlan ? "План" : "Результаты";
+    function fmtClock(t) {
+        if (!t) return "";
+        var m = String(t).match(/^(\d{1,2}):(\d{2})/);
+        if (!m) return "";
+        return pad(m[1]) + ":" + m[2];
+    }
+
+    function eventTimeRange(ev) {
+        var a = fmtClock(ev.start_time || ev.starts_at);
+        var b = fmtClock(ev.end_time || ev.ends_at);
+        if (a && b) return a + "–" + b;
+        return a || b || "";
+    }
+
+    function eventTitleWithTime(ev) {
+        var t = (ev.title || "").trim();
+        var times = eventTimeRange(ev);
+        if (times) t = t ? t + ", " + times : times;
+        return t;
+    }
+
+    function sharedTimeRange(evs) {
+        if (!evs || !evs.length) return "";
+        var times = eventTimeRange(evs[0]);
+        var i;
+        for (i = 1; i < evs.length; i++) {
+            if (eventTimeRange(evs[i]) !== times) return "";
+        }
+        return times;
+    }
+
+    function meetingHeading(evs, iso, isPlan, isLive) {
+        var head = isLive ? "Сейчас" : (isPlan ? "План" : "Результаты");
         var titles = [];
         var seen = {};
         var i;
@@ -158,6 +210,8 @@
             if (title) head += ": " + title;
         }
         if (date) head += " · " + date;
+        var times = sharedTimeRange(evs);
+        if (times) head += ", " + times;
         return head;
     }
 
@@ -259,8 +313,50 @@
         }
         if (vidEl) {
             var uniq = uniqueEvents(evs || []);
-            vidEl.innerHTML = (uniq.length === 1) ? videoLink(dayVideoUrl(uniq[0]), "", "весь день") : "";
+            vidEl.innerHTML = (uniq.length === 1) ? videoLink(dayVideoUrl(uniq[0])) : "";
         }
+    }
+
+    function setMeetingJoin(html) {
+        var el = document.getElementById("last-join");
+        if (el) el.innerHTML = html || "";
+    }
+
+    function joinButtonsHtml(evs) {
+        var html = "";
+        var seen = {};
+        var uniq = uniqueEvents(evs || []);
+        var i;
+        for (i = 0; i < uniq.length; i++) {
+            var ev = uniq[i];
+            if (!ev.join || seen[ev.id]) continue;
+            seen[ev.id] = 1;
+            html += '<a class="join-btn" href="' + esc(ev.join) + '">Присоединиться</a>';
+        }
+        return html;
+    }
+
+    function regsHtml(evs) {
+        var parts = [];
+        var uniq = uniqueEvents(evs || []);
+        var i, j, regs, r, name, roles, s;
+        for (i = 0; i < uniq.length; i++) {
+            regs = uniq[i].regs || [];
+            for (j = 0; j < regs.length; j++) {
+                r = regs[j];
+                name = String(r.name || "").trim();
+                if (!name) continue;
+                roles = [];
+                if (r.play) roles.push("игра");
+                if (r.judge) roles.push("судья");
+                if (r.second) roles.push("секундант");
+                s = esc(name);
+                if (roles.length) s += ' <span class="reg-roles-mini">(' + esc(roles.join(", ")) + ")</span>";
+                parts.push(s);
+            }
+        }
+        if (!parts.length) return "";
+        return '<p class="live-regs"><span class="live-regs-lab">Записались:</span> ' + parts.join(", ") + "</p>";
     }
 
     function sitTd(d, withVideo) {
@@ -365,7 +461,7 @@
         html += '<span class="duel-typ">' + esc(d.type || "") + "</span>";
         if (showEv) {
             html += '<span class="duel-ev">' + esc(col.ev.title || "") +
-                videoLink(dayVideoUrl(col.ev), "", "весь день") + "</span>";
+                videoLink(dayVideoUrl(col.ev)) + "</span>";
         }
         html += '</h3><table class="duel-mini"><tbody>';
         html += '<tr><th scope="row">Ситуация</th>' + sitTd(d, true) + "</tr>";
@@ -383,20 +479,24 @@
         var evs = iso ? (byDay[iso] || []) : [];
         if (!iso || !evs.length) {
             setMeetingHead("Результаты последней встречи", []);
+            setMeetingJoin("");
             body.innerHTML = '<p class="muted">Пока нет прошедших встреч.</p>';
             return;
         }
+        var live = isLiveDay(evs, iso);
         var past = iso <= todayIso();
-        var heading = meetingHeading(evs, iso, !past);
+        var showScore = past && !live;
+        var heading = meetingHeading(evs, iso, !past && !live, live);
         setMeetingHead(heading, evs);
+        setMeetingJoin(live ? joinButtonsHtml(evs.filter(function (e) { return isLiveEvent(e, iso); })) : "");
         var cols = columnsForDay(iso);
         if (!cols.length) {
             var emptyMsg = "В этот день поединков не было.";
             if (evs.every(function (e) { return isCancelled(e.status); })) emptyMsg = "Отменено";
-            else if (!past && evs.every(function (e) { return !(e.duels || []).length; })) {
+            else if ((live || !past) && evs.every(function (e) { return !(e.duels || []).length; })) {
                 emptyMsg = "планирование ещё не начато";
             }
-            body.innerHTML = '<p class="muted">' + emptyMsg + "</p>";
+            body.innerHTML = '<p class="muted">' + emptyMsg + "</p>" + (live ? regsHtml(evs) : "");
             return;
         }
         var showEv = eventCountInCols(cols) > 1;
@@ -410,7 +510,7 @@
                 var evVid = "";
                 if (!seenEvVid[cols[i].ev.id]) {
                     seenEvVid[cols[i].ev.id] = 1;
-                    evVid = videoLink(dayVideoUrl(cols[i].ev), "", "весь день");
+                    evVid = videoLink(dayVideoUrl(cols[i].ev));
                 }
                 html += '<th class="ev-name" title="' + esc(evTitle) + '"><span class="with-vid">' +
                     esc(evTitle) + evVid + "</span></th>";
@@ -429,10 +529,10 @@
             html += '<td class="typ">' + esc(cols[i].duel.type || "") + "</td>";
         }
         html += '</tr><tr><th class="row-lab" scope="row">Игрок 1</th>';
-        for (i = 0; i < cols.length; i++) html += sideTd(cols[i].duel, 1, past);
+        for (i = 0; i < cols.length; i++) html += sideTd(cols[i].duel, 1, showScore);
         html += '</tr><tr><th class="row-lab" scope="row">Игрок 2</th>';
-        for (i = 0; i < cols.length; i++) html += sideTd(cols[i].duel, 2, past);
-        if (past) {
+        for (i = 0; i < cols.length; i++) html += sideTd(cols[i].duel, 2, showScore);
+        if (showScore) {
             html += '</tr><tr><th class="row-lab" scope="row">Счёт</th>';
             for (i = 0; i < cols.length; i++) html += scoreTd(cols[i].duel);
         }
@@ -440,7 +540,7 @@
         for (i = 0; i < cols.length; i++) html += judgesTd(cols[i].duel);
         html += "</tr></tbody></table></div>";
         html += '<div class="last-duels">';
-        for (i = 0; i < cols.length; i++) html += duelCardHtml(cols[i], showEv, past);
+        for (i = 0; i < cols.length; i++) html += duelCardHtml(cols[i], showEv, showScore);
         html += "</div>";
         body.innerHTML = html;
     }
@@ -552,7 +652,8 @@
         if (row.pid) li.setAttribute("data-pid", String(row.pid));
         li.innerHTML = '<span class="place">' + String(row.place) + '</span>' +
             '<span class="name">' + esc(row.name) + '</span>' +
-            '<span class="pts has-tip" data-tip="rating">' + esc(fmtPts(row.rating)) + '</span>';
+            '<span class="pts has-tip" data-tip="rating" role="button" tabindex="0" aria-label="подробнее">' +
+            esc(fmtPts(row.rating)) + '<span class="tip-ico" aria-hidden="true">i</span></span>';
         list.appendChild(li);
     }
 
@@ -571,13 +672,23 @@
     }
 
     function setupRatingTips() {
-        var root = document.querySelector(".rating-card");
         var tipBox = document.getElementById("rating-tip");
-        var tipsEl = document.getElementById("rating-tips-json");
-        if (!root || !tipBox) return;
+        if (!tipBox) return;
+        var roots = [];
+        var ratingRoot = document.querySelector(".rating-card");
+        var statsRoot = document.querySelector(".stats-card");
+        if (ratingRoot) roots.push(ratingRoot);
+        if (statsRoot) roots.push(statsRoot);
+        if (!roots.length) return;
         var TIPS = {};
+        var tipsEl = document.getElementById("rating-tips-json");
         if (tipsEl) {
             try { TIPS = JSON.parse(tipsEl.textContent || "{}"); } catch (e) { TIPS = {}; }
+        }
+        var STATS = {};
+        var statsEl = document.getElementById("stats-tips-json");
+        if (statsEl) {
+            try { STATS = JSON.parse(statsEl.textContent || "{}"); } catch (e) { STATS = {}; }
         }
         var stickyCell = null;
         var hideTimer = null;
@@ -587,8 +698,24 @@
             if (kind === "formula") {
                 return TIPS._formula || '<p class="tip-empty">Нет</p>';
             }
-            var li = cell.parentNode;
-            var pid = li ? li.getAttribute("data-pid") : "";
+            if (kind === "played" || kind === "seconded" || kind === "judged"
+                || kind === "tournaments" || kind === "won" || kind === "lost") {
+                return STATS[kind] || '<p class="tip-empty">Нет</p>';
+            }
+            if (kind === "rival") {
+                var rid = cell.getAttribute("data-rid") || "";
+                var rivals = STATS.rivals || {};
+                return rivals[rid] || rivals[String(rid)] || '<p class="tip-empty">Нет</p>';
+            }
+            var el = cell;
+            var pid = "";
+            while (el && el !== document.body) {
+                if (el.getAttribute && el.getAttribute("data-pid")) {
+                    pid = el.getAttribute("data-pid");
+                    break;
+                }
+                el = el.parentNode;
+            }
             var pack = TIPS[pid] || {};
             return pack[kind] || pack.rating || '<p class="tip-empty">Нет</p>';
         }
@@ -634,9 +761,17 @@
             return (" " + cn + " ").indexOf(" has-tip ") !== -1;
         }
 
+        function inAnyRoot(el) {
+            var i;
+            for (i = 0; i < roots.length; i++) {
+                if (el === roots[i] || (roots[i].contains && roots[i].contains(el))) return true;
+            }
+            return false;
+        }
+
         function cellFromEvent(e) {
             var t = e.target || e.srcElement;
-            while (t && t !== root) {
+            while (t && t !== document.body) {
                 if (hasTipClass(t)) return t;
                 t = t.parentNode;
             }
@@ -652,39 +787,49 @@
         }
 
         function isLink(el) {
-            while (el && el !== root) {
+            while (el && inAnyRoot(el)) {
                 if (el.tagName === "A") return true;
                 el = el.parentNode;
             }
             return false;
         }
 
-        root.onclick = function (e) {
-            var cell = cellFromEvent(e);
-            if (!cell) return;
-            if (isLink(cell)) return;
-            if (stickyCell === cell) { hideTip(); }
-            else { stickyCell = cell; placeTip(cell); }
-            if (e.stopPropagation) e.stopPropagation();
-            if (e.preventDefault) e.preventDefault();
-        };
+        function bindRoot(root) {
+            root.onclick = function (e) {
+                var cell = cellFromEvent(e);
+                if (!cell) return;
+                if (isLink(cell)) return;
+                if (stickyCell === cell) { hideTip(); }
+                else { stickyCell = cell; placeTip(cell); }
+                if (e.stopPropagation) e.stopPropagation();
+                if (e.preventDefault) e.preventDefault();
+            };
 
-        root.onmouseover = function (e) {
-            if (stickyCell) return;
-            var cell = cellFromEvent(e);
-            if (cell) placeTip(cell);
-        };
+            root.onmouseover = function (e) {
+                if (stickyCell) return;
+                var cell = cellFromEvent(e);
+                if (cell) placeTip(cell);
+            };
 
-        root.onmouseout = function (e) {
-            if (stickyCell) return;
-            var rel = e.relatedTarget || e.toElement;
-            if (isInTip(rel)) return;
-            while (rel) {
-                if (rel === root) return;
-                rel = rel.parentNode;
-            }
-            scheduleHide();
-        };
+            root.onmouseout = function (e) {
+                if (stickyCell) return;
+                var rel = e.relatedTarget || e.toElement;
+                if (isInTip(rel)) return;
+                var from = cellFromEvent(e);
+                if (!from) return;
+                var to = null;
+                var t = rel;
+                while (t && t !== document.body) {
+                    if (hasTipClass(t)) { to = t; break; }
+                    t = t.parentNode;
+                }
+                if (from === to) return;
+                scheduleHide();
+            };
+        }
+
+        var ri;
+        for (ri = 0; ri < roots.length; ri++) bindRoot(roots[ri]);
 
         tipBox.onmouseover = function () { cancelHide(); };
         tipBox.onmouseout = function (e) {
@@ -705,13 +850,10 @@
         });
     }
 
-    function setupCombo() {
-        var wrap = document.querySelector("[data-combo]");
-        if (!wrap) return;
+    function setupCombo(wrap, form, hid) {
         var input = wrap.querySelector("input[type=text]");
         var list = wrap.querySelector(".combo-list");
-        var form = document.getElementById("who-form");
-        var hid = document.getElementById("who-form-id");
+        if (!input || !list || !form || !hid) return;
         var items = [];
         var active = -1;
 
@@ -752,6 +894,10 @@
         input.addEventListener("focus", function () { show(input.value); });
         input.addEventListener("input", function () { show(input.value); });
         input.addEventListener("keydown", function (e) {
+            if (e.key === "Escape" && !list.hidden) {
+                list.hidden = true;
+                return;
+            }
             if (list.hidden) return;
             if (e.key === "ArrowDown") {
                 e.preventDefault();
@@ -764,8 +910,6 @@
             } else if (e.key === "Enter") {
                 e.preventDefault();
                 if (active >= 0 && items[active]) pick(items[active].id, items[active].name);
-            } else if (e.key === "Escape") {
-                list.hidden = true;
             }
         });
         list.addEventListener("mousedown", function (e) {
@@ -777,6 +921,89 @@
         document.addEventListener("click", function (e) {
             if (!wrap.contains(e.target)) list.hidden = true;
         });
+        wrap._comboShow = show;
+        wrap._comboInput = input;
+    }
+
+    function setupCombos() {
+        var form = document.getElementById("who-form");
+        var hid = document.getElementById("who-form-id");
+        if (!form || !hid) return;
+        var wraps = document.querySelectorAll("[data-combo]");
+        var i;
+        for (i = 0; i < wraps.length; i++) {
+            setupCombo(wraps[i], form, hid);
+        }
+    }
+
+    function registerNextFromHref(href) {
+        if (!href) return "";
+        try {
+            var u = new URL(href, window.location.href);
+            var path = (u.pathname || "").split("/").pop() || "";
+            if (path === "register.php") {
+                var ev = parseInt(u.searchParams.get("event") || "0", 10);
+                return ev > 0 ? ("register.php?event=" + ev) : "";
+            }
+            var next = u.searchParams.get("next") || "";
+            if (/^register\.php\?event=\d+$/.test(next)) return next;
+        } catch (err) {}
+        return "";
+    }
+
+    function setupWhoModal() {
+        var modal = document.getElementById("who-modal");
+        var form = document.getElementById("who-form");
+        if (!modal || !form) return;
+        var nextInp = form.querySelector("input[name=next]");
+        var originalNext = nextInp ? nextInp.value : "";
+        var combo = modal.querySelector("[data-combo]");
+
+        function open(next) {
+            if (nextInp) nextInp.value = next || originalNext;
+            modal.hidden = false;
+            document.body.classList.add("who-modal-open");
+            if (combo && combo._comboInput) {
+                combo._comboInput.value = "";
+                combo._comboInput.focus();
+                if (combo._comboShow) combo._comboShow("");
+            }
+        }
+
+        function close() {
+            modal.hidden = true;
+            document.body.classList.remove("who-modal-open");
+            if (nextInp) nextInp.value = originalNext;
+        }
+
+        document.addEventListener("click", function (e) {
+            if (e.target.closest("[data-who-open]")) {
+                e.preventDefault();
+                open(nextInp ? nextInp.value : originalNext);
+                return;
+            }
+            var a = e.target.closest("a[data-need-login], a.next-reg");
+            if (!a || a.classList.contains("next-reg--closed")) return;
+            var href = a.getAttribute("href") || "";
+            var next = registerNextFromHref(href);
+            if (!next) {
+                if (a.getAttribute("data-need-login") == null) return;
+                next = href;
+            }
+            e.preventDefault();
+            open(next);
+        });
+
+        modal.addEventListener("click", function (e) {
+            if (e.target.closest("[data-who-close]")) close();
+        });
+        document.addEventListener("keydown", function (e) {
+            if (e.key === "Escape" && !modal.hidden) close();
+        });
+
+        if (modal.getAttribute("data-open") === "1") {
+            open(nextInp ? nextInp.value : "");
+        }
     }
 
     var MONTHS_SHORT = ["янв", "фев", "мар", "апр", "май", "июн",
@@ -1040,7 +1267,33 @@
     setupRatingTips();
     setupOrgLogin();
     setupYearNav();
-    setupCombo();
+    setupCombos();
+    setupWhoModal();
+    setupRegisteredToast();
     window.addEventListener("resize", fitRatingFill);
     window.addEventListener("load", fitRatingFill);
+
+    function setupRegisteredToast() {
+        var params;
+        try { params = new URLSearchParams(window.location.search); } catch (e) { return; }
+        if (params.get("ok") !== "registered") return;
+        var toast = document.createElement("div");
+        toast.className = "portal-toast";
+        toast.setAttribute("role", "status");
+        toast.textContent = "Вы записаны";
+        document.body.appendChild(toast);
+        requestAnimationFrame(function () { toast.classList.add("is-on"); });
+        setTimeout(function () {
+            toast.classList.remove("is-on");
+            setTimeout(function () {
+                if (toast.parentNode) toast.parentNode.removeChild(toast);
+            }, 280);
+        }, 4000);
+        params.delete("ok");
+        var qs = params.toString();
+        var clean = window.location.pathname + (qs ? "?" + qs : "") + (window.location.hash || "");
+        if (window.history && window.history.replaceState) {
+            window.history.replaceState({}, "", clean);
+        }
+    }
 })();

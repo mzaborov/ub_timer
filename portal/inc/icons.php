@@ -6,6 +6,26 @@ function portal_icon(string $id): string
     return '<svg class="ico" aria-hidden="true"><use href="#i-' . h($id) . '"></use></svg>';
 }
 
+/** Оранжевый кружок с белой i: тултип только с иконки, не с подписи. */
+function portal_tip_mark(): string
+{
+    return '<span class="tip-ico" aria-hidden="true">i</span>';
+}
+
+function portal_tip_ico(string $kind, array $attrs = []): string
+{
+    $html = '<span class="tip-ico has-tip" data-tip="' . h($kind) . '"';
+    foreach ($attrs as $k => $v) {
+        $name = preg_replace('/[^a-zA-Z0-9_\-]/', '', (string)$k);
+        if ($name === '') {
+            continue;
+        }
+        $html .= ' ' . $name . '="' . h((string)$v) . '"';
+    }
+    $html .= ' role="button" tabindex="0" aria-label="подробнее">i</span>';
+    return $html;
+}
+
 function portal_icon_sprite(): void
 {
     echo '<div class="icon-sprite">';

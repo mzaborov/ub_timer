@@ -96,7 +96,9 @@ function portal_rating_echo_items(array $items, int $meId): void
         echo '<li class="' . ($isMe ? 'is-me' : '') . '" data-pid="' . (int)$row['pid'] . '">';
         echo '<span class="place">' . (int)$row['place'] . '</span>';
         echo '<span class="name">' . h((string)$row['name']) . '</span>';
-        echo '<span class="pts has-tip" data-tip="rating">' . h($pts) . '</span>';
+        echo '<span class="pts has-tip" data-tip="rating" role="button" tabindex="0" aria-label="подробнее">';
+        echo h($pts) . portal_tip_mark();
+        echo '</span>';
         echo '</li>';
     }
 }

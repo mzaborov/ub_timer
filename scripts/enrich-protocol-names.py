@@ -20,6 +20,10 @@ SURNAME_ALIASES = {
     "чистохин": "чистюхин",
     "чистяхин": "чистюхин",
     "кунилова": "куликова",
+    "лисовик": "мельник",
+}
+GIVEN_ALIASES = {
+    "ярославэ": "ярослав",
 }
 
 
@@ -77,6 +81,12 @@ def _add_full_name_to_roster(name, by_surname):
     if len(parts) < 2:
         return
     key = SURNAME_ALIASES.get(parts[0].lower(), parts[0].lower())
+    if len(parts) >= 2:
+        gkey = parts[1].lower().replace("ё", "е")
+        galias = GIVEN_ALIASES.get(gkey)
+        if galias:
+            parts[1] = galias[:1].upper() + galias[1:]
+            name = " ".join(parts)
     by_surname[key].add(name)
 
 
@@ -111,7 +121,7 @@ def enrich_name(name, index, tournament_by_surname):
         return name
 
     sur = SURNAME_ALIASES.get(parts[0].lower(), parts[0].lower())
-    given = parts[1].lower()
+    given = GIVEN_ALIASES.get(parts[1].lower().replace("ё", "е"), parts[1].lower())
     t = tournament_match(sur, given, tournament_by_surname)
     if t:
         return t

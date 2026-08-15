@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: 42 -->
+<!-- deploy-version: 97 -->
 <html lang="ru">
 
 <head>
@@ -7,17 +7,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Ситуации — банк</title>
     <meta name="description" content="Банк ситуаций для управленческих поединков">
-    <link rel="stylesheet" href="fontawesome/css/all.min.css?v=42">
-    <link rel="stylesheet" href="css/situations-bank.css?v=42">
+    <link rel="stylesheet" href="fontawesome/css/all.min.css?v=97">
+    <link rel="stylesheet" href="css/situations-bank.css?v=97">
 </head>
 
 <body class="sb-app">
     <!-- Экран списка -->
     <div id="sb-screen-list" class="sb-screen">
         <header class="sb-header">
-            <button type="button" class="sb-header-btn sb-header-btn--ghost" aria-label="Меню" disabled>
-                <i class="fa-solid fa-bars"></i>
-            </button>
+            <a class="sb-header-home sb-home-link" href="index.html" title="На главную">
+                <i class="fa-solid fa-house" aria-hidden="true"></i>
+                <span>На главную</span>
+            </a>
             <h1 class="sb-header-title">Ситуации</h1>
             <button type="button" class="sb-header-btn" id="sb-search-toggle" aria-label="Поиск">
                 <i class="fa-solid fa-magnifying-glass"></i>
@@ -60,9 +61,13 @@
     <!-- Экран карточки -->
     <div id="sb-screen-detail" class="sb-screen sb-hidden">
         <header class="sb-header">
-            <button type="button" class="sb-header-btn" onclick="situationsBankPageBack_()" aria-label="Назад">
+            <button type="button" class="sb-header-btn sb-header-btn--back" onclick="situationsBankPageBack_()" aria-label="Назад">
                 <i class="fa-solid fa-arrow-left"></i>
             </button>
+            <a class="sb-header-home sb-home-link" href="index.html" title="На главную">
+                <i class="fa-solid fa-house" aria-hidden="true"></i>
+                <span>На главную</span>
+            </a>
             <h1 class="sb-header-title">Ситуация</h1>
             <button type="button" class="sb-header-btn" onclick="shareSituationBank_()" aria-label="Поделиться" title="Поделиться текстом">
                 <i class="fa-solid fa-share-nodes"></i>
@@ -81,16 +86,13 @@
         </footer>
     </div>
 
-    <script src="js/situations-bank.js?v=42"></script>
+    <script src="js/situations-bank.js?v=97"></script>
     <script>
-        document.addEventListener("DOMContentLoaded", initSituationsBankPage_);
-        document.getElementById("sb-search-toggle").addEventListener("click", function () {
-            var panel = document.getElementById("sb-search-panel");
-            panel.classList.toggle("sb-hidden");
-            if (!panel.classList.contains("sb-hidden")) {
-                document.getElementById("situations-bank-search").focus();
-            }
-        });
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", initSituationsBankPage_);
+        } else {
+            initSituationsBankPage_();
+        }
     </script>
 </body>
 

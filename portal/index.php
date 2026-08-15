@@ -9,6 +9,7 @@ require __DIR__ . '/inc/nav.php';
 
 $orgError = '';
 $page = portal_norm_page((string)($_POST['p'] ?? $_GET['p'] ?? ''));
+$loginNext = portal_safe_next((string)($_GET['next'] ?? $_POST['next'] ?? ''));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string)($_POST['action'] ?? '');
@@ -20,7 +21,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             unset($_SESSION['org']);
             set_person_cookie($pid);
         }
-        header('Location: ' . portal_page_url($page));
+        $next = portal_safe_next((string)($_POST['next'] ?? ''));
+        header('Location: ' . ($next !== '' ? $next : portal_page_url($page)));
         exit;
     }
     if ($action === 'reset_me') {
@@ -69,7 +71,9 @@ $year = (int)date('Y');
 $people = portal_people_list($db);
 $events = portal_events_for_calendar($db);
 $upcoming = portal_next_events($db);
+$myRegs = $meId ? portal_my_registrations($db, $meId, array_column($upcoming, 'id')) : [];
 $last = portal_default_meeting($events);
+$lastLive = $last ? portal_event_is_live($last) : false;
 $ratingRows = portal_rating_rows($db);
 $widget = portal_rating_widget($ratingRows, $meId);
 $widgetItems = $widget['items'];
@@ -91,7 +95,7 @@ $bodyPage = $page === '' ? 'hub' : $page;
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Стрим управленческих навыков</title>
     <link rel="icon" href="assets/favicon.png">
-    <link rel="stylesheet" href="css/portal.css?v=62">
+    <link rel="stylesheet" href="css/portal.css?v=72">
 </head>
 <body class="page-<?php echo h($bodyPage); ?><?php echo $me ? '' : ' is-guest'; ?>">
 <?php portal_icon_sprite(); ?>
@@ -118,17 +122,13 @@ $bodyPage = $page === '' ? 'hub' : $page;
     <?php if (!$me) { ?>
     <div class="who who--guest">
         <label for="who-input"><?php echo portal_icon('user'); ?> Кто вы?</label>
-        <p class="who-cta">Войдите, чтобы увидеть свою статистику и рейтинг</p>
+        <p class="who-cta"><?php echo $loginNext !== '' ? 'Войдите, чтобы записаться на встречу' : 'Войдите, чтобы увидеть свою статистику и рейтинг'; ?></p>
         <div class="combo" data-combo>
             <input id="who-input" type="text" autocomplete="off" placeholder="начните вводить фамилию">
             <input type="hidden" name="person_id" id="who-id">
             <ul class="combo-list" hidden></ul>
         </div>
-        <form method="post" id="who-form">
-            <input type="hidden" name="action" value="identify">
-            <input type="hidden" name="p" value="<?php echo h($page); ?>">
-            <input type="hidden" name="person_id" id="who-form-id" value="">
-        </form>
+        <?php portal_who_form($page, $loginNext); ?>
     </div>
     <?php } else { ?>
     <div class="who who--me">
@@ -210,20 +210,18 @@ $bodyPage = $page === '' ? 'hub' : $page;
         <?php if ($upcoming) { ?>
         <ul class="next-list">
             <?php foreach ($upcoming as $ev) {
-                $reg = portal_register_url($ev);
                 $meta = portal_next_meta($ev);
+                $isReg = isset($myRegs[(int)$ev['id']]);
             ?>
-            <li>
+            <li<?php echo $isReg ? ' class="next-item--reg"' : ''; ?>>
                 <div class="next-row">
                     <div class="next-info">
-                        <p class="next-title"><?php echo h($ev['title']); ?></p>
+                        <p class="next-title"><?php echo h(portal_event_title_with_time($ev)); ?></p>
                         <?php if ($meta !== '') { ?>
                         <p class="muted next-meta"><?php echo h($meta); ?></p>
                         <?php } ?>
                     </div>
-                    <?php if ($reg !== '') { ?>
-                    <a class="next-reg" href="<?php echo h($reg); ?>">зарегистрироваться</a>
-                    <?php } ?>
+                    <?php portal_echo_next_actions($ev, (bool)$me, $myRegs); ?>
                 </div>
             </li>
             <?php } ?>
@@ -239,12 +237,12 @@ $bodyPage = $page === '' ? 'hub' : $page;
         <?php } else { ?>
         <div class="stats-body">
             <ul class="stats-kpis">
-                <li><span>Играл</span><b><?php echo (int)$myStats['played']; ?></b></li>
-                <li><span>Секундировал</span><b><?php echo (int)$myStats['seconded']; ?></b></li>
-                <li><span>Судил</span><b><?php echo (int)$myStats['judged']; ?></b></li>
-                <li><span>Участие в турнирах</span><b><?php echo (int)$myStats['tournaments']; ?></b></li>
-                <li><span>Выиграл</span><b><?php echo (int)$myStats['won']; ?></b></li>
-                <li><span>Проиграл</span><b><?php echo (int)$myStats['lost']; ?></b></li>
+                <li><span>Играл<?php echo portal_tip_ico('played'); ?></span><b><?php echo (int)$myStats['played']; ?></b></li>
+                <li><span>Секундировал<?php echo portal_tip_ico('seconded'); ?></span><b><?php echo (int)$myStats['seconded']; ?></b></li>
+                <li><span>Судил<?php echo portal_tip_ico('judged'); ?></span><b><?php echo (int)$myStats['judged']; ?></b></li>
+                <li><span>Участие в турнирах<?php echo portal_tip_ico('tournaments'); ?></span><b><?php echo (int)$myStats['tournaments']; ?></b></li>
+                <li><span>Выиграл<?php echo portal_tip_ico('won'); ?></span><b><?php echo (int)$myStats['won']; ?></b></li>
+                <li><span>Проиграл<?php echo portal_tip_ico('lost'); ?></span><b><?php echo (int)$myStats['lost']; ?></b></li>
             </ul>
             <div class="stats-rivals-col">
                 <h2>С кем играл</h2>
@@ -253,14 +251,20 @@ $bodyPage = $page === '' ? 'hub' : $page;
                 <?php } else {
                     $rivalParts = [];
                     foreach ($myStats['rivals'] as $rv) {
-                        $s = h($rv['name']);
+                        $tone = (string)($rv['tone'] ?? 'even');
+                        if ($tone !== 'win' && $tone !== 'lose') {
+                            $tone = 'even';
+                        }
+                        $s = '<span class="rival rival--' . $tone . '">' . h($rv['name']);
                         if ($meId && (int)$rv['id'] === $meId) {
                             $s .= portal_you_mark();
                         }
+                        $s .= portal_tip_ico('rival', ['data-rid' => (string)(int)$rv['id']]);
                         $n = (int)$rv['n'];
                         if ($n > 0) {
                             $s .= ' <span class="n">(' . $n . ')</span>';
                         }
+                        $s .= '</span>';
                         $rivalParts[] = $s;
                     }
                 ?>
@@ -291,8 +295,8 @@ $bodyPage = $page === '' ? 'hub' : $page;
         <div id="year-cal" class="year-cal"></div>
     </section>
     <section class="card rating-card">
-        <h1 class="rating-title-widget"><a class="h-link has-tip" data-tip="formula" href="<?php echo h($ratingUrl); ?>"><?php echo portal_icon('star'); ?> Количество баллов</a></h1>
-        <h1 class="rating-title-full"><a class="h-link has-tip" data-tip="formula" href="<?php echo h($ratingUrl); ?>"><?php echo portal_icon('star'); ?> Полный рейтинг</a></h1>
+        <h1 class="rating-title-widget"><a class="h-link" href="<?php echo h($ratingUrl); ?>"><?php echo portal_icon('star'); ?> Количество баллов</a><?php echo portal_tip_ico('formula'); ?></h1>
+        <h1 class="rating-title-full"><a class="h-link" href="<?php echo h($ratingUrl); ?>"><?php echo portal_icon('star'); ?> Полный рейтинг</a><?php echo portal_tip_ico('formula'); ?></h1>
         <?php if (!$me) { ?>
         <p class="hint">Выберите себя сверху — подсветим ваше место.</p>
         <?php } ?>
@@ -304,13 +308,19 @@ $bodyPage = $page === '' ? 'hub' : $page;
         </ol>
     </section>
     </div>
-    <section class="card last-card" id="last-card" data-me-id="<?php echo (int)$meId; ?>">
-        <h1 class="last-head" id="last-head"<?php if ($last) { ?> title="<?php echo h(portal_last_heading($last)); ?>"<?php } ?>><?php echo portal_icon('flag'); ?> <span class="last-head-line"><span id="last-head-text"><?php echo $last ? h(portal_last_heading($last)) : 'Результаты последней встречи'; ?></span><span id="last-head-video"><?php echo $last ? portal_video_link_html(portal_event_day_video_url($last), '', 'весь день') : ''; ?></span></span></h1>
+    <section class="card last-card" id="last-card" data-me-id="<?php echo (int)$meId; ?>" data-today="<?php echo h(portal_today_iso()); ?>">
+        <h1 class="last-head" id="last-head"<?php if ($last) { ?> title="<?php echo h(portal_last_heading($last)); ?>"<?php } ?>><?php echo portal_icon('flag'); ?> <span class="last-head-line"><span id="last-head-text"><?php echo $last ? h(portal_last_heading($last)) : 'Результаты последней встречи'; ?></span><span id="last-head-video"><?php echo $last ? portal_video_link_html(portal_event_day_video_url($last)) : ''; ?></span></span></h1>
+        <div id="last-join" class="last-join"><?php echo $lastLive ? portal_join_button_html($last) : ''; ?></div>
         <div id="last-body">
         <?php if (!$last) { ?>
         <p class="muted">Пока нет прошедших встреч.</p>
         <?php } elseif (empty($last['duels'])) { ?>
+        <?php if ($lastLive) { ?>
+        <p class="muted">планирование ещё не начато</p>
+        <?php echo portal_regs_html($last['regs'] ?? []); ?>
+        <?php } else { ?>
         <p class="muted">Нет протоколов.</p>
+        <?php } ?>
         <?php } else { ?>
         <div class="last-grid-wrap">
             <table class="last-grid">
@@ -338,21 +348,23 @@ $bodyPage = $page === '' ? 'hub' : $page;
                     <tr>
                         <th class="row-lab" scope="row">Игрок 1</th>
                         <?php foreach ($last['duels'] as $d) {
-                            echo portal_side_td($d['p1'], $d['s1'], (int)$d['winner'], 1, $meId, (int)$d['p1_id'], (int)$d['s1_id'], (($d['type'] ?? '') === 'парный'));
+                            echo portal_side_td($d['p1'], $d['s1'], $lastLive ? -1 : (int)$d['winner'], 1, $meId, (int)$d['p1_id'], (int)$d['s1_id'], (($d['type'] ?? '') === 'парный'));
                         } ?>
                     </tr>
                     <tr>
                         <th class="row-lab" scope="row">Игрок 2</th>
                         <?php foreach ($last['duels'] as $d) {
-                            echo portal_side_td($d['p2'], $d['s2'], (int)$d['winner'], 2, $meId, (int)$d['p2_id'], (int)$d['s2_id'], (($d['type'] ?? '') === 'парный'));
+                            echo portal_side_td($d['p2'], $d['s2'], $lastLive ? -1 : (int)$d['winner'], 2, $meId, (int)$d['p2_id'], (int)$d['s2_id'], (($d['type'] ?? '') === 'парный'));
                         } ?>
                     </tr>
+                    <?php if (!$lastLive) { ?>
                     <tr>
                         <th class="row-lab" scope="row">Счёт</th>
                         <?php foreach ($last['duels'] as $d) {
                             echo portal_score_td($d);
                         } ?>
                     </tr>
+                    <?php } ?>
                     <tr>
                         <th class="row-lab" scope="row">Судьи</th>
                         <?php foreach ($last['duels'] as $d) {
@@ -369,9 +381,11 @@ $bodyPage = $page === '' ? 'hub' : $page;
                 <span class="duel-typ"><?php echo h($d['type']); ?></span></h3>
                 <table class="duel-mini"><tbody>
                     <tr><th scope="row">Ситуация</th><?php echo portal_sit_td($d, true); ?></tr>
-                    <tr><th scope="row">Игрок 1</th><?php echo portal_side_td($d['p1'], $d['s1'], (int)$d['winner'], 1, $meId, (int)$d['p1_id'], (int)$d['s1_id'], (($d['type'] ?? '') === 'парный')); ?></tr>
-                    <tr><th scope="row">Игрок 2</th><?php echo portal_side_td($d['p2'], $d['s2'], (int)$d['winner'], 2, $meId, (int)$d['p2_id'], (int)$d['s2_id'], (($d['type'] ?? '') === 'парный')); ?></tr>
+                    <tr><th scope="row">Игрок 1</th><?php echo portal_side_td($d['p1'], $d['s1'], $lastLive ? -1 : (int)$d['winner'], 1, $meId, (int)$d['p1_id'], (int)$d['s1_id'], (($d['type'] ?? '') === 'парный')); ?></tr>
+                    <tr><th scope="row">Игрок 2</th><?php echo portal_side_td($d['p2'], $d['s2'], $lastLive ? -1 : (int)$d['winner'], 2, $meId, (int)$d['p2_id'], (int)$d['s2_id'], (($d['type'] ?? '') === 'парный')); ?></tr>
+                    <?php if (!$lastLive) { ?>
                     <tr><th scope="row">Счёт</th><?php echo portal_score_td($d); ?></tr>
+                    <?php } ?>
                     <tr><th scope="row">Судьи</th><?php echo portal_judges_td($d, $meId); ?></tr>
                 </tbody></table>
             </article>
@@ -388,8 +402,10 @@ $bodyPage = $page === '' ? 'hub' : $page;
 <script type="application/json" id="events-json"><?php echo json_encode($events, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?></script>
 <script type="application/json" id="rating-fill-json"><?php echo json_encode($widgetFill, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?></script>
 <script type="application/json" id="rating-tips-json"><?php echo rating_tooltip_json($ratingTips); ?></script>
+<script type="application/json" id="stats-tips-json"><?php echo portal_stats_tips_json(is_array($myStats) ? ($myStats['tips'] ?? []) : []); ?></script>
 <div id="rating-tip"></div>
+<?php if (!$me) { portal_who_modal($loginNext, $loginNext !== ''); } ?>
 <script src="js/menu.js?v=3"></script>
-<script src="js/home.js?v=29"></script>
+<script src="js/home.js?v=37"></script>
 </body>
 </html>

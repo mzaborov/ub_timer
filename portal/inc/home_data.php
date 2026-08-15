@@ -26,11 +26,17 @@ function portal_not_template_slug_sql(): string
     return '(slug IS NULL OR slug NOT IN (' . implode(',', $quoted) . '))';
 }
 
+function portal_event_sql_cols(): string
+{
+    return 'id, slug, title, event_type, starts_on, ends_on, starts_at, ends_at, status, zoom_url';
+}
+
 function portal_dated_events(mysqli $db): array
 {
     $notTpl = portal_not_template_slug_sql();
+    $cols = portal_event_sql_cols();
     $r = $db->query(
-        "SELECT id, slug, title, event_type, starts_on, ends_on, status
+        "SELECT $cols
          FROM events
          WHERE starts_on IS NOT NULL
            AND starts_on <> '0000-00-00'
@@ -39,6 +45,7 @@ function portal_dated_events(mysqli $db): array
     );
     $out = [];
     while ($row = $r->fetch_assoc()) {
+        $row = portal_hydrate_event_times($row);
         $out[] = [
             'id' => (int)$row['id'],
             'slug' => $row['slug'],
@@ -46,7 +53,10 @@ function portal_dated_events(mysqli $db): array
             'type' => $row['event_type'],
             'start' => $row['starts_on'],
             'end' => $row['ends_on'],
+            'start_time' => $row['starts_at'] ?? null,
+            'end_time' => $row['ends_at'] ?? null,
             'status' => $row['status'],
+            'zoom_url' => $row['zoom_url'] ?? null,
         ];
     }
     return $out;
@@ -57,8 +67,9 @@ function portal_next_events(mysqli $db, int $limit = 3): array
     $today = date('Y-m-d');
     $limit = max(1, $limit);
     $notTpl = portal_not_template_slug_sql();
+    $cols = portal_event_sql_cols();
     $st = $db->prepare(
-        "SELECT id, slug, title, event_type, starts_on, ends_on, status
+        "SELECT $cols
          FROM events
          WHERE status IN ('Запланировано', 'Подготовка')
            AND status <> 'Отменено'
@@ -74,7 +85,7 @@ function portal_next_events(mysqli $db, int $limit = 3): array
     $res = $st->get_result();
     $out = [];
     while ($row = $res->fetch_assoc()) {
-        $out[] = $row;
+        $out[] = portal_hydrate_event_times($row);
     }
     $st->close();
     return $out;
@@ -85,38 +96,504 @@ function portal_event_by_id(mysqli $db, int $id): ?array
     if ($id <= 0) {
         return null;
     }
+    $cols = portal_event_sql_cols();
     $st = $db->prepare(
-        'SELECT id, slug, title, event_type, starts_on, ends_on, status
-         FROM events WHERE id = ?'
+        "SELECT $cols FROM events WHERE id = ?"
     );
     $st->bind_param('i', $id);
     $st->execute();
     $row = $st->get_result()->fetch_assoc();
     $st->close();
-    return $row ?: null;
+    return $row ? portal_hydrate_event_times($row) : null;
+}
+
+function portal_event_type(array $event): string
+{
+    return (string)($event['event_type'] ?? $event['type'] ?? '');
+}
+
+function portal_event_is_nye(array $event): bool
+{
+    return portal_event_type($event) === 'новогоднее';
+}
+
+function portal_event_is_template(?array $event): bool
+{
+    if (!$event) {
+        return false;
+    }
+    $slug = (string)($event['slug'] ?? '');
+    return $slug !== '' && in_array($slug, portal_template_online10_slugs(), true);
+}
+
+function portal_today_iso(): string
+{
+    return date('Y-m-d');
+}
+
+function portal_event_is_open_status($status): bool
+{
+    return in_array((string)$status, ['Запланировано', 'Подготовка'], true);
+}
+
+function portal_event_date_start(array $event): string
+{
+    $d = substr((string)($event['starts_on'] ?? $event['start'] ?? ''), 0, 10);
+    return ($d !== '' && $d !== '0000-00-00') ? $d : '';
+}
+
+function portal_event_date_end(array $event): string
+{
+    $d = substr((string)($event['ends_on'] ?? $event['end'] ?? ''), 0, 10);
+    if ($d === '' || $d === '0000-00-00') {
+        return portal_event_date_start($event);
+    }
+    return $d;
+}
+
+function portal_norm_clock(?string $raw): string
+{
+    $raw = trim((string)$raw);
+    if ($raw === '' || $raw === '00:00:00') {
+        return '';
+    }
+    if (preg_match('/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/', $raw, $m)) {
+        return sprintf('%02d:%02d', (int)$m[1], (int)$m[2]);
+    }
+    return '';
+}
+
+/** Время МСК: из полей или дефолт 11:00–13:30 у онлайна с датой. */
+function portal_event_clock(array $event, string $which): string
+{
+    $keys = $which === 'end'
+        ? ['ends_at', 'end_time']
+        : ['starts_at', 'start_time'];
+    foreach ($keys as $key) {
+        $t = portal_norm_clock($event[$key] ?? null);
+        if ($t !== '') {
+            return $t;
+        }
+    }
+    if (portal_event_type($event) === 'онлайн' && portal_event_date_start($event) !== '') {
+        return $which === 'end' ? '13:30' : '11:00';
+    }
+    return '';
+}
+
+function portal_event_time_range(array $event): string
+{
+    $start = portal_event_clock($event, 'start');
+    $end = portal_event_clock($event, 'end');
+    if ($start !== '' && $end !== '') {
+        return $start . '–' . $end;
+    }
+    return $start !== '' ? $start : $end;
+}
+
+function portal_hydrate_event_times(array $event): array
+{
+    $start = portal_event_clock($event, 'start');
+    $end = portal_event_clock($event, 'end');
+    if ($start !== '') {
+        $event['starts_at'] = $start;
+        $event['start_time'] = $start;
+    }
+    if ($end !== '') {
+        $event['ends_at'] = $end;
+        $event['end_time'] = $end;
+    }
+    return $event;
+}
+
+function portal_event_title_with_time(array $event): string
+{
+    $title = trim((string)($event['title'] ?? ''));
+    $times = portal_event_time_range($event);
+    if ($times === '') {
+        return $title;
+    }
+    return $title !== '' ? $title . ', ' . $times : $times;
+}
+
+function portal_event_covers_date(array $event, string $iso): bool
+{
+    $start = portal_event_date_start($event);
+    if ($start === '' || $iso === '') {
+        return false;
+    }
+    $end = portal_event_date_end($event);
+    return $start <= $iso && $iso <= $end;
+}
+
+/** Не завершено и не отменено, календарный день (Europe/Moscow) — сегодня. */
+function portal_event_is_live(array $event, ?string $today = null): bool
+{
+    $today = $today ?? portal_today_iso();
+    if (!portal_event_is_open_status($event['status'] ?? '')) {
+        return false;
+    }
+    return portal_event_covers_date($event, $today);
+}
+
+function portal_event_is_upcoming(array $event): bool
+{
+    if (!portal_event_is_open_status($event['status'] ?? '')) {
+        return false;
+    }
+    $start = portal_event_date_start($event);
+    if ($start === '') {
+        return false;
+    }
+    return $start >= portal_today_iso();
+}
+
+/** Можно подать новую заявку (не НГ, не прошлое, не шаблон Online 10). */
+function portal_event_allows_signup(array $event): bool
+{
+    if (portal_event_is_template($event) || portal_event_is_nye($event)) {
+        return false;
+    }
+    $type = portal_event_type($event);
+    if (!in_array($type, ['онлайн', 'купала'], true)) {
+        return false;
+    }
+    return portal_event_is_upcoming($event);
 }
 
 /** Ссылка на нашу форму заявки (онлайн / купала / новогоднее). */
 function portal_register_url(?array $event): string
 {
-    if (!$event) {
+    if (!$event || portal_event_is_template($event)) {
         return '';
     }
-    $type = (string)($event['event_type'] ?? '');
+    $type = portal_event_type($event);
     if (!in_array($type, ['онлайн', 'купала', 'новогоднее'], true)) {
         return '';
     }
     return 'register.php?event=' . (int)$event['id'];
 }
 
+/** @return array<int, int> event_id => registration id */
+function portal_my_registrations(mysqli $db, int $personId, array $eventIds): array
+{
+    $eventIds = array_values(array_unique(array_filter(array_map('intval', $eventIds))));
+    if ($personId <= 0 || !$eventIds) {
+        return [];
+    }
+    $in = implode(',', $eventIds);
+    $out = [];
+    try {
+        $st = $db->prepare(
+            "SELECT id, event_id FROM meeting_registrations
+             WHERE person_id = ? AND event_id IN ($in)"
+        );
+        $st->bind_param('i', $personId);
+        $st->execute();
+        $res = $st->get_result();
+        while ($row = $res->fetch_assoc()) {
+            $out[(int)$row['event_id']] = (int)$row['id'];
+        }
+        $st->close();
+    } catch (Throwable $e) {
+        return [];
+    }
+    return $out;
+}
+
+function portal_find_registration(mysqli $db, int $eventId, int $personId): ?array
+{
+    if ($eventId <= 0 || $personId <= 0) {
+        return null;
+    }
+    try {
+        $st = $db->prepare(
+            'SELECT id, event_id, person_id, full_name, wants_play, wants_judge, wants_second, comment
+             FROM meeting_registrations
+             WHERE event_id = ? AND person_id = ?
+             LIMIT 1'
+        );
+        $st->bind_param('ii', $eventId, $personId);
+        $st->execute();
+        $row = $st->get_result()->fetch_assoc();
+        $st->close();
+        return $row ?: null;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+function portal_event_start_iso(array $event): string
+{
+    $d = (string)($event['starts_on'] ?? $event['start'] ?? '');
+    return ($d !== '' && $d !== '0000-00-00') ? $d : '';
+}
+
+function portal_event_end_iso(array $event): string
+{
+    $d = (string)($event['ends_on'] ?? $event['end'] ?? '');
+    return ($d !== '' && $d !== '0000-00-00') ? $d : '';
+}
+
+function portal_ics_url(?array $event): string
+{
+    if (!$event || portal_event_is_template($event) || portal_event_start_iso($event) === '') {
+        return '';
+    }
+    return 'calendar.php?event=' . (int)$event['id'];
+}
+
+function portal_public_base(): string
+{
+    $https = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+    $host = (string)($_SERVER['HTTP_HOST'] ?? 'ciocdo-org-skills.zaborov.ru');
+    $script = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '/'));
+    $dir = rtrim(dirname($script), '/');
+    if ($dir === '/' || $dir === '.' || $dir === '\\') {
+        $dir = '';
+    }
+    return ($https ? 'https' : 'http') . '://' . $host . $dir;
+}
+
+function portal_event_abs_url(array $event): string
+{
+    $reg = portal_register_url($event);
+    $path = $reg !== '' ? $reg : '?p=events';
+    return rtrim(portal_public_base(), '/') . '/' . ltrim($path, '/');
+}
+
+function portal_event_has_zoom(array $event): bool
+{
+    if (trim((string)($event['join'] ?? '')) !== '') {
+        return true;
+    }
+    return trim((string)($event['zoom_url'] ?? '')) !== '';
+}
+
+/** Короткий редирект на портале; сырой Zoom в ICS/ссылках не светим. */
+function portal_zoom_short_url(?array $event): string
+{
+    if (!$event) {
+        return '';
+    }
+    $join = trim((string)($event['join'] ?? ''));
+    if ($join !== '') {
+        return $join;
+    }
+    if (trim((string)($event['zoom_url'] ?? '')) === '') {
+        return '';
+    }
+    return rtrim(portal_public_base(), '/') . '/z/' . (int)$event['id'];
+}
+
+function portal_join_button_html(?array $event, string $class = 'join-btn'): string
+{
+    $href = portal_zoom_short_url($event);
+    if ($href === '') {
+        return '';
+    }
+    return '<a class="' . h($class) . '" href="' . h($href) . '">Присоединиться</a>';
+}
+
+function portal_echo_zoom_link(?array $event, string $class = 'zoom-link'): void
+{
+    echo portal_join_button_html($event, $class);
+}
+
+function portal_ics_escape(string $s): string
+{
+    return str_replace(
+        ["\\", ";", ",", "\r\n", "\n", "\r"],
+        ["\\\\", "\\;", "\\,", "\\n", "\\n", "\\n"],
+        $s
+    );
+}
+
+function portal_ics_fold(string $line): string
+{
+    if (strlen($line) <= 75) {
+        return $line . "\r\n";
+    }
+    $out = '';
+    $rest = $line;
+    $first = true;
+    while ($rest !== '') {
+        $limit = $first ? 75 : 74;
+        $first = false;
+        if (strlen($rest) <= $limit) {
+            $out .= $rest . "\r\n";
+            break;
+        }
+        $chunk = substr($rest, 0, $limit);
+        while ($chunk !== '' && (ord($chunk[strlen($chunk) - 1]) & 0xC0) === 0x80) {
+            $chunk = substr($chunk, 0, -1);
+        }
+        if ($chunk === '') {
+            $chunk = substr($rest, 0, $limit);
+        }
+        $out .= $chunk . "\r\n";
+        $rest = substr($rest, strlen($chunk));
+        if ($rest !== '') {
+            $rest = ' ' . $rest;
+        }
+    }
+    return $out;
+}
+
+function portal_ics_local(string $dateIso, string $hm): string
+{
+    $d = substr($dateIso, 0, 10);
+    $parts = explode(':', $hm);
+    $h = str_pad((string)(int)($parts[0] ?? '0'), 2, '0', STR_PAD_LEFT);
+    $m = str_pad((string)(int)($parts[1] ?? '0'), 2, '0', STR_PAD_LEFT);
+    $s = str_pad((string)(int)($parts[2] ?? '0'), 2, '0', STR_PAD_LEFT);
+    return str_replace('-', '', $d) . 'T' . $h . $m . $s;
+}
+
+function portal_ics_vtimezone_msk(): string
+{
+    $ics = "BEGIN:VTIMEZONE\r\n";
+    $ics .= "TZID:Europe/Moscow\r\n";
+    $ics .= "BEGIN:STANDARD\r\n";
+    $ics .= "TZOFFSETFROM:+0300\r\n";
+    $ics .= "TZOFFSETTO:+0300\r\n";
+    $ics .= "TZNAME:MSK\r\n";
+    $ics .= "DTSTART:19700101T000000\r\n";
+    $ics .= "END:STANDARD\r\n";
+    $ics .= "END:VTIMEZONE\r\n";
+    return $ics;
+}
+
+/** Онлайн с временем — timed VEVENT (МСК). Купала/НГ без часов — весь день, DTEND исключительный. */
+function portal_build_ics(array $event): string
+{
+    $start = portal_event_start_iso($event);
+    $end = portal_event_end_iso($event);
+    if ($end === '' || $end < $start) {
+        $end = $start;
+    }
+    $clockStart = portal_event_clock($event, 'start');
+    $clockEnd = portal_event_clock($event, 'end');
+    $timed = $clockStart !== '';
+    if ($timed && $clockEnd === '') {
+        $clockEnd = $clockStart;
+    }
+    $title = trim((string)($event['title'] ?? 'Встреча'));
+    if ($title === '') {
+        $title = 'Встреча';
+    }
+    $type = portal_event_type($event);
+    $dates = portal_event_dates($event);
+    $zoomShort = portal_zoom_short_url($event);
+    $url = $zoomShort !== '' ? $zoomShort : portal_event_abs_url($event);
+    $desc = trim(($type !== '' ? $type . '. ' : '') . ($dates !== '' ? $dates . '. ' : ''));
+    if ($zoomShort !== '') {
+        $desc = trim($desc . ' Подключение: ' . $zoomShort);
+    } else {
+        $desc = trim($desc . ' ' . $url);
+    }
+    $uid = 'ub-event-' . (int)$event['id'] . '@ciocdo-org-skills.zaborov.ru';
+    $ics = "BEGIN:VCALENDAR\r\n";
+    $ics .= "VERSION:2.0\r\n";
+    $ics .= "PRODID:-//ub-timer//portal//RU\r\n";
+    $ics .= "CALSCALE:GREGORIAN\r\n";
+    $ics .= "METHOD:PUBLISH\r\n";
+    $ics .= "X-WR-TIMEZONE:Europe/Moscow\r\n";
+    if ($timed) {
+        $ics .= portal_ics_vtimezone_msk();
+    }
+    $ics .= "BEGIN:VEVENT\r\n";
+    $ics .= portal_ics_fold('UID:' . $uid);
+    $ics .= 'DTSTAMP:' . gmdate('Ymd\THis\Z') . "\r\n";
+    if ($timed) {
+        $ics .= 'DTSTART;TZID=Europe/Moscow:' . portal_ics_local($start, $clockStart) . "\r\n";
+        $ics .= 'DTEND;TZID=Europe/Moscow:' . portal_ics_local($end, $clockEnd) . "\r\n";
+    } else {
+        $dtStart = date('Ymd', strtotime($start));
+        $dtEnd = date('Ymd', strtotime($end . ' +1 day'));
+        $ics .= 'DTSTART;VALUE=DATE:' . $dtStart . "\r\n";
+        $ics .= 'DTEND;VALUE=DATE:' . $dtEnd . "\r\n";
+    }
+    $ics .= portal_ics_fold('SUMMARY:' . portal_ics_escape($title));
+    $ics .= portal_ics_fold('DESCRIPTION:' . portal_ics_escape($desc));
+    $ics .= portal_ics_fold('URL:' . $url);
+    if ($zoomShort !== '') {
+        $ics .= portal_ics_fold('LOCATION:' . portal_ics_escape($zoomShort));
+    }
+    $ics .= "END:VEVENT\r\n";
+    $ics .= "END:VCALENDAR\r\n";
+    return $ics;
+}
+
+function portal_ics_filename(array $event): string
+{
+    $slug = (string)($event['slug'] ?? '');
+    if (preg_match('/^[a-zA-Z0-9_-]+$/', $slug)) {
+        return $slug . '.ics';
+    }
+    return 'event-' . (int)$event['id'] . '.ics';
+}
+
+function portal_echo_ics_link(?array $event, string $class = 'ics-link', string $label = 'Добавить в календарь'): void
+{
+    $href = portal_ics_url($event);
+    if ($href === '') {
+        return;
+    }
+    echo '<a class="' . h($class) . '" href="' . h($href) . '">' . h($label) . '</a>';
+}
+
+/** Кнопки в «Ближайшее»: запись / уже записаны / НГ ещё не открыта; ICS и Join — только у записанных. */
+function portal_echo_next_actions(array $ev, bool $loggedIn, array $myRegs): void
+{
+    $nye = portal_event_is_nye($ev);
+    $reg = portal_register_url($ev);
+    $eid = (int)$ev['id'];
+    $isReg = isset($myRegs[$eid]);
+    echo '<div class="next-actions">';
+    if ($nye) {
+        echo '<span class="next-reg next-reg--closed">Регистрация на НГ ещё не открыта</span>';
+    } elseif ($reg !== '') {
+        if ($isReg) {
+            echo '<span class="next-done">Записаны</span>';
+            echo '<form method="post" action="register.php?event=' . $eid . '" class="next-cancel"';
+            echo ' onsubmit="return confirm(\'Отменить запись?\');">';
+            portal_csrf_field();
+            echo '<input type="hidden" name="event" value="' . $eid . '">';
+            echo '<input type="hidden" name="action" value="cancel">';
+            echo '<input type="hidden" name="back" value="events">';
+            echo '<button type="submit">Отменить</button>';
+            echo '</form>';
+        } elseif ($loggedIn) {
+            echo '<a class="next-reg" href="' . h($reg) . '">зарегистрироваться</a>';
+        } else {
+            echo '<a class="next-reg" href="' . h($reg) . '" data-need-login="1">зарегистрироваться</a>';
+        }
+    }
+    if ($isReg && portal_event_is_live($ev) && portal_event_has_zoom($ev)) {
+        portal_echo_zoom_link($ev, 'join-btn join-btn--next');
+    }
+    if ($isReg) {
+        portal_echo_ics_link($ev, 'ics-link', 'В календарь');
+    }
+    echo '</div>';
+}
+
 function portal_event_dates(array $ev): string
 {
-    $start = portal_fmt_date($ev['starts_on'] ?? null);
-    $end = portal_fmt_date($ev['ends_on'] ?? null);
+    $start = portal_fmt_date($ev['starts_on'] ?? $ev['start'] ?? null);
+    $end = portal_fmt_date($ev['ends_on'] ?? $ev['end'] ?? null);
+    $dates = '';
     if ($start !== '' && $end !== '' && $start !== $end) {
-        return $start . '–' . $end;
+        $dates = $start . '–' . $end;
+    } else {
+        $dates = $start !== '' ? $start : $end;
     }
-    return $start !== '' ? $start : $end;
+    $times = portal_event_time_range($ev);
+    if ($dates !== '' && $times !== '') {
+        return $dates . ', ' . $times;
+    }
+    return $dates !== '' ? $dates : $times;
 }
 
 function portal_title_has_dates(string $title, array $ev): bool
@@ -385,7 +862,7 @@ function portal_side_td(
     return $html;
 }
 
-function portal_meeting_heading(array $ev, bool $plan = false): string
+function portal_meeting_heading(array $ev, bool $plan = false, bool $live = false): string
 {
     $title = trim((string)($ev['title'] ?? ''));
     $start = portal_fmt_date($ev['starts_on'] ?? $ev['start'] ?? null);
@@ -399,19 +876,94 @@ function portal_meeting_heading(array $ev, bool $plan = false): string
     if ($date !== '' && $title !== '') {
         $title = trim(preg_replace('/\s+' . preg_quote($date, '/') . '\s*$/u', '', $title));
     }
-    $head = $plan ? 'План' : 'Результаты';
+    $times = portal_event_time_range($ev);
+    if ($live) {
+        $head = 'Сейчас';
+    } elseif ($plan) {
+        $head = 'План';
+    } else {
+        $head = 'Результаты';
+    }
     if ($title !== '') {
         $head .= ': ' . $title;
     }
     if ($date !== '') {
         $head .= ' · ' . $date;
+        if ($times !== '') {
+            $head .= ', ' . $times;
+        }
+    } elseif ($times !== '') {
+        $head .= ' · ' . $times;
     }
     return $head;
 }
 
 function portal_last_heading(array $last): string
 {
-    return portal_meeting_heading($last, false);
+    return portal_meeting_heading($last, false, portal_event_is_live($last));
+}
+
+/** Записавшиеся на встречу (без контактов) — для таблицы текущего онлайна. */
+function portal_registrations_by_event(mysqli $db, array $eventIds): array
+{
+    $eventIds = array_values(array_unique(array_filter(array_map('intval', $eventIds))));
+    if (!$eventIds) {
+        return [];
+    }
+    $in = implode(',', $eventIds);
+    $out = [];
+    try {
+        $r = $db->query(
+            "SELECT event_id, person_id, full_name, wants_play, wants_judge, wants_second
+             FROM meeting_registrations
+             WHERE event_id IN ($in)
+             ORDER BY full_name, id"
+        );
+    } catch (Throwable $e) {
+        return [];
+    }
+    while ($row = $r->fetch_assoc()) {
+        $eid = (int)$row['event_id'];
+        $out[$eid][] = [
+            'id' => (int)($row['person_id'] ?? 0),
+            'name' => (string)($row['full_name'] ?? ''),
+            'play' => (int)($row['wants_play'] ?? 0) === 1,
+            'judge' => (int)($row['wants_judge'] ?? 0) === 1,
+            'second' => (int)($row['wants_second'] ?? 0) === 1,
+        ];
+    }
+    return $out;
+}
+
+function portal_regs_html(array $regs): string
+{
+    $items = [];
+    foreach ($regs as $r) {
+        $name = trim((string)($r['name'] ?? ''));
+        if ($name === '') {
+            continue;
+        }
+        $roles = [];
+        if (!empty($r['play'])) {
+            $roles[] = 'игра';
+        }
+        if (!empty($r['judge'])) {
+            $roles[] = 'судья';
+        }
+        if (!empty($r['second'])) {
+            $roles[] = 'секундант';
+        }
+        $s = h($name);
+        if ($roles) {
+            $s .= ' <span class="reg-roles-mini">(' . h(implode(', ', $roles)) . ')</span>';
+        }
+        $items[] = $s;
+    }
+    if (!$items) {
+        return '';
+    }
+    return '<p class="live-regs"><span class="live-regs-lab">Записались:</span> '
+        . implode(', ', $items) . '</p>';
 }
 
 function portal_score_td(array $d): string
@@ -702,6 +1254,13 @@ function portal_events_for_calendar(mysqli $db): array
     $ids = array_column($events, 'id');
     $byEv = portal_duels_by_event($db, $ids);
     $vids = portal_videos_for_events($db, $ids);
+    $openIds = [];
+    foreach ($events as $ev) {
+        if (portal_event_is_open_status($ev['status'] ?? '')) {
+            $openIds[] = (int)$ev['id'];
+        }
+    }
+    $regsByEv = portal_registrations_by_event($db, $openIds);
     foreach ($events as &$ev) {
         $eid = (int)$ev['id'];
         $duels = $byEv[$eid] ?? [];
@@ -716,15 +1275,44 @@ function portal_events_for_calendar(mysqli $db): array
         if (!empty($vids['events'][$eid])) {
             $ev['video'] = $vids['events'][$eid];
         }
+        $ev['join'] = portal_zoom_short_url($ev);
+        if (portal_event_is_open_status($ev['status'] ?? '')) {
+            $ev['regs'] = $regsByEv[$eid] ?? [];
+        }
+        unset($ev['zoom_url']);
     }
     unset($ev);
     return $events;
 }
 
-/** Последний прошедший онлайн (тип онлайн, Проведено, дата ≤ сегодня). */
-function portal_default_meeting(array $events): ?array
+/** Сегодняшнее незавершённое (не отменённое) — для блока «Сейчас». */
+function portal_live_meeting(array $events, ?string $today = null): ?array
 {
-    $today = date('Y-m-d');
+    $today = $today ?? portal_today_iso();
+    $best = null;
+    foreach ($events as $ev) {
+        if (!portal_event_is_live($ev, $today)) {
+            continue;
+        }
+        $online = (($ev['type'] ?? '') === 'онлайн');
+        if ($best === null) {
+            $best = $ev;
+            continue;
+        }
+        $bestOnline = (($best['type'] ?? '') === 'онлайн');
+        if ($online && !$bestOnline) {
+            $best = $ev;
+        } elseif ($online === $bestOnline && (int)$ev['id'] > (int)$best['id']) {
+            $best = $ev;
+        }
+    }
+    return $best;
+}
+
+/** Последний прошедший онлайн (тип онлайн, Проведено, дата ≤ сегодня). */
+function portal_last_completed_online(array $events): ?array
+{
+    $today = portal_today_iso();
     $best = null;
     $bestDate = '';
     foreach ($events as $ev) {
@@ -749,9 +1337,127 @@ function portal_default_meeting(array $events): ?array
     return $best;
 }
 
+function portal_default_meeting(array $events): ?array
+{
+    return portal_live_meeting($events) ?? portal_last_completed_online($events);
+}
+
 function portal_last_meeting(mysqli $db): ?array
 {
     return portal_default_meeting(portal_events_for_calendar($db));
+}
+
+/** Название встречи без хвостовой даты: «Онлайн 24 07.02.2026» → «Онлайн 24». */
+function portal_event_title_short(?string $title): string
+{
+    $title = trim((string)$title);
+    if ($title === '') {
+        return '';
+    }
+    $stripped = preg_replace('/\s+\d{2}\.\d{2}\.\d{2,4}\s*$/u', '', $title);
+    return trim((string)$stripped);
+}
+
+function portal_stats_join_line(string $date, string $event, string $sit): string
+{
+    $parts = [];
+    if ($date !== '') {
+        $parts[] = $date;
+    }
+    if ($event !== '') {
+        $parts[] = $event;
+    }
+    if ($sit !== '') {
+        $parts[] = $sit;
+    }
+    return implode(' · ', $parts);
+}
+
+/** @return array{iso: string, date: string} */
+function portal_stats_when(?string $duelDate, ?string $startsOn): array
+{
+    $dd = (string)$duelDate;
+    if ($dd === '0000-00-00') {
+        $dd = '';
+    }
+    $evStart = (string)$startsOn;
+    if ($evStart === '0000-00-00') {
+        $evStart = '';
+    }
+    $iso = $dd !== '' ? substr($dd, 0, 10) : substr($evStart, 0, 10);
+    return [
+        'iso' => $iso,
+        'date' => portal_fmt_date($iso !== '' ? $iso : null),
+    ];
+}
+
+function portal_stats_pair_label(?string $n1, ?string $n2): string
+{
+    $a = portal_name_or_empty($n1);
+    $b = portal_name_or_empty($n2);
+    if ($a !== '' && $b !== '') {
+        return $a . ' — ' . $b;
+    }
+    return $a !== '' ? $a : $b;
+}
+
+function portal_stats_times_label(int $n): string
+{
+    $n10 = $n % 10;
+    $n100 = $n % 100;
+    if ($n100 >= 11 && $n100 <= 14) {
+        return $n . ' раз';
+    }
+    if ($n10 === 1) {
+        return $n . ' раз';
+    }
+    if ($n10 >= 2 && $n10 <= 4) {
+        return $n . ' раза';
+    }
+    return $n . ' раз';
+}
+
+/** @param list<array{iso: string, id: int, line: string}> $items */
+function portal_stats_sort_lines(array $items): array
+{
+    usort($items, static function ($a, $b) {
+        $c = strcmp((string)($b['iso'] ?? ''), (string)($a['iso'] ?? ''));
+        if ($c !== 0) {
+            return $c;
+        }
+        return ((int)($b['id'] ?? 0) <=> (int)($a['id'] ?? 0));
+    });
+    $out = [];
+    foreach ($items as $it) {
+        $line = trim((string)($it['line'] ?? ''));
+        if ($line !== '') {
+            $out[] = $line;
+        }
+    }
+    return $out;
+}
+
+/** @param list<string> $lines */
+function portal_stats_tip_html(array $lines): string
+{
+    if (!$lines) {
+        return '<p class="tip-empty">Нет</p>';
+    }
+    $html = '<ul class="tip-list">';
+    foreach ($lines as $line) {
+        $html .= '<li>' . h($line) . '</li>';
+    }
+    $html .= '</ul>';
+    return $html;
+}
+
+function portal_stats_tips_json(array $tips): string
+{
+    $json = json_encode($tips, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG);
+    if (!$json) {
+        $json = '{}';
+    }
+    return str_replace('</', '<\/', $json);
 }
 
 /**
@@ -759,11 +1465,13 @@ function portal_last_meeting(mysqli $db): ?array
  * судейство, победы/поражения по голосам 1/2 (ничья не считается),
  * уникальные соперники с числом встреч,
  * число турниров (event_type=турнир, УБ Лидер) как игрок/секундант/судья.
+ * tips — HTML разбивок для тултипов (играл / секундант / судил: онлайны+сколько раз / турниры / выиграл / проиграл / соперники).
  *
  * @return array{
  *   played: int, seconded: int, judged: int, tournaments: int,
  *   won: int, lost: int,
- *   rivals: list<array{id: int, name: string, n: int}>
+ *   rivals: list<array{id: int, name: string, n: int, tone: string}>,
+ *   tips: array{played: string, seconded: string, judged: string, tournaments: string, won: string, lost: string, rivals: array<string, string>}
  * }|null
  */
 function portal_person_stats(mysqli $db, int $personId): ?array
@@ -776,13 +1484,21 @@ function portal_person_stats(mysqli $db, int $personId): ?array
     $seconded = 0;
     $won = 0;
     $lost = 0;
-    $rivalIds = [];
     $asPlayer = [];
+    $secondedItems = [];
 
     $st = $db->prepare(
-        'SELECT id, player1_id, second1_id, player2_id, second2_id
-         FROM duels
-         WHERE player1_id = ? OR player2_id = ? OR second1_id = ? OR second2_id = ?'
+        'SELECT d.id, d.player1_id, d.second1_id, d.player2_id, d.second2_id,
+                d.duel_date, d.prep_mode, d.duel_type,
+                e.title AS event_title, e.starts_on,
+                s.code AS sit_code, s.num AS sit_num,
+                p1.full_name AS p1_name, p2.full_name AS p2_name
+         FROM duels d
+         LEFT JOIN events e ON e.id = d.event_id
+         LEFT JOIN situations s ON s.id = d.situation_id
+         LEFT JOIN people p1 ON p1.id = d.player1_id
+         LEFT JOIN people p2 ON p2.id = d.player2_id
+         WHERE d.player1_id = ? OR d.player2_id = ? OR d.second1_id = ? OR d.second2_id = ?'
     );
     $st->bind_param('iiii', $personId, $personId, $personId, $personId);
     $st->execute();
@@ -793,23 +1509,79 @@ function portal_person_stats(mysqli $db, int $personId): ?array
         $p2 = (int)$d['player2_id'];
         $s1 = (int)$d['second1_id'];
         $s2 = (int)$d['second2_id'];
+        $when = portal_stats_when($d['duel_date'] ?? null, $d['starts_on'] ?? null);
+        $iso = $when['iso'];
+        $date = $when['date'];
+        $event = portal_event_title_short($d['event_title'] ?? '');
         if ($p1 === $personId || $p2 === $personId) {
             $played++;
             $side = $p1 === $personId ? 1 : 2;
-            $asPlayer[$did] = $side;
-            $opp = $side === 1 ? $p2 : $p1;
-            if ($opp > 0) {
-                if (!isset($rivalIds[$opp])) {
-                    $rivalIds[$opp] = 0;
-                }
-                $rivalIds[$opp]++;
-            }
+            $oppId = $side === 1 ? $p2 : $p1;
+            $oppName = $side === 1
+                ? portal_name_or_empty($d['p2_name'] ?? null)
+                : portal_name_or_empty($d['p1_name'] ?? null);
+            $sit = portal_sit_label(
+                $d['sit_code'] ?? null,
+                $d['sit_num'] ?? null,
+                (string)($d['prep_mode'] ?? ''),
+                (string)($d['duel_type'] ?? '')
+            );
+            $asPlayer[$did] = [
+                'side' => $side,
+                'opp_id' => $oppId,
+                'opp' => $oppName !== '' ? $oppName : ($oppId > 0 ? '#' . $oppId : ''),
+                'iso' => $iso,
+                'date' => $date,
+                'event' => $event,
+                'sit' => $sit,
+            ];
         }
         if ($s1 === $personId || $s2 === $personId) {
             $seconded++;
+            $whomId = $s1 === $personId ? $p1 : $p2;
+            $whomName = $s1 === $personId
+                ? portal_name_or_empty($d['p1_name'] ?? null)
+                : portal_name_or_empty($d['p2_name'] ?? null);
+            $whom = $whomName !== '' ? $whomName : ($whomId > 0 ? '#' . $whomId : '');
+            $line = portal_stats_join_line($date, $event, $whom);
+            if ($line === '') {
+                $line = 'секундант';
+            }
+            $secondedItems[] = ['iso' => $iso, 'id' => $did, 'line' => $line];
         }
     }
     $st->close();
+
+    $playedItems = [];
+    $wonItems = [];
+    $lostItems = [];
+    $rivalIds = [];
+    $rivalWins = [];
+    $rivalLosses = [];
+    $rivalItems = [];
+    $rivalNames = [];
+
+    foreach ($asPlayer as $did => $meta) {
+        $meet = portal_stats_join_line($meta['date'], $meta['event'], $meta['sit']);
+        if ($meet === '') {
+            $meet = 'поединок';
+        }
+        $playedItems[] = ['iso' => $meta['iso'], 'id' => $did, 'line' => $meet];
+        $oppId = (int)$meta['opp_id'];
+        if ($oppId > 0) {
+            if (!isset($rivalIds[$oppId])) {
+                $rivalIds[$oppId] = 0;
+                $rivalWins[$oppId] = 0;
+                $rivalLosses[$oppId] = 0;
+                $rivalItems[$oppId] = [];
+            }
+            $rivalIds[$oppId]++;
+            $rivalItems[$oppId][] = ['iso' => $meta['iso'], 'id' => $did, 'line' => $meet];
+            if ($meta['opp'] !== '') {
+                $rivalNames[$oppId] = $meta['opp'];
+            }
+        }
+    }
 
     if ($asPlayer) {
         $in = implode(',', array_map('intval', array_keys($asPlayer)));
@@ -825,29 +1597,100 @@ function portal_person_stats(mysqli $db, int $personId): ?array
                 $votes[$did][$v]++;
             }
         }
-        foreach ($asPlayer as $did => $side) {
+        foreach ($asPlayer as $did => $meta) {
             $vv = $votes[$did] ?? ['1' => 0, '2' => 0];
             if ($vv['1'] === $vv['2']) {
                 continue;
             }
             $winner = $vv['1'] > $vv['2'] ? 1 : 2;
-            if ($winner === $side) {
+            $oppId = (int)$meta['opp_id'];
+            $oppLabel = $meta['opp'] !== '' ? $meta['opp'] : 'соперник';
+            $wl = $oppLabel;
+            if ($meta['date'] !== '') {
+                $wl .= ' · ' . $meta['date'];
+            }
+            if ($winner === $meta['side']) {
                 $won++;
+                $wonItems[] = ['iso' => $meta['iso'], 'id' => $did, 'line' => $wl];
+                if ($oppId > 0) {
+                    $rivalWins[$oppId] = ($rivalWins[$oppId] ?? 0) + 1;
+                }
+                $asPlayer[$did]['outcome'] = 'выиграл';
             } else {
                 $lost++;
+                $lostItems[] = ['iso' => $meta['iso'], 'id' => $did, 'line' => $wl];
+                if ($oppId > 0) {
+                    $rivalLosses[$oppId] = ($rivalLosses[$oppId] ?? 0) + 1;
+                }
+                $asPlayer[$did]['outcome'] = 'проиграл';
             }
         }
     }
 
-    $st = $db->prepare('SELECT COUNT(*) AS n FROM duel_judges WHERE person_id = ?');
+    foreach ($playedItems as &$it) {
+        $outc = $asPlayer[(int)$it['id']]['outcome'] ?? '';
+        if ($outc !== '') {
+            $it['line'] .= ' · ' . $outc;
+        }
+    }
+    unset($it);
+    foreach ($rivalItems as &$items) {
+        foreach ($items as &$it) {
+            $outc = $asPlayer[(int)$it['id']]['outcome'] ?? '';
+            if ($outc !== '') {
+                $it['line'] .= ' · ' . $outc;
+            }
+        }
+        unset($it);
+    }
+    unset($items);
+
+    $judged = 0;
+    $judgedByEvent = [];
+    $st = $db->prepare(
+        'SELECT d.id, d.event_id, d.duel_date, e.title AS event_title, e.starts_on
+         FROM duel_judges dj
+         INNER JOIN duels d ON d.id = dj.duel_id
+         LEFT JOIN events e ON e.id = d.event_id
+         WHERE dj.person_id = ?'
+    );
     $st->bind_param('i', $personId);
     $st->execute();
-    $judged = (int)$st->get_result()->fetch_assoc()['n'];
+    $jres = $st->get_result();
+    while ($d = $jres->fetch_assoc()) {
+        $judged++;
+        $eid = (int)($d['event_id'] ?? 0);
+        $when = portal_stats_when($d['duel_date'] ?? null, $d['starts_on'] ?? null);
+        $event = portal_event_title_short($d['event_title'] ?? '');
+        $key = $eid > 0 ? 'e' . $eid : 'none';
+        if (!isset($judgedByEvent[$key])) {
+            $judgedByEvent[$key] = [
+                'iso' => $when['iso'],
+                'id' => $eid > 0 ? $eid : 0,
+                'n' => 0,
+                'date' => $when['date'],
+                'event' => $event !== '' ? $event : 'онлайн',
+            ];
+        }
+        $judgedByEvent[$key]['n']++;
+    }
     $st->close();
+    $judgedItems = [];
+    foreach ($judgedByEvent as $it) {
+        $line = portal_stats_join_line(
+            (string)$it['date'],
+            (string)$it['event'],
+            portal_stats_times_label((int)$it['n'])
+        );
+        if ($line === '') {
+            $line = portal_stats_times_label((int)$it['n']);
+        }
+        $judgedItems[] = ['iso' => (string)$it['iso'], 'id' => (int)$it['id'], 'line' => $line];
+    }
 
-    $tournaments = 0;
+    $tournamentItems = [];
     $st = $db->prepare(
-        "SELECT COUNT(DISTINCT e.id) AS n
+        "SELECT DISTINCT e.id, e.title, e.starts_on
          FROM events e
          WHERE e.event_type = 'турнир'
            AND (
@@ -866,31 +1709,59 @@ function portal_person_stats(mysqli $db, int $personId): ?array
     );
     $st->bind_param('iiiii', $personId, $personId, $personId, $personId, $personId);
     $st->execute();
-    $tournaments = (int)$st->get_result()->fetch_assoc()['n'];
+    $tres = $st->get_result();
+    while ($row = $tres->fetch_assoc()) {
+        $when = portal_stats_when(null, $row['starts_on'] ?? null);
+        $event = portal_event_title_short($row['title'] ?? '');
+        $line = portal_stats_join_line($when['date'], $event, '');
+        if ($line === '') {
+            $line = 'турнир';
+        }
+        $tournamentItems[] = ['iso' => $when['iso'], 'id' => (int)$row['id'], 'line' => $line];
+    }
     $st->close();
+    $tournaments = count($tournamentItems);
 
-    $rivals = [];
-    if ($rivalIds) {
-        $in = implode(',', array_map('intval', array_keys($rivalIds)));
-        $names = [];
+    $missing = [];
+    foreach ($rivalIds as $oid => $n) {
+        if (!isset($rivalNames[$oid])) {
+            $missing[] = (int)$oid;
+        }
+    }
+    if ($missing) {
+        $in = implode(',', $missing);
         $r = $db->query("SELECT id, full_name FROM people WHERE id IN ($in)");
         while ($row = $r->fetch_assoc()) {
-            $names[(int)$row['id']] = $row['full_name'];
+            $rivalNames[(int)$row['id']] = $row['full_name'];
         }
-        foreach ($rivalIds as $oid => $n) {
-            $rivals[] = [
-                'id' => (int)$oid,
-                'name' => $names[$oid] ?? ('#' . $oid),
-                'n' => (int)$n,
-            ];
-        }
-        usort($rivals, static function ($a, $b) {
-            if ($a['n'] === $b['n']) {
-                return strcasecmp($a['name'], $b['name']);
-            }
-            return ($a['n'] < $b['n']) ? 1 : -1;
-        });
     }
+
+    $rivals = [];
+    $rivalTips = [];
+    foreach ($rivalIds as $oid => $n) {
+        $w = (int)($rivalWins[$oid] ?? 0);
+        $l = (int)($rivalLosses[$oid] ?? 0);
+        if ($w > $l) {
+            $tone = 'win';
+        } elseif ($l > $w) {
+            $tone = 'lose';
+        } else {
+            $tone = 'even';
+        }
+        $rivalTips[(string)$oid] = portal_stats_tip_html(portal_stats_sort_lines($rivalItems[$oid] ?? []));
+        $rivals[] = [
+            'id' => (int)$oid,
+            'name' => $rivalNames[$oid] ?? ('#' . $oid),
+            'n' => (int)$n,
+            'tone' => $tone,
+        ];
+    }
+    usort($rivals, static function ($a, $b) {
+        if ($a['n'] === $b['n']) {
+            return strcasecmp($a['name'], $b['name']);
+        }
+        return ($a['n'] < $b['n']) ? 1 : -1;
+    });
 
     return [
         'played' => $played,
@@ -900,5 +1771,14 @@ function portal_person_stats(mysqli $db, int $personId): ?array
         'won' => $won,
         'lost' => $lost,
         'rivals' => $rivals,
+        'tips' => [
+            'played' => portal_stats_tip_html(portal_stats_sort_lines($playedItems)),
+            'seconded' => portal_stats_tip_html(portal_stats_sort_lines($secondedItems)),
+            'judged' => portal_stats_tip_html(portal_stats_sort_lines($judgedItems)),
+            'tournaments' => portal_stats_tip_html(portal_stats_sort_lines($tournamentItems)),
+            'won' => portal_stats_tip_html(portal_stats_sort_lines($wonItems)),
+            'lost' => portal_stats_tip_html(portal_stats_sort_lines($lostItems)),
+            'rivals' => $rivalTips,
+        ],
     ];
 }
