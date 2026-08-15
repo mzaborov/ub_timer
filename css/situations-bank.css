@@ -1,4 +1,4 @@
-/* deploy-version: 42 — банк ситуаций, mobile-first (стиль AppSheet) */
+/* deploy-version: 85 — банк ситуаций: mobile-first + desktop master-detail */
 
 :root {
   --sb-orange: #f57c00;
@@ -37,6 +37,7 @@ html, body.sb-app {
   height: 100%;
   height: 100dvh;
   max-width: 100%;
+  min-height: 0;
 }
 
 .sb-hidden {
@@ -54,6 +55,45 @@ html, body.sb-app {
   color: #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   z-index: 10;
+}
+
+.sb-header-home {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  height: 40px;
+  padding: 0 8px;
+  margin-right: 2px;
+  color: #fff;
+  text-decoration: none;
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  border-radius: 6px;
+  cursor: pointer;
+}
+a.sb-header-home:visited {
+  color: #fff;
+}
+.sb-header-home i {
+  flex: 0 0 auto;
+  font-size: 1.05rem;
+}
+.sb-header-home span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sb-header-home:active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+@media (max-width: 899px) {
+  #sb-screen-detail .sb-header-home span {
+    display: none;
+  }
 }
 
 .sb-header-title {
@@ -84,6 +124,10 @@ html, body.sb-app {
   display: flex;
   align-items: center;
   justify-content: center;
+  text-decoration: none;
+}
+a.sb-header-btn:visited {
+  color: #fff;
 }
 
 .sb-header-btn:active {
@@ -205,6 +249,11 @@ html, body.sb-app {
   background: var(--sb-row-hover);
 }
 
+.sb-row--active {
+  background: var(--sb-row-hover);
+  box-shadow: inset 4px 0 0 var(--sb-orange);
+}
+
 .sb-row td {
   padding: 14px 12px;
   vertical-align: middle;
@@ -232,6 +281,11 @@ html, body.sb-app {
   padding: 24px 16px;
   text-align: center;
   color: var(--sb-muted);
+}
+
+.sb-empty--detail {
+  padding: 48px 24px;
+  font-size: 1rem;
 }
 
 /* Карточка ситуации */
@@ -344,19 +398,308 @@ html, body.sb-app {
   font-weight: 700;
 }
 
-/* Десктоп: центрируем «телефон» */
-@media (min-width: 600px) {
+/* История игр: отдельный блок; мобилка — двухстрочный список, десктоп — таблица */
+.sb-plays-panel {
+  margin: 8px 0 4px;
+  padding: 14px 12px 12px;
+  background: #fff8f0;
+  border: 1px solid #ffcc80;
+  border-radius: 10px;
+}
+
+.sb-plays-heading {
+  margin: 0 0 12px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #000;
+}
+
+.sb-plays {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sb-play {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--sb-border);
+}
+
+.sb-play:last-child {
+  border-bottom: none;
+}
+
+.sb-play-meta {
+  margin: 0 0 4px;
+  font-size: 0.85rem;
+  color: var(--sb-muted);
+  line-height: 1.35;
+}
+
+.sb-play-line {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.sb-play-vs {
+  color: var(--sb-muted);
+  font-weight: 400;
+}
+
+.sb-plays-wrap {
+  display: none;
+}
+
+.sb-plays-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.sb-plays-table th,
+.sb-plays-table td {
+  padding: 7px 10px 7px 0;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid #ffe0b2;
+}
+
+.sb-plays-table th {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--sb-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.sb-plays-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.sb-plays-table td {
+  white-space: nowrap;
+}
+
+.sb-plays-table td:nth-child(2) {
+  white-space: normal;
+  min-width: 8rem;
+}
+
+.sb-plays-td-video {
+  white-space: nowrap;
+}
+
+.sb-play-score {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sb-play-draw {
+  color: var(--sb-muted);
+  font-size: 0.9em;
+}
+
+.sb-play-video,
+.sb-play-video.vid-pill {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.35em;
+  padding: 0.1em 0.5em 0.12em;
+  border-radius: 999px;
+  background: var(--sb-orange-dark);
+  color: #fff;
+  font-weight: 700;
+  font-size: 11px;
+  line-height: 1.25;
+  text-decoration: none;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.sb-play-video:hover,
+.sb-play-video:focus {
+  color: #fff;
+  text-decoration: none;
+  background: #bf360c;
+}
+
+.sb-plays-empty {
+  margin: 0;
+  color: var(--sb-muted);
+  font-size: 1rem;
+}
+
+/* Десктоп: список слева, карточка справа (не «телефон» по центру) */
+@media (min-width: 900px) {
+  html, body.sb-app {
+    height: 100%;
+    height: 100dvh;
+  }
+
   body.sb-app {
     background: #eceff1;
     display: flex;
+    flex-direction: row;
     align-items: stretch;
-    justify-content: center;
+    justify-content: flex-start;
   }
 
   .sb-screen {
-    max-width: 480px;
+    max-width: none;
+    width: auto;
+    height: 100%;
+    min-height: 0;
+    margin: 0;
+    box-shadow: none;
+  }
+
+  #sb-screen-list,
+  #sb-screen-detail,
+  #sb-screen-list.sb-hidden,
+  #sb-screen-detail.sb-hidden {
+    display: flex !important;
+  }
+
+  #sb-screen-list {
+    flex: 0 1 34%;
+    width: 34%;
+    min-width: 32rem;
+    max-width: min(38rem, calc(100vw - 24rem));
+    height: 100%;
+    min-height: 0;
+    align-self: stretch;
+    background: var(--sb-bg);
+    border-right: 1px solid var(--sb-border);
+    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+  }
+
+  #sb-screen-detail {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    min-height: 0;
+    align-self: stretch;
+    background: #eceff1;
+    overflow: hidden;
+  }
+
+  #sb-search-panel {
+    display: block !important;
+  }
+
+  #sb-search-toggle {
+    display: none;
+  }
+
+  .sb-footer {
+    display: none;
+  }
+
+  .sb-header-btn--back {
+    display: none;
+  }
+
+  #sb-screen-detail .sb-header-home {
+    display: none;
+  }
+
+  #sb-screen-detail .sb-header-title {
+    text-align: left;
+    padding-left: 8px;
+  }
+
+  .sb-header-btn:hover,
+  .sb-header-home:hover {
+    background: rgba(255, 255, 255, 0.18);
+  }
+
+  .sb-th-chevron,
+  .sb-cell-chevron {
+    display: none;
+  }
+
+  .sb-th-code { width: auto; white-space: nowrap; }
+  .sb-th-type { width: 7.25rem; }
+
+  .sb-table-wrap {
+    overflow-x: hidden;
+  }
+
+  .sb-cell-code {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: normal;
+  }
+
+  .sb-nav-hint {
+    display: none;
+  }
+
+  .sb-detail {
+    display: flex;
+    flex-direction: column;
+    padding: 16px 16px 0;
+    background: #eceff1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .sb-detail-card {
+    flex: 1 1 auto;
     width: 100%;
-    margin: 0 auto;
-    box-shadow: 0 0 24px rgba(0, 0, 0, 0.12);
+    max-width: none;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: #fff;
+    border-radius: 12px 12px 0 0;
+    padding: 28px 36px 36px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+
+  .sb-detail-title {
+    font-size: 1.5rem;
+  }
+
+  .sb-field-value,
+  .sb-plain,
+  .sb-description-html,
+  .sb-role-line {
+    font-size: 1.05rem;
+    line-height: 1.65;
+  }
+
+  .sb-plays-panel {
+    margin-top: 16px;
+    padding: 18px 18px 14px;
+  }
+
+  .sb-plays {
+    display: none;
+  }
+
+  .sb-plays-wrap {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -4px;
+    padding: 0 4px;
+  }
+
+  .sb-plays-table {
+    font-size: 0.95rem;
+  }
+
+  .sb-plays-table .sb-play-video {
+    margin-left: 0;
+  }
+
+  .sb-share-toast {
+    bottom: 24px;
   }
 }

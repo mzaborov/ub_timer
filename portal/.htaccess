@@ -1,2 +1,7 @@
 DirectoryIndex index.php
 AddDefaultCharset utf-8
+
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteRule ^z/([0-9]+)/?$ z.php?e=$1 [L,QSA]
+</IfModule>

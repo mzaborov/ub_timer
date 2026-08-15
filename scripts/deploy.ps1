@@ -41,7 +41,7 @@ if (-not $hostFtp -or -not $userFtp -or -not $passFtp) {
 if (-not $remoteDir) { $remoteDir = "timer.zaborov.ru/www" }
 
 # Исключения из выкладки: из env или значения по умолчанию
-$defaultExcludeRoots = '.git', 'secrets.env', 'scripts', '.gitignore', '.cursor', 'node_modules', 'History.log', '.vscode', 'git_hint.txt', 'Таблицы для онлайнов', 'docs'
+$defaultExcludeRoots = '.git', 'secrets.env', 'scripts', '.gitignore', '.cursor', 'node_modules', 'History.log', '.vscode', 'git_hint.txt', 'Таблицы для онлайнов', 'docs', '_tmp_rating_sheets', 'portal'
 $defaultExcludeFiles = 'secrets.env', 'secrets.env.example', '.gitignore', 'History.log', 'git_hint.txt', 'Макет часов.vsdx', 'Онлайн я-ИТ-ы №24.xlsx'
 # Файлы с расширением .xlsx не выкладываем (данные/примеры расписаний; на сервере пользователи загружают свои)
 $excludeRoot = if ($env:DEPLOY_EXCLUDE_ROOTS) { $env:DEPLOY_EXCLUDE_ROOTS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' } } else { $defaultExcludeRoots }
@@ -153,6 +153,7 @@ Get-ChildItem -Path $root -Recurse -File | ForEach-Object {
     $rel = $full.Substring($root.Path.Length + 1).Replace('\', '/')
     $relParts = $rel -split '/'
     if ($relParts[0] -in $excludeRoot) { return }
+    if ($relParts[0] -like '_tmp*') { return }
     if ($relParts -contains '.git' -or $relParts -contains 'node_modules' -or $relParts -contains '.cursor') { return }
     if ($rel -in $excludeFiles) { return }
     if ($rel -match '\.xlsx$') { return }
@@ -169,6 +170,7 @@ Get-ChildItem -Path $root -Recurse -File | ForEach-Object {
     $rel = $_.FullName.Substring($root.Path.Length + 1).Replace('\', '/')
     $relParts = $rel -split '/'
     if ($relParts[0] -in $excludeRoot) { return }
+    if ($relParts[0] -like '_tmp*') { return }
     if ($relParts -contains '.git' -or $relParts -contains 'node_modules' -or $relParts -contains '.cursor') { return }
     if ($rel -in $excludeFiles) { return }
     if ($rel -match '\.xlsx$') { return }
@@ -206,7 +208,7 @@ $newVer = $currentVer + 1
 Set-Content $versionFile -Value ([string]$newVer) -NoNewline -Encoding UTF8
 Write-Host "Версия выкладки: $newVer" -ForegroundColor Cyan
 
-$versionedFiles = @("index.html", "js/init.js", "css/timer.css")
+$versionedFiles = @("index.html", "js/init.js", "css/timer.css", "situations-bank.html")
 foreach ($rel in $versionedFiles) {
     $fp = Join-Path $root $rel
     if (-not (Test-Path $fp)) { continue }
@@ -214,6 +216,10 @@ foreach ($rel in $versionedFiles) {
     $changed = $false
     if ($content -match 'deploy-version:\s*\d+') {
         $content = $content -replace '(deploy-version:\s*)\d+', "`${1}$newVer"
+        $changed = $true
+    }
+    if ($rel -eq "index.html" -or $rel -eq "situations-bank.html") {
+        $content = $content -replace '\?v=\d+', "?v=$newVer"
         $changed = $true
     }
     if ($rel -eq "index.html") {

@@ -241,9 +241,13 @@ echo "situations=$n\\n";
 $n = 0;
 foreach (loadj('events.json') as $p) {{
     $slug = isset($p['ярлык']) && $p['ярлык'] !== '' ? $p['ярлык'] : null;
-    $ok = q("INSERT INTO events (id, slug, title, event_type, starts_on, ends_on, status, referee_person_id) VALUES (" .
+    $ok = q("INSERT INTO events (id, slug, title, event_type, starts_on, ends_on, starts_at, ends_at, status, zoom_url, referee_person_id) VALUES (" .
         s($p['id']) . "," . s($slug) . "," . s($p['название']) . "," . s($p['тип']) . "," .
-        s($p['датаНачала']) . "," . s($p['датаОкончания']) . "," . s($p['статус']) . "," . s($p['арбитрId']) . ")");
+        s($p['датаНачала']) . "," . s($p['датаОкончания']) . "," .
+        s(isset($p['времяНачала']) ? $p['времяНачала'] : null) . "," .
+        s(isset($p['времяОкончания']) ? $p['времяОкончания'] : null) . "," .
+        s($p['статус']) . "," .
+        s(isset($p['ссылкаZoom']) ? $p['ссылкаZoom'] : null) . "," . s($p['арбитрId']) . ")");
     if ($ok) $n++;
 }}
 echo "events=$n\\n";

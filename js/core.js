@@ -493,13 +493,7 @@ function stop_duel() {
     if (typeof updateRandomSituationDiceButton === "function") updateRandomSituationDiceButton();
     saveProtocolStateToLocalStorage();
     initTimers();
-    if (duelType==="express" && duelsList && duelsList[currentDuel]) { 
-
-          document.getElementById('Player1Roles').options[0].innerHTML = duelsList[currentDuel].SituationRoles[0].Role;
-          document.getElementById('Player2Roles').options[0].innerHTML = duelsList[currentDuel].SituationRoles[1].Role;
-          document.getElementById("Player1RoleGoal").innerHTML =duelsList[currentDuel].SituationRoles[0].Phrase;       
-          document.getElementById("Player2RoleGoal").innerHTML ="";
-    }
+    // Экспресс: роли в фоне не сбрасываем — оставляем как в последнем раунде
     // - форма оценок судей
     var q = normalizeRefereeQty(refereeQty || 9);
     if (duelsList && duelsList[currentDuel]) {

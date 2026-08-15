@@ -48,8 +48,34 @@ GIVEN_ALIASES = {
     "ярославэ": "ярослав",
 }
 
-CLIP_RE = re.compile(r"^\d+[Ээ]?[-–—].+\.(mkv|mp4)$", re.I)
+# Клип боя: номер + название ситуации. Не день (`Онлайн 24.mp4`, `Суббота 27.06-сжатое.mkv`).
+_DATE_LEAD_RE = re.compile(
+    r"^(?:\d{1,2}\.\d{1,2}\.\d{2,4}|\d{4}-\d{2}-\d{2})\s*[-–—]?\s*"
+)
+_SIT_CLIP_RE = re.compile(
+    r"^(?P<num>\d{1,3})(?P<suf>[ЭэAaа])?\s*[-–—]\s*(?P<name>\S.+)\.(mkv|mp4|mov|webm)$",
+    re.I,
+)
+_DAY_NAME_RE = re.compile(
+    r"сжатое|онлайн|тренировка|поединк|общий|video\d|галерея|выступающ",
+    re.I,
+)
+_SOURCES_DIR_RE = re.compile(r"исходник", re.I)
 VIDEO_EXT = {".mp4", ".mkv", ".mov", ".webm"}
+DRIVE_DAY_TYPES = ("онлайн", "купала", "новогоднее")
+TEMPLATE_ONLINE10_SLUGS = (
+    "online_10_20",
+    "online_10_21",
+    "online_10_22",
+    "online_10_23",
+    "online_10_24",
+)
+DEFAULT_ONLINE_ZOOM = (
+    ""
+)
+DEFAULT_ONLINE_START = "11:00"
+DEFAULT_ONLINE_END = "13:30"
+_DRIVE_LIST_CACHE: dict[str, list[tuple[str, str]]] = {}
 NS_XLSX = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
 
 ZABOROV = "Заборов Михаил"
@@ -808,40 +834,116 @@ def drive_file_url(fid: str) -> str:
     return f"https://drive.google.com/file/d/{fid}/view"
 
 
-def match_drive_folder(entries: list[tuple[str, str]], ev_type: str, num: int | None, name: str) -> str | None:
+def is_situation_clip(title: str) -> bool:
+    """Имя клипа боя: номер и название ситуации, не файл дня."""
+    t = _DATE_LEAD_RE.sub("", (title or "").strip(), count=1)
+    m = _SIT_CLIP_RE.match(t)
+    if not m:
+        return False
+    name = m.group("name")
+    if _DAY_NAME_RE.search(name):
+        return False
+    if re.match(r"^[йя]\b", name, re.I):
+        return False
+    return True
+
+
+def is_drive_url(url: str) -> bool:
+    u = (url or "").lower()
+    return "drive.google.com" in u or "docs.google.com/file" in u
+
+
+def title_matches_event_date(title: str, ev_date: date | None) -> bool:
+    if not ev_date:
+        return False
+    t = title or ""
+    return (
+        ev_date.isoformat() in t
+        or ev_date.strftime("%d.%m.%Y") in t
+        or ev_date.strftime("%d.%m.%y") in t
+        or ev_date.strftime("%d.%m") in t
+    )
+
+
+def match_drive_folders(
+    entries: list[tuple[str, str]],
+    ev_type: str,
+    num: int | None,
+    name: str,
+    ev_date: date | None = None,
+) -> list[str]:
+    """Кандидаты папок, лучшие первыми (дата в названии, более длинное имя)."""
     if num is None:
-        return None
+        return []
     name_l = collapse_ws(name).lower()
+    found: list[tuple[str, str]] = []
     for fid, title in entries:
         t = collapse_ws(title).lower()
+        hit = False
         if ev_type == "онлайн" and "онлайн" in t:
             m = re.search(r"#\s*(\d+)", t) or re.search(r"онлайн\s+#?\s*(\d+)", t)
-            if m and int(m.group(1)) == num:
-                return fid
-        if ev_type == "купала" and "купал" in t and str(num) in t:
-            return fid
-        if ev_type == "новогоднее" and ("новый год" in t or "новый год" in t.replace("ё", "е")):
-            if str(num) in t or str(2000 + num) in t or str(num).zfill(2) in t:
-                return fid
-    for fid, title in entries:
-        if collapse_ws(title).lower()[:20] in name_l:
-            return fid
-    return None
+            hit = bool(m and int(m.group(1)) == num)
+        elif ev_type == "купала" and "купал" in t and str(num) in t:
+            hit = True
+        elif ev_type == "новогоднее" and (
+            "новый год" in t or "новогодн" in t or re.search(r"\bнг\b", t)
+        ):
+            hit = str(num) in t or str(2000 + num) in t or str(num).zfill(2) in t
+        if hit:
+            found.append((fid, title))
+    if not found:
+        for fid, title in entries:
+            if collapse_ws(title).lower()[:20] in name_l:
+                found.append((fid, title))
+                break
+
+    def _score(item: tuple[str, str]) -> tuple:
+        _fid, title = item
+        return (-int(title_matches_event_date(title, ev_date)), -len(title))
+
+    found.sort(key=_score)
+    return [fid for fid, _title in found]
 
 
-def pick_day_video(files: list[tuple[str, str]]) -> tuple[str, str] | None:
-    cands = []
+def match_drive_folder(
+    entries: list[tuple[str, str]], ev_type: str, num: int | None, name: str
+) -> str | None:
+    ids = match_drive_folders(entries, ev_type, num, name)
+    return ids[0] if ids else None
+
+
+def pick_day_video(
+    files: list[tuple[str, str]], ev_date: date | None = None
+) -> tuple[str, str] | None:
+    cands: list[tuple[str, str]] = []
     for fid, title in files:
         ext = Path(title).suffix.lower()
         if ext not in VIDEO_EXT:
             continue
-        if CLIP_RE.match(title.strip()):
+        if is_situation_clip(title):
             continue
         cands.append((fid, title))
     if not cands:
         return None
-    cands.sort(key=lambda x: (0 if x[1].lower().endswith(".mp4") else 1, -len(x[1])))
-    return cands[0]
+    dated = [x for x in cands if title_matches_event_date(x[1], ev_date)]
+    pool = dated or cands
+
+    def _score(item: tuple[str, str]) -> tuple:
+        title = item[1]
+        t = title.lower()
+        gallery = 1 if "галерея" in t else 0
+        named = 1 if _DAY_NAME_RE.search(title) else 0
+        mp4 = 0 if t.endswith(".mp4") else 1
+        return (-gallery, -named, mp4, -len(title))
+
+    pool.sort(key=_score)
+    return pool[0]
+
+
+def list_drive_folder_cached(fid: str) -> list[tuple[str, str]]:
+    if fid not in _DRIVE_LIST_CACHE:
+        _DRIVE_LIST_CACHE[fid] = list_drive_folder(fid)
+    return _DRIVE_LIST_CACHE[fid]
 
 
 def strip_timecode(url: str) -> str:
@@ -1021,6 +1123,33 @@ def write_json(name: str, data) -> None:
 WALL_OVERLAY = OUT_DIR / "стена_календарь.json"
 
 
+def apply_online_zoom(events: list[dict]) -> list[dict]:
+    """Одна комната стрима на все живые онлайны; шаблонные Online 10 2024–2028 без ссылки."""
+    skip = set(TEMPLATE_ONLINE10_SLUGS)
+    for ev in events:
+        slug = ev.get("ярлык") or ""
+        if ev.get("тип") == "онлайн" and slug not in skip:
+            ev["ссылкаZoom"] = DEFAULT_ONLINE_ZOOM
+        else:
+            ev["ссылкаZoom"] = None
+    return events
+
+
+def apply_online_times(events: list[dict]) -> list[dict]:
+    """Онлайны с датой: 11:00–13:30 Europe/Moscow. Шаблон Online 10 2024–28 без дат — без времени."""
+    for ev in events:
+        has_date = bool(ev.get("датаНачала"))
+        if ev.get("тип") == "онлайн" and has_date:
+            if not ev.get("времяНачала"):
+                ev["времяНачала"] = DEFAULT_ONLINE_START
+            if not ev.get("времяОкончания"):
+                ev["времяОкончания"] = DEFAULT_ONLINE_END
+        else:
+            ev.setdefault("времяНачала", None)
+            ev.setdefault("времяОкончания", None)
+    return events
+
+
 def apply_calendar_overlay(events: list[dict], report: dict | None = None) -> list[dict]:
     """Стена календаря переживает пересборку дампа из Google.
 
@@ -1179,15 +1308,33 @@ def main() -> int:
             "датаОкончания": d_end.isoformat() if d_end else None,
             "статус": status,
             "арбитрId": arb_id,
+            "ссылкаZoom": None,
         }
         events.append(ev)
 
-        folder_id = match_drive_folder(drive_root, ev_type, num, name) if drive_root else None
+        folder_ids = (
+            match_drive_folders(drive_root, ev_type, num, name, d_start)
+            if drive_root
+            else []
+        )
         day_url = None
-        if ev_type == "онлайн" and folder_id:
+        if ev_type in DRIVE_DAY_TYPES and folder_ids:
             try:
-                files = list_drive_folder(folder_id)
-                picked = pick_day_video(files)
+                files: list[tuple[str, str]] = []
+                for folder_id in folder_ids:
+                    files = list_drive_folder_cached(folder_id)
+                    if any(Path(t).suffix.lower() in VIDEO_EXT for _i, t in files):
+                        break
+                picked = pick_day_video(files, d_start)
+                if not picked:
+                    extra: list[tuple[str, str]] = []
+                    for src_id, src_title in files:
+                        if Path(src_title).suffix:
+                            continue
+                        if _SOURCES_DIR_RE.search(src_title):
+                            extra.extend(list_drive_folder_cached(src_id))
+                    if extra:
+                        picked = pick_day_video(extra, d_start)
                 if picked:
                     day_url = drive_file_url(picked[0])
                     video_id += 1
@@ -1206,7 +1353,7 @@ def main() -> int:
                     report["warnings"].append(f"{name}: в папке Диска нет видео дня")
             except Exception as e:
                 report["warnings"].append(f"{name}: папка Диска {e}")
-        elif ev_type == "онлайн":
+        elif ev_type in DRIVE_DAY_TYPES:
             report["warnings"].append(f"{name}: нет папки на Диске")
 
         day_links_offline: dict[str, int] = {}
@@ -1319,10 +1466,10 @@ def main() -> int:
                             "тип": "Поединок",
                         }
                     )
-                    # Офлайн: клип с t= — Поединок; после strip_timecode — один
-                    # ДеньЦеликом на уникальный базовый URL (поединок null).
-                    # Онлайн: день только с Диска, сетку не дублируем.
-                    if ev_type != "онлайн":
+                    # Поток (YouTube/VK/Rutube): клип с t= — Поединок;
+                    # без таймкода — один ДеньЦеликом на базовый URL.
+                    # Drive-клип боя никогда не становится днём (день — с Диска).
+                    if ev_type != "онлайн" and not is_drive_url(url):
                         base = strip_timecode(url)
                         if base not in day_links_offline:
                             video_id += 1
@@ -1381,6 +1528,8 @@ def main() -> int:
     empty = []
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     events = apply_calendar_overlay(events, report)
+    events = apply_online_zoom(events)
+    events = apply_online_times(events)
     write_json("люди.json", people_list)
     write_json("ситуации.json", situations)
     write_json("мероприятия.json", events)

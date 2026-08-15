@@ -75,12 +75,31 @@ function load_person(mysqli $db, int $id): ?array
     if ($id <= 0) {
         return null;
     }
-    $st = $db->prepare('SELECT id, full_name, is_active FROM people WHERE id = ?');
+    $st = $db->prepare('SELECT id, full_name, email, telegram, is_active FROM people WHERE id = ?');
     $st->bind_param('i', $id);
     $st->execute();
     $row = $st->get_result()->fetch_assoc();
     $st->close();
     return $row ?: null;
+}
+
+function portal_csrf_token(): string
+{
+    if (empty($_SESSION['csrf']) || !is_string($_SESSION['csrf'])) {
+        $_SESSION['csrf'] = bin2hex(random_bytes(16));
+    }
+    return $_SESSION['csrf'];
+}
+
+function portal_csrf_ok(?string $token): bool
+{
+    $token = (string)$token;
+    return $token !== '' && hash_equals(portal_csrf_token(), $token);
+}
+
+function portal_csrf_field(): void
+{
+    echo '<input type="hidden" name="csrf" value="' . h(portal_csrf_token()) . '">';
 }
 
 function stream_roles(mysqli $db, int $personId): array

@@ -12,6 +12,53 @@ function portal_page_url(string $p): string
     return $p === '' ? './' : './?p=' . rawurlencode($p);
 }
 
+/** Только наша форма заявки: register.php?event=N */
+function portal_safe_next(?string $next): string
+{
+    $next = trim((string)$next);
+    if (preg_match('/^register\.php\?event=(\d+)$/', $next, $m)) {
+        return 'register.php?event=' . (int)$m[1];
+    }
+    return '';
+}
+
+function portal_login_url(string $next = ''): string
+{
+    $next = portal_safe_next($next);
+    $url = './?p=profile';
+    if ($next !== '') {
+        $url .= '&next=' . rawurlencode($next);
+    }
+    return $url;
+}
+
+/** Скрытая форма identify (ub_me) — общая для шапки и попапа. */
+function portal_who_form(string $page, string $loginNext): void
+{
+    echo '<form method="post" action="./" id="who-form">';
+    echo '<input type="hidden" name="action" value="identify">';
+    echo '<input type="hidden" name="p" value="' . h($page) . '">';
+    echo '<input type="hidden" name="next" value="' . h($loginNext) . '">';
+    echo '<input type="hidden" name="person_id" id="who-form-id" value="">';
+    echo '</form>';
+}
+
+/** Попап «Кто вы?» — тот же autocomplete, что в шапке. */
+function portal_who_modal(string $loginNext = '', bool $autoOpen = false): void
+{
+    $open = $autoOpen ? ' data-open="1"' : '';
+    echo '<div id="who-modal" class="who-modal"' . $open . ' hidden>';
+    echo '<div class="who-modal-backdrop" data-who-close></div>';
+    echo '<div class="who-modal-box" role="dialog" aria-modal="true" aria-labelledby="who-modal-title">';
+    echo '<button type="button" class="who-modal-close" data-who-close aria-label="Закрыть">×</button>';
+    echo '<h2 id="who-modal-title">' . portal_icon('user') . ' Кто вы?</h2>';
+    echo '<p class="who-modal-cta">Войдите, чтобы записаться на встречу</p>';
+    echo '<div class="combo" data-combo>';
+    echo '<input id="who-modal-input" type="text" autocomplete="off" placeholder="начните вводить фамилию">';
+    echo '<ul class="combo-list" hidden></ul>';
+    echo '</div></div></div>';
+}
+
 function portal_nav_items(string $bankUrl, string $timerUrl): array
 {
     return [

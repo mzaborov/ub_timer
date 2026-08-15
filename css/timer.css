@@ -1,4 +1,4 @@
-/* deploy-version: 70 */
+/* deploy-version: 97 */
 @keyframes pulse {
   0%  { opacity: 0;  transform: scale(0.2);}
   20% { opacity: 0.3; transform: scale(0.4);}
@@ -118,6 +118,10 @@ body {
 .the-button > span {
   padding-left: 10px;
   padding-right: 5px;
+}
+
+#community-duels-dropdown {
+  margin-right: 0.15rem;
 }
 
 /* Кубик случайной ситуации (слот 00 / 00Э) — рядом с выбором поединка */

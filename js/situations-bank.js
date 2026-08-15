@@ -1,18 +1,72 @@
-// Банк ситуаций: загрузка из published Google Sheets CSV, просмотр и поиск.
+// Банк ситуаций: загрузка из MySQL через JSON API портала, просмотр и поиск.
 // Страница: situations-bank.html (mobile-first). Модалка в index.html — опционально.
 
-var SITUATIONS_BANK_CSV_URL =
-    "https://docs.google.com/spreadsheets/d/1-qUmFGvuG2SOvueNUWr55zTZyFEXFFqiWTz8m-OVHZg/export?format=csv&gid=94326902";
+var SITUATIONS_BANK_API_URL =
+    "https://ciocdo-org-skills.zaborov.ru/api/situations.php";
 
-var SITUATIONS_BANK_CACHE_KEY = "ub-timer-situations-bank-v2";
-var SITUATIONS_BANK_CACHE_TTL_MS = 60 * 60 * 1000;
+var SITUATION_PLAYS_URL = "js/situation-plays.json";
 
 var situationsBankRows = [];
 var situationsBankSelectedIndex = -1;
 var situationsBankSearchQuery = "";
+var situationPlaysByCode = null;
+
+var SB_DESKTOP_MQ = "(min-width: 900px)";
+var SB_PORTAL_HOME = "https://ciocdo-org-skills.zaborov.ru/";
 
 function isSituationsBankStandalonePage_() {
     return document.body && document.body.classList.contains("sb-app");
+}
+
+function situationsBankFromPortal_() {
+    try {
+        var params = new URLSearchParams(location.search);
+        if ((params.get("from") || "").toLowerCase() === "portal") return true;
+    } catch (e) {}
+    try {
+        var ref = document.referrer || "";
+        if (/ciocdo-org-skills\.zaborov\.ru/i.test(ref)) return true;
+    } catch (e2) {}
+    return false;
+}
+
+function situationsBankSearchKeep_() {
+    return situationsBankFromPortal_() ? "?from=portal" : "";
+}
+
+function situationsBankPageUrl_(hash) {
+    var path = "situations-bank.html" + situationsBankSearchKeep_();
+    if (hash !== undefined && hash !== null && String(hash) !== "") {
+        path += "#" + hash;
+    }
+    return path;
+}
+
+function ensureSituationsBankFromQuery_() {
+    if (!situationsBankFromPortal_()) return;
+    try {
+        var params = new URLSearchParams(location.search);
+        if ((params.get("from") || "").toLowerCase() === "portal") return;
+        params.set("from", "portal");
+        var qs = params.toString();
+        var next = "situations-bank.html" + (qs ? "?" + qs : "") + (location.hash || "");
+        if (window.history && window.history.replaceState) {
+            window.history.replaceState(history.state, "", next);
+        }
+    } catch (e3) {}
+}
+
+function applySituationsBankHomeLinks_() {
+    var href = situationsBankFromPortal_() ? SB_PORTAL_HOME : "index.html";
+    var links = document.querySelectorAll(".sb-home-link");
+    var i;
+    for (i = 0; i < links.length; i++) {
+        links[i].href = href;
+    }
+}
+
+function isSituationsBankDesktop_() {
+    return !!(window.matchMedia && window.matchMedia(SB_DESKTOP_MQ).matches);
 }
 
 function escapeHtmlSituationsBank(str) {
@@ -24,157 +78,54 @@ function escapeHtmlSituationsBank(str) {
         .replace(/"/g, "&quot;");
 }
 
-function parseCsvToRows_(text) {
-    var rows = [];
-    var row = [];
-    var field = "";
-    var i = 0;
-    var inQuotes = false;
-    while (i < text.length) {
-        var ch = text[i];
-        if (inQuotes) {
-            if (ch === '"') {
-                if (text[i + 1] === '"') {
-                    field += '"';
-                    i += 2;
-                    continue;
-                }
-                inQuotes = false;
-                i++;
-                continue;
-            }
-            field += ch;
-            i++;
-            continue;
-        }
-        if (ch === '"') {
-            inQuotes = true;
-            i++;
-            continue;
-        }
-        if (ch === ",") {
-            row.push(field);
-            field = "";
-            i++;
-            continue;
-        }
-        if (ch === "\r") {
-            i++;
-            continue;
-        }
-        if (ch === "\n") {
-            row.push(field);
-            if (row.length > 1 || row[0] !== "") rows.push(row);
-            row = [];
-            field = "";
-            i++;
-            continue;
-        }
-        field += ch;
-        i++;
-    }
-    row.push(field);
-    if (row.length > 1 || row[0] !== "") rows.push(row);
-    return rows;
-}
-
-function csvRowsToObjects_(matrix) {
-    if (!matrix || matrix.length < 2) return [];
-    var headers = matrix[0].map(function (h) { return String(h || "").trim(); });
-    var out = [];
-    for (var r = 1; r < matrix.length; r++) {
-        var obj = {};
-        var line = matrix[r];
-        for (var c = 0; c < headers.length; c++) {
-            if (!headers[c]) continue;
-            obj[headers[c]] = line[c] != null ? line[c] : "";
-        }
-        out.push(obj);
-    }
-    return out;
-}
-
-function pickField_(raw, names) {
-    for (var i = 0; i < names.length; i++) {
-        if (raw[names[i]] != null && String(raw[names[i]]).trim() !== "") return String(raw[names[i]]).trim();
-    }
-    return "";
-}
-
 function parseSituationNumFromCode_(code) {
     var m = String(code || "").match(/^(\d+)/);
     return m ? parseInt(m[1], 10) : 0;
 }
 
-/** Служебные/пустые строки таблицы (задел на выбор из банка) — не показываем в списке. */
-function isExcludedFromSituationsBankList_(code, raw) {
+/** Служебные/пустые строки — не показываем в списке. */
+function isExcludedSituationBankCode_(code) {
     var c = String(code || "").trim();
     if (!c) return true;
     if (/^-+$/.test(c)) return true;
     var lower = c.toLowerCase();
     if (lower.indexOf("случайн") !== -1) return true;
     if (/^00([-–]|$)/.test(c)) return true;
-    var num = String(pickField_(raw, ["Номер"]) || "").trim();
-    if (num === "00") return true;
-    var name = pickField_(raw, ["Название ситуации", "SituationName"]).toLowerCase();
-    if (name === "случайная ситуация") return true;
-    var desc = pickField_(raw, ["SituationDescription", "Полное описание", "Описание"]);
-    var roles = pickField_(raw, ["SituationRoles", "Роли и интересы", "Roles"]);
-    if (!desc && !roles) return true;
     return false;
 }
 
-function normalizeSituationBankRow_(raw, index) {
-    var code = pickField_(raw, ["Код", "Code"]);
-    if (!code || isExcludedFromSituationsBankList_(code, raw)) return null;
-    var descriptionHtml = pickField_(raw, ["SituationDescription"]);
-    var descriptionPlain = pickField_(raw, ["Полное описание", "Описание"]);
-    var rolesPlain = pickField_(raw, ["Роли и интересы", "Roles"]);
-    var rolesJsonRaw = pickField_(raw, ["SituationRoles"]);
-    var rolesJson = null;
-    if (rolesJsonRaw) {
+function normalizeSituationBankApiRow_(raw, index) {
+    if (!raw) return null;
+    var code = String(raw.code || "").trim();
+    if (!code || isExcludedSituationBankCode_(code)) return null;
+    var rolesJson = raw.rolesJson;
+    if (typeof rolesJson === "string" && rolesJson.trim()) {
         try {
-            rolesJson = JSON.parse(rolesJsonRaw.trim());
+            rolesJson = JSON.parse(rolesJson.trim());
         } catch (e) {
-            console.warn("situations-bank: невалидный SituationRoles для", code, e);
+            console.warn("situations-bank: невалидный rolesJson для", code, e);
+            rolesJson = null;
         }
     }
+    if (!rolesJson || !rolesJson.length) rolesJson = null;
+    var descriptionHtml = String(raw.descriptionHtml || raw.description || "").trim();
+    var descriptionPlain = String(raw.descriptionPlain || "").trim();
+    var rolesPlain = String(raw.rolesPlain || "").trim();
+    if (!descriptionHtml && !descriptionPlain && !rolesJson && !rolesPlain) return null;
+    var num = raw.num != null && raw.num !== "" ? Number(raw.num) : 0;
+    if (!num) num = parseSituationNumFromCode_(code) || 0;
     return {
         index: index,
-        num: parseSituationNumFromCode_(code) || pickField_(raw, ["Номер"]) || 0,
+        num: num,
         code: code,
-        name: pickField_(raw, ["Название ситуации", "SituationName"]),
-        type: pickField_(raw, ["Тип", "Type"]),
+        name: String(raw.name || "").trim(),
+        type: String(raw.type || "").trim(),
         descriptionHtml: descriptionHtml,
         descriptionPlain: descriptionPlain,
         rolesJson: rolesJson,
         rolesPlain: rolesPlain,
         hasFormatting: !!(descriptionHtml || rolesJson)
     };
-}
-
-function readSituationsBankCache_() {
-    try {
-        var raw = sessionStorage.getItem(SITUATIONS_BANK_CACHE_KEY);
-        if (!raw) return null;
-        var data = JSON.parse(raw);
-        if (!data || !data.fetchedAt || !data.rows) return null;
-        if (Date.now() - data.fetchedAt > SITUATIONS_BANK_CACHE_TTL_MS) return null;
-        return data.rows;
-    } catch (e) {
-        return null;
-    }
-}
-
-function writeSituationsBankCache_(rows) {
-    try {
-        sessionStorage.setItem(SITUATIONS_BANK_CACHE_KEY, JSON.stringify({
-            fetchedAt: Date.now(),
-            rows: rows
-        }));
-    } catch (e) {
-        console.warn("situations-bank: cache write failed", e);
-    }
 }
 
 function setSituationsBankStatus_(message, isError) {
@@ -204,6 +155,116 @@ function setSituationsBankLoading_(loading) {
     if (detail && !isSituationsBankStandalonePage_()) detail.style.opacity = loading ? "0.5" : "1";
 }
 
+function situationsBankAssetVersion_() {
+    var scripts = document.getElementsByTagName("script");
+    for (var i = 0; i < scripts.length; i++) {
+        var src = scripts[i].getAttribute("src") || "";
+        var m = src.match(/situations-bank\.js\?v=(\d+)/);
+        if (m) return m[1];
+    }
+    return "";
+}
+
+function getSituationPlaysForCode_(code) {
+    if (!situationPlaysByCode || !code) return [];
+    var key = String(code).trim();
+    if (situationPlaysByCode[key]) return situationPlaysByCode[key];
+    var lower = key.toLowerCase();
+    for (var k in situationPlaysByCode) {
+        if (Object.prototype.hasOwnProperty.call(situationPlaysByCode, k) &&
+            String(k).trim().toLowerCase() === lower) {
+            return situationPlaysByCode[k];
+        }
+    }
+    return [];
+}
+
+function renderSituationPlayName_(name, isWinner) {
+    var text = escapeHtmlSituationsBank(name || "—");
+    if (isWinner) return "<b>" + text + "</b>";
+    return text;
+}
+
+function renderSituationPlaysBlock_(row) {
+    if (situationPlaysByCode === null) return "";
+    var plays = getSituationPlaysForCode_(row && row.code);
+    var inner;
+    if (!plays.length) {
+        inner = '<p class="sb-plays-empty">Эту ситуацию ещё не играли</p>';
+    } else {
+        var items = "";
+        var rowsHtml = "";
+        for (var i = 0; i < plays.length; i++) {
+            var p = plays[i];
+            var metaParts = [];
+            if (p.date) metaParts.push(p.date);
+            if (p.event) metaParts.push(p.event);
+            var meta = metaParts.join(" · ");
+            var w = p.winner | 0;
+            var vs = renderSituationPlayName_(p.p1, w === 1) +
+                ' <span class="sb-play-vs">vs</span> ' +
+                renderSituationPlayName_(p.p2, w === 2);
+            var scoreHtml = "";
+            if (p.score) {
+                scoreHtml = '<span class="sb-play-score">' + escapeHtmlSituationsBank(p.score) + "</span>";
+                if (w === 0) scoreHtml += ' <span class="sb-play-draw">ничья</span>';
+            }
+            var videoHtml = "";
+            var url = String(p.video || "").trim();
+            if (/^https?:\/\//i.test(url)) {
+                videoHtml = '<a class="sb-play-video vid-pill" href="' + escapeHtmlSituationsBank(url) +
+                    '" target="_blank" rel="noopener">видео</a>';
+            }
+            items += '<li class="sb-play">' +
+                (meta ? '<p class="sb-play-meta">' + escapeHtmlSituationsBank(meta) + "</p>" : "") +
+                '<p class="sb-play-line">' + vs +
+                (scoreHtml ? " · " + scoreHtml : "") +
+                (videoHtml ? " " + videoHtml : "") +
+                "</p></li>";
+            rowsHtml += "<tr>" +
+                "<td>" + escapeHtmlSituationsBank(p.date || "") + "</td>" +
+                "<td>" + escapeHtmlSituationsBank(p.event || "") + "</td>" +
+                "<td>" + renderSituationPlayName_(p.p1, w === 1) + "</td>" +
+                "<td>" + renderSituationPlayName_(p.p2, w === 2) + "</td>" +
+                "<td>" + scoreHtml + "</td>" +
+                '<td class="sb-plays-td-video">' + videoHtml + "</td>" +
+                "</tr>";
+        }
+        inner =
+            '<ul class="sb-plays">' + items + "</ul>" +
+            '<div class="sb-plays-wrap">' +
+            '<table class="sb-plays-table">' +
+            "<thead><tr>" +
+            "<th>Дата</th><th>Мероприятие</th><th>Игрок 1</th><th>Игрок 2</th><th>Счёт</th><th>Видео</th>" +
+            "</tr></thead><tbody>" + rowsHtml + "</tbody></table></div>";
+    }
+    return '<div class="sb-plays-panel">' +
+        '<p class="sb-plays-heading">Когда играли эту ситуацию</p>' + inner + "</div>";
+}
+
+function fetchSituationPlays_() {
+    if (situationPlaysByCode) return Promise.resolve(situationPlaysByCode);
+    if (location.protocol === "file:") {
+        situationPlaysByCode = {};
+        return Promise.resolve(situationPlaysByCode);
+    }
+    var v = situationsBankAssetVersion_();
+    var url = SITUATION_PLAYS_URL + (v ? "?v=" + v : "");
+    return fetch(url)
+        .then(function (resp) {
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            return resp.json();
+        })
+        .then(function (data) {
+            situationPlaysByCode = (data && data.byCode) ? data.byCode : {};
+            return situationPlaysByCode;
+        })
+        .catch(function () {
+            situationPlaysByCode = {};
+            return situationPlaysByCode;
+        });
+}
+
 function fetchSituationsBank_(force) {
     if (location.protocol === "file:") {
         var fileMsg = "Страница открыта как файл (file://). Браузер блокирует загрузку данных. " +
@@ -211,27 +272,23 @@ function fetchSituationsBank_(force) {
         setSituationsBankStatus_(fileMsg, true);
         return Promise.reject(new Error(fileMsg));
     }
-    if (!force) {
-        var cached = readSituationsBankCache_();
-        if (cached && cached.length) {
-            situationsBankRows = cached;
-            setSituationsBankStatus_("Из кэша (" + cached.length + "). Нажмите ↻ для обновления.");
-            return Promise.resolve(cached);
-        }
-    }
     setSituationsBankLoading_(true);
     setSituationsBankStatus_("Загрузка…");
-    return fetch(SITUATIONS_BANK_CSV_URL)
+    var url = SITUATIONS_BANK_API_URL;
+    if (force) url += (url.indexOf("?") >= 0 ? "&" : "?") + "t=" + Date.now();
+    return fetch(url, { cache: "no-store" })
         .then(function (resp) {
             if (!resp.ok) throw new Error("HTTP " + resp.status);
-            return resp.text();
+            return resp.json();
         })
-        .then(function (text) {
-            var matrix = parseCsvToRows_(text);
-            var objects = csvRowsToObjects_(matrix);
+        .then(function (data) {
+            var objects = (data && data.rows) ? data.rows : [];
+            if (data && Object.prototype.hasOwnProperty.call(data, "playsByCode")) {
+                situationPlaysByCode = data.playsByCode || {};
+            }
             var rows = [];
             for (var i = 0; i < objects.length; i++) {
-                var row = normalizeSituationBankRow_(objects[i], rows.length);
+                var row = normalizeSituationBankApiRow_(objects[i], rows.length);
                 if (row) rows.push(row);
             }
             rows.sort(function (a, b) {
@@ -242,17 +299,10 @@ function fetchSituationsBank_(force) {
             });
             for (var j = 0; j < rows.length; j++) rows[j].index = j;
             situationsBankRows = rows;
-            writeSituationsBankCache_(rows);
             setSituationsBankStatus_("");
             return rows;
         })
         .catch(function (err) {
-            var cached = readSituationsBankCache_();
-            if (cached && cached.length) {
-                situationsBankRows = cached;
-                setSituationsBankStatus_("Нет сети — показан кэш (" + cached.length + ").", true);
-                return cached;
-            }
             setSituationsBankStatus_("Не удалось загрузить: " + (err.message || err), true);
             throw err;
         })
@@ -323,7 +373,7 @@ function renderSituationBankDetail_(row) {
 
     if (!row) {
         if (isSituationsBankStandalonePage_()) {
-            detailEl.innerHTML = "";
+            detailEl.innerHTML = '<div class="sb-detail-card"><p class="sb-empty sb-empty--detail">Выберите ситуацию в списке слева</p></div>';
         } else {
             detailEl.innerHTML = '<p class="text-muted p-3">Выберите ситуацию в списке</p>';
         }
@@ -344,6 +394,7 @@ function renderSituationBankDetail_(row) {
     if (isSituationsBankStandalonePage_()) {
         var navHint = buildSituationNavHint_(row.index);
         detailEl.innerHTML =
+            '<div class="sb-detail-card">' +
             (navHint ? '<p class="sb-nav-hint">' + navHint + "</p>" : "") +
             '<h2 class="sb-detail-title">' + escapeHtmlSituationsBank(row.code) + "</h2>" +
             '<div class="sb-field"><p class="sb-field-label">Тип</p><p class="sb-field-value">' +
@@ -351,7 +402,9 @@ function renderSituationBankDetail_(row) {
             '<div class="sb-field"><p class="sb-field-label sb-field-label--section">Описание ситуации</p>' + descHtml + "</div>" +
             (isSituationBankExpress_(row) ? "" :
                 '<div class="sb-field"><p class="sb-field-label sb-field-label--section">Роли и интересы</p>' +
-                renderSituationRolesBlock_(row) + "</div>");
+                renderSituationRolesBlock_(row) + "</div>") +
+            renderSituationPlaysBlock_(row) +
+            "</div>";
         return;
     }
 
@@ -364,7 +417,9 @@ function renderSituationBankDetail_(row) {
         '<div class="mb-2 small">' + fmtNote + "</div>" +
         '<div class="mb-1 fw-semibold">Описание</div>' + descHtml +
         '<div class="mb-1 mt-3 fw-semibold">Роли и интересы</div>' +
-        '<div class="situations-bank-roles">' + renderSituationRolesBlock_(row) + "</div></div>";
+        '<div class="situations-bank-roles">' + renderSituationRolesBlock_(row) + "</div>" +
+        renderSituationPlaysBlock_(row) +
+        "</div>";
 }
 
 function renderSituationsBankList_() {
@@ -380,7 +435,8 @@ function renderSituationsBankList_() {
         var tbody = "";
         for (var i = 0; i < filtered.length; i++) {
             var row = filtered[i];
-            tbody += '<tr class="sb-row" data-index="' + row.index + '">' +
+            var activeCls = row.index === situationsBankSelectedIndex ? " sb-row--active" : "";
+            tbody += '<tr class="sb-row' + activeCls + '" data-index="' + row.index + '">' +
                 '<td class="sb-cell-code">' + escapeHtmlSituationsBank(row.code) + "</td>" +
                 '<td class="sb-cell-type">' + escapeHtmlSituationsBank(row.type || "—") + "</td>" +
                 '<td class="sb-cell-chevron"><i class="fa-solid fa-chevron-right"></i></td></tr>';
@@ -392,6 +448,7 @@ function renderSituationsBankList_() {
                 selectSituationBankRow_(parseInt(this.getAttribute("data-index"), 10));
             });
         }
+        scrollSituationsBankActiveRowIntoView_();
         return;
     }
 
@@ -560,8 +617,10 @@ function initSituationsBankSwipe_() {
     var tracking = false;
 
     panel.addEventListener("touchstart", function (e) {
+        if (isSituationsBankDesktop_()) return;
         if (!e.touches || e.touches.length !== 1) return;
         if (document.getElementById("sb-screen-detail").classList.contains("sb-hidden")) return;
+        if (e.target && e.target.closest && e.target.closest(".sb-plays-wrap")) return;
         startX = e.touches[0].clientX;
         startY = e.touches[0].clientY;
         tracking = true;
@@ -578,22 +637,78 @@ function initSituationsBankSwipe_() {
     }, { passive: true });
 
     panel.addEventListener("keydown", function (e) {
-        if (document.getElementById("sb-screen-detail").classList.contains("sb-hidden")) return;
+        if (!isSituationsBankDesktop_() && document.getElementById("sb-screen-detail").classList.contains("sb-hidden")) return;
         if (e.key === "ArrowRight") navigateSituationBank_(1);
         else if (e.key === "ArrowLeft") navigateSituationBank_(-1);
     });
 }
 
+function scrollSituationsBankActiveRowIntoView_() {
+    var listEl = document.getElementById("situations-bank-list");
+    if (!listEl) return;
+    var activeEl = listEl.querySelector(".sb-row--active");
+    if (activeEl && typeof activeEl.scrollIntoView === "function") {
+        activeEl.scrollIntoView({ block: "nearest" });
+    }
+}
+
+function markSituationsBankListActive_(index) {
+    var listEl = document.getElementById("situations-bank-list");
+    if (!listEl) return;
+    var trs = listEl.querySelectorAll(".sb-row");
+    for (var i = 0; i < trs.length; i++) {
+        var idx = parseInt(trs[i].getAttribute("data-index"), 10);
+        trs[i].classList.toggle("sb-row--active", idx === index);
+    }
+    scrollSituationsBankActiveRowIntoView_();
+}
+
+function applySituationsBankLayout_() {
+    var list = document.getElementById("sb-screen-list");
+    var detail = document.getElementById("sb-screen-detail");
+    if (!list || !detail) return;
+    if (isSituationsBankDesktop_()) {
+        list.classList.remove("sb-hidden");
+        detail.classList.remove("sb-hidden");
+        if (situationsBankSelectedIndex < 0) {
+            renderSituationBankDetail_(null);
+        }
+        return;
+    }
+    if (situationsBankSelectedIndex >= 0) {
+        list.classList.add("sb-hidden");
+        detail.classList.remove("sb-hidden");
+        return;
+    }
+    detail.classList.add("sb-hidden");
+    list.classList.remove("sb-hidden");
+}
+
+function initSituationsBankLayoutWatch_() {
+    if (!window.matchMedia) return;
+    var mq = window.matchMedia(SB_DESKTOP_MQ);
+    function onChange() {
+        applySituationsBankLayout_();
+    }
+    if (mq.addEventListener) mq.addEventListener("change", onChange);
+    else if (mq.addListener) mq.addListener(onChange);
+}
+
 function situationsBankShowDetailScreen_() {
+    if (isSituationsBankDesktop_()) {
+        applySituationsBankLayout_();
+        return;
+    }
     document.getElementById("sb-screen-list").classList.add("sb-hidden");
     document.getElementById("sb-screen-detail").classList.remove("sb-hidden");
 }
 
 function situationsBankPageBack_() {
+    if (isSituationsBankDesktop_()) return;
     document.getElementById("sb-screen-detail").classList.add("sb-hidden");
     document.getElementById("sb-screen-list").classList.remove("sb-hidden");
     if (window.history && window.history.replaceState) {
-        window.history.replaceState(null, "", "situations-bank.html");
+        window.history.replaceState(null, "", situationsBankPageUrl_());
     }
 }
 
@@ -602,10 +717,15 @@ function selectSituationBankRow_(index, options) {
     situationsBankSelectedIndex = index;
     var row = getSituationBankRowByIndex_(index);
     if (isSituationsBankStandalonePage_()) {
+        markSituationsBankListActive_(index);
         renderSituationBankDetail_(row);
         if (!options.keepDetailScreen) situationsBankShowDetailScreen_();
+        var detailEl = document.getElementById("situations-bank-detail");
+        if (detailEl && isSituationsBankDesktop_()) {
+            try { detailEl.focus(); } catch (eFocus) {}
+        }
         if (window.history) {
-            var url = "situations-bank.html#" + index;
+            var url = situationsBankPageUrl_(index);
             if (options.replaceHistory && window.history.replaceState) {
                 window.history.replaceState({ sbDetail: index }, "", url);
             } else if (window.history.pushState) {
@@ -623,8 +743,16 @@ function onSituationsBankSearchInput_(event) {
     renderSituationsBankList_();
 }
 
+function loadSituationsBankAndPlays_(force) {
+    return fetchSituationsBank_(force).then(function (rows) {
+        if (situationPlaysByCode) return rows;
+        return fetchSituationPlays_().then(function () { return rows; });
+    });
+}
+
 function refreshSituationsBank() {
-    fetchSituationsBank_(true).then(function () {
+    situationPlaysByCode = null;
+    loadSituationsBankAndPlays_(true).then(function () {
         renderSituationsBankList_();
         if (situationsBankSelectedIndex >= 0) {
             renderSituationBankDetail_(getSituationBankRowByIndex_(situationsBankSelectedIndex));
@@ -634,25 +762,95 @@ function refreshSituationsBank() {
     });
 }
 
+function bindSituationsBankSearchToggle_() {
+    var toggle = document.getElementById("sb-search-toggle");
+    var panel = document.getElementById("sb-search-panel");
+    if (!toggle || !panel) return;
+    toggle.addEventListener("click", function () {
+        panel.classList.toggle("sb-hidden");
+        if (!panel.classList.contains("sb-hidden")) {
+            var input = document.getElementById("situations-bank-search");
+            if (input) input.focus();
+        }
+    });
+}
+
 function initSituationsBankPage_() {
     if (!isSituationsBankStandalonePage_()) return;
 
+    ensureSituationsBankFromQuery_();
+    applySituationsBankHomeLinks_();
+    bindSituationsBankSearchToggle_();
     initSituationsBankSwipe_();
+    initSituationsBankLayoutWatch_();
 
     window.addEventListener("popstate", function () {
+        if (isSituationsBankDesktop_()) {
+            if (!location.hash) {
+                situationsBankSelectedIndex = -1;
+                renderSituationsBankList_();
+                renderSituationBankDetail_(null);
+            }
+            return;
+        }
         if (document.getElementById("sb-screen-detail").classList.contains("sb-hidden")) return;
         situationsBankPageBack_();
     });
 
-    fetchSituationsBank_(false).then(function () {
+    loadSituationsBankAndPlays_(false).then(function () {
         renderSituationsBankList_();
-        var hash = location.hash.replace(/^#/, "");
-        if (hash && !isNaN(parseInt(hash, 10))) {
-            selectSituationBankRow_(parseInt(hash, 10));
+        applySituationsBankLayout_();
+        openSituationFromLocation_();
+        if (isSituationsBankDesktop_() && situationsBankSelectedIndex < 0) {
+            renderSituationBankDetail_(null);
         }
     }).catch(function () {
         renderSituationsBankList_();
+        applySituationsBankLayout_();
     });
+}
+
+function findSituationBankRowByCode_(code) {
+    code = String(code || "").trim();
+    if (!code) return null;
+    var lower = code.toLowerCase();
+    var i;
+    var row;
+    for (i = 0; i < situationsBankRows.length; i++) {
+        row = situationsBankRows[i];
+        if (String(row.code || "").trim() === code) return row;
+    }
+    for (i = 0; i < situationsBankRows.length; i++) {
+        row = situationsBankRows[i];
+        if (String(row.code || "").trim().toLowerCase() === lower) return row;
+    }
+    return null;
+}
+
+function openSituationFromLocation_() {
+    var code = "";
+    try {
+        var params = new URLSearchParams(location.search);
+        code = params.get("code") || params.get("c") || "";
+    } catch (e) {}
+    if (code) {
+        try { code = decodeURIComponent(code); } catch (e2) {}
+        var byCode = findSituationBankRowByCode_(code);
+        if (byCode) {
+            selectSituationBankRow_(byCode.index, { replaceHistory: true });
+            return;
+        }
+    }
+    var hash = location.hash.replace(/^#/, "");
+    if (!hash) return;
+    var decoded = hash;
+    try { decoded = decodeURIComponent(hash); } catch (e3) {}
+    if (/^\d+$/.test(decoded)) {
+        selectSituationBankRow_(parseInt(decoded, 10));
+        return;
+    }
+    var byHash = findSituationBankRowByCode_(decoded);
+    if (byHash) selectSituationBankRow_(byHash.index, { replaceHistory: true });
 }
 
 function openSituationsBankModal() {
