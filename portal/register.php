@@ -135,7 +135,7 @@ $navItems = portal_nav_items($bankUrl, $timerUrl);
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?php echo $nye ? 'Регистрация на НГ' : 'Регистрация'; ?></title>
     <link rel="icon" href="assets/favicon.png">
-    <link rel="stylesheet" href="css/portal.css?v=72">
+    <link rel="stylesheet" href="css/portal.css?v=73">
 </head>
 <body class="page-register<?php echo $me ? '' : ' is-guest'; ?>">
 <?php portal_icon_sprite(); ?>

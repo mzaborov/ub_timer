@@ -862,7 +862,7 @@ main {
   border: 0;
   border-radius: 50%;
   background: var(--orange);
-  color: #fff;
+  color: #fff !important;
   font-size: 0.72em;
   font-weight: 700;
   font-style: italic;
@@ -876,7 +876,7 @@ main {
 .tip-ico:hover,
 .tip-ico:focus {
   background: #bf360c;
-  color: #fff;
+  color: #fff !important;
   outline: none;
 }
 .card h1 .tip-ico {
@@ -886,9 +886,15 @@ main {
   font-size: 0.58em;
   vertical-align: 0.12em;
 }
-.stats-rivals .tip-ico {
+.stats-rivals .tip-ico,
+.stats-rivals .rival--win .tip-ico,
+.stats-rivals .rival--lose .tip-ico,
+.stats-rivals .rival--even .tip-ico,
+.win .tip-ico,
+.loss .tip-ico,
+.lose .tip-ico {
   margin-left: 0.18em;
-  color: #fff;
+  color: #fff !important;
 }
 .rating-card,
 .stats-card { overflow: visible; }
