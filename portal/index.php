@@ -95,7 +95,7 @@ $bodyPage = $page === '' ? 'hub' : $page;
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Стрим управленческих навыков</title>
     <link rel="icon" href="assets/favicon.png">
-    <link rel="stylesheet" href="css/portal.css?v=72">
+    <link rel="stylesheet" href="css/portal.css?v=73">
 </head>
 <body class="page-<?php echo h($bodyPage); ?><?php echo $me ? '' : ' is-guest'; ?>">
 <?php portal_icon_sprite(); ?>
