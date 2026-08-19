@@ -1,6 +1,10 @@
 DirectoryIndex index.php
 AddDefaultCharset utf-8
 
+<IfModule mod_headers.c>
+Header set X-Robots-Tag "noindex, nofollow"
+</IfModule>
+
 <IfModule mod_rewrite.c>
 RewriteEngine On
 RewriteRule ^z/([0-9]+)/?$ z.php?e=$1 [L,QSA]

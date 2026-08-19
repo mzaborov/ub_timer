@@ -41,7 +41,7 @@ if (-not $hostFtp -or -not $userFtp -or -not $passFtp) {
 if (-not $remoteDir) { $remoteDir = "timer.zaborov.ru/www" }
 
 # Исключения из выкладки: из env или значения по умолчанию
-$defaultExcludeRoots = '.git', 'secrets.env', 'scripts', '.gitignore', '.cursor', 'node_modules', 'History.log', '.vscode', 'git_hint.txt', 'Таблицы для онлайнов', 'docs', '_tmp_rating_sheets', 'portal'
+$defaultExcludeRoots = '.git', 'secrets.env', 'scripts', '.gitignore', '.cursor', 'node_modules', 'History.log', '.vscode', 'git_hint.txt', 'Таблицы для онлайнов', 'docs', '_tmp_rating_sheets', 'portal', 'ciocdo'
 $defaultExcludeFiles = 'secrets.env', 'secrets.env.example', '.gitignore', 'History.log', 'git_hint.txt', 'Макет часов.vsdx', 'Онлайн я-ИТ-ы №24.xlsx'
 # Файлы с расширением .xlsx не выкладываем (данные/примеры расписаний; на сервере пользователи загружают свои)
 $excludeRoot = if ($env:DEPLOY_EXCLUDE_ROOTS) { $env:DEPLOY_EXCLUDE_ROOTS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' } } else { $defaultExcludeRoots }

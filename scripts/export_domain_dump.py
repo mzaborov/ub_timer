@@ -7,6 +7,8 @@
 SID: GOOGLE_SHEETS_SID в secrets.env или окружении
      (иначе публичный id таблицы я-ИТ-ы).
 Баллы: BALLS_XLSX_DIR, иначе типичный путь Яндекс.Диска, если он есть.
+Регистрации: из живой MySQL (meeting_registrations), не [].
+  Если MySQL недоступен — существующий регистрации.json не затираем.
 """
 from __future__ import annotations
 
@@ -16,6 +18,9 @@ import json
 import os
 import re
 import sys
+import time
+import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 import xml.etree.ElementTree as ET
@@ -115,6 +120,108 @@ def fetch_csv(sid: str, gid: str) -> list[list[str]]:
     url = f"https://docs.google.com/spreadsheets/d/{sid}/export?format=csv&gid={gid}"
     text = fetch_text(url)
     return list(csv.reader(io.StringIO(text)))
+
+
+def fetch_xlsx(sid: str) -> bytes:
+    url = f"https://docs.google.com/spreadsheets/d/{sid}/export?format=xlsx"
+    return fetch_bytes(url, timeout=180)
+
+
+def _xlsx_shared_strings(z: zipfile.ZipFile) -> list[str]:
+    if "xl/sharedStrings.xml" not in z.namelist():
+        return []
+    root = ET.fromstring(z.read("xl/sharedStrings.xml"))
+    out: list[str] = []
+    for si in root.findall("m:si", NS_XLSX):
+        out.append("".join(t.text or "" for t in si.findall(".//m:t", NS_XLSX)))
+    return out
+
+
+def _xlsx_sheet_path(z: zipfile.ZipFile, sheet_name: str) -> str | None:
+    wb = ET.fromstring(z.read("xl/workbook.xml"))
+    rels = ET.fromstring(z.read("xl/_rels/workbook.xml.rels"))
+    rid_to = {rel.get("Id"): rel.get("Target") for rel in rels}
+    rattr = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+    for sh in wb.findall("m:sheets/m:sheet", NS_XLSX):
+        if sh.get("name") != sheet_name:
+            continue
+        target = (rid_to.get(sh.get(rattr)) or "").lstrip("/")
+        if target and not target.startswith("xl/"):
+            target = "xl/" + target
+        return target or None
+    return None
+
+
+def _cell_ref_row_col(ref: str) -> tuple[int, int] | None:
+    m = re.match(r"^([A-Z]+)(\d+)$", (ref or "").upper())
+    if not m:
+        return None
+    return int(m.group(2)), col_letter_to_idx(m.group(1))
+
+
+def parse_bank_review_urls(xlsx_bytes: bytes) -> dict[str, str]:
+    """Код ситуации → URL колонки «Разбор ситуации» (гиперссылка xlsx, CSV её теряет)."""
+    z = zipfile.ZipFile(io.BytesIO(xlsx_bytes))
+    sheet_path = _xlsx_sheet_path(z, "Ситуации")
+    if not sheet_path or sheet_path not in z.namelist():
+        return {}
+    shared = _xlsx_shared_strings(z)
+    root = ET.fromstring(z.read(sheet_path))
+    values: dict[tuple[int, int], str] = {}
+    formula_url: dict[tuple[int, int], str] = {}
+    for c in root.findall(".//m:c", NS_XLSX):
+        rc = _cell_ref_row_col(c.get("r") or "")
+        if not rc:
+            continue
+        t = c.get("t")
+        v_el = c.find("m:v", NS_XLSX)
+        is_el = c.find("m:is", NS_XLSX)
+        text = ""
+        if t == "s" and v_el is not None and v_el.text:
+            try:
+                text = shared[int(v_el.text)]
+            except (ValueError, IndexError):
+                text = ""
+        elif t == "inlineStr" and is_el is not None:
+            text = "".join(x.text or "" for x in is_el.findall(".//m:t", NS_XLSX))
+        elif v_el is not None:
+            text = v_el.text or ""
+        values[rc] = collapse_ws(text)
+        f_el = c.find("m:f", NS_XLSX)
+        ftxt = (f_el.text or "") if f_el is not None else ""
+        if "HYPERLINK" in ftxt.upper():
+            m = re.search(r'HYPERLINK\s*\(\s*"([^"]+)"', ftxt, re.I)
+            if m:
+                formula_url[rc] = m.group(1).strip()
+
+    headers = {c: (values.get((1, c)) or "").lower() for r, c in values if r == 1}
+    code_col = next((c for c, h in headers.items() if h in ("код", "code")), 0)
+    review_col = next((c for c, h in headers.items() if "разбор" in h), 9)
+
+    href_by_rc: dict[tuple[int, int], str] = dict(formula_url)
+    rels_path = str(Path(sheet_path).parent / "_rels" / (Path(sheet_path).name + ".rels")).replace(
+        "\\", "/"
+    )
+    if rels_path in z.namelist():
+        rels = ET.fromstring(z.read(rels_path))
+        rid_url = {rel.get("Id"): rel.get("Target") for rel in rels}
+        rattr = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+        for hl in root.findall(".//m:hyperlink", NS_XLSX):
+            rc = _cell_ref_row_col(hl.get("ref") or "")
+            if not rc:
+                continue
+            url = (rid_url.get(hl.get(rattr)) or hl.get("location") or "").strip()
+            if url.startswith("http"):
+                href_by_rc[rc] = url
+
+    out: dict[str, str] = {}
+    for rc, url in href_by_rc.items():
+        if rc[1] != review_col or not url.startswith("http"):
+            continue
+        code = values.get((rc[0], code_col), "")
+        if code:
+            out[code] = url
+    return out
 
 
 def cell(matrix: list[list[str]], row: int, col: int) -> str:
@@ -853,6 +960,142 @@ def is_drive_url(url: str) -> bool:
     return "drive.google.com" in u or "docs.google.com/file" in u
 
 
+def google_file_id(url: str) -> str | None:
+    """id файла Drive / документа Google из публичной ссылки."""
+    u = url or ""
+    m = re.search(r"drive\.google\.com/file/d/([^/?#]+)", u, re.I)
+    if m:
+        return m.group(1)
+    m = re.search(
+        r"docs\.google\.com/(?:spreadsheets|document|presentation|file)/d/([^/?#]+)",
+        u,
+        re.I,
+    )
+    if m:
+        return m.group(1)
+    m = re.search(r"[?&]id=([A-Za-z0-9_-]{20,})", u)
+    if m:
+        return m.group(1)
+    return None
+
+
+# Публичный ключ вьюера Drive (лежит в HTML file/d/…/view). Не секрет проекта.
+_DRIVE_VIEWER_KEY = "AIzaSyC1eQ1xj69IdTMeii5r7brs3R90eck-m7k"
+_DRIVE_CREATED_CACHE: dict[str, str | None] = {}
+_DRIVE_API_KEYS: list[str] | None = None
+
+
+def _drive_api_keys(fid: str) -> list[str]:
+    global _DRIVE_API_KEYS
+    if _DRIVE_API_KEYS is not None:
+        return _DRIVE_API_KEYS
+    keys = [_DRIVE_VIEWER_KEY]
+    try:
+        html = fetch_text(f"https://drive.google.com/file/d/{fid}/view", timeout=40)
+        for k in re.findall(r"AIza[0-9A-Za-z_-]{30,}", html):
+            if k not in keys:
+                keys.append(k)
+    except Exception:
+        pass
+    _DRIVE_API_KEYS = keys
+    return keys
+
+
+def _drive_created_uncached(fid: str) -> str | None:
+    """Календарный день createdTime (UTC), не modifiedTime."""
+    params = urllib.parse.urlencode(
+        {
+            "fields": "createdTime",
+            "supportsAllDrives": "true",
+        }
+    )
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Referer": f"https://drive.google.com/file/d/{fid}/view",
+        "Origin": "https://drive.google.com",
+        "Accept": "application/json",
+    }
+    last_quota = False
+    for key in _drive_api_keys(fid):
+        url = (
+            f"https://www.googleapis.com/drive/v3/files/{fid}?{params}"
+            f"&key={urllib.parse.quote(key)}"
+        )
+        req = urllib.request.Request(url, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                data = json.loads(r.read().decode("utf-8", "replace"))
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", "replace")
+            if e.code == 403 and "rateLimitExceeded" in body:
+                last_quota = True
+                continue
+            continue
+        except Exception:
+            continue
+        raw = (data.get("createdTime") or "").strip()
+        m = re.match(r"(\d{4}-\d{2}-\d{2})", raw)
+        if m:
+            return m.group(1)
+    if last_quota:
+        time.sleep(2)
+        try:
+            url = (
+                f"https://www.googleapis.com/drive/v3/files/{fid}?{params}"
+                f"&key={urllib.parse.quote(_DRIVE_VIEWER_KEY)}"
+            )
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=30) as r:
+                data = json.loads(r.read().decode("utf-8", "replace"))
+            raw = (data.get("createdTime") or "").strip()
+            m = re.match(r"(\d{4}-\d{2}-\d{2})", raw)
+            if m:
+                return m.group(1)
+        except Exception:
+            return None
+    return None
+
+
+def drive_created_day(url: str) -> str | None:
+    fid = google_file_id(url)
+    if not fid:
+        return None
+    if fid in _DRIVE_CREATED_CACHE:
+        return _DRIVE_CREATED_CACHE[fid]
+    iso = _drive_created_uncached(fid)
+    _DRIVE_CREATED_CACHE[fid] = iso
+    return iso
+
+
+def load_existing_review_dates() -> dict[str, str]:
+    """Чтобы повторный экспорт не затирал даты разборов, если Drive API недоступен."""
+    path = OUT_DIR / "видео.json"
+    out: dict[str, str] = {}
+    if not path.is_file():
+        return out
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return out
+    if not isinstance(data, list):
+        return out
+    for rec in data:
+        if not isinstance(rec, dict) or rec.get("тип") != "Разбор":
+            continue
+        iso = rec.get("дата")
+        url = rec.get("ссылка") or ""
+        if not iso or not url:
+            continue
+        out[url] = iso
+        fid = google_file_id(url)
+        if fid:
+            out["gid:" + fid] = iso
+    return out
+
+
 def title_matches_event_date(title: str, ev_date: date | None) -> bool:
     if not ev_date:
         return False
@@ -1118,6 +1361,43 @@ def org_roles_for_event(
 def write_json(name: str, data) -> None:
     path = OUT_DIR / name
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def pull_live_registrations() -> list | None:
+    """Живые заявки портала из MySQL. None — не прочитали, файл не трогать."""
+    scripts_dir = str(REPO / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    try:
+        from load_domain_mysql import export_registrations_from_mysql, load_env
+    except Exception as e:
+        print(f"  регистрации: нет загрузчика ({e})")
+        return None
+    try:
+        return export_registrations_from_mysql(load_env())
+    except Exception as e:
+        print(f"  регистрации: MySQL/FTP ({e})")
+        return None
+
+
+def write_registrations(rows: list | None) -> int:
+    """Пишет регистрации.json из MySQL. Если не прочитали — не затирает существующий файл."""
+    path = OUT_DIR / "регистрации.json"
+    if rows is not None:
+        write_json("регистрации.json", rows)
+        print(f"  регистрации: {len(rows)} из MySQL")
+        return len(rows)
+    if path.is_file():
+        try:
+            cur = json.loads(path.read_text(encoding="utf-8"))
+            n = len(cur) if isinstance(cur, list) else 0
+        except (OSError, json.JSONDecodeError):
+            n = 0
+        print(f"  регистрации: MySQL не прочитан, файл не трогаем (сейчас {n})")
+        return n
+    write_json("регистрации.json", [])
+    print("  регистрации: нет MySQL и нет файла — записан []")
+    return 0
 
 
 WALL_OVERLAY = OUT_DIR / "стена_календарь.json"
@@ -1445,7 +1725,7 @@ def main() -> int:
                     "игрок2Id": p2id,
                     "секундантИлиВторойИгрок2Id": s2id,
                     "количествоСудей": len(judge_recs),
-                    "заметки": None,
+                    "заметки": sname if (ev_type == "турнир" and sit_id is None and sname) else None,
                     "_googleCol": col["col"],
                     "_meeting": name,
                 }
@@ -1516,6 +1796,45 @@ def main() -> int:
 
     # Overlay data/protocols/*.json не делаем (OCR «Лисовик» и т.п.; истина — сетка Google).
 
+    review_urls: dict[str, str] = {}
+    try:
+        print("xlsx банк (разборы)…")
+        review_urls = parse_bank_review_urls(fetch_xlsx(sid))
+        print(f"  разборов: {len(review_urls)}")
+    except Exception as e:
+        report["warnings"].append(f"xlsx банк разборы: {e}")
+    existing_review_dates = load_existing_review_dates()
+    n_drive_dates = 0
+    for sit in situations:
+        url = review_urls.get(sit["код"] or "") or review_urls.get(str(sit.get("номер") or ""))
+        if not url:
+            continue
+        # Колонка J без даты: день загрузки на Drive (createdTime). Нет API — не затираем старое.
+        iso = drive_created_day(url)
+        if iso:
+            n_drive_dates += 1
+        else:
+            iso = existing_review_dates.get(url)
+            if not iso:
+                fid = google_file_id(url)
+                if fid:
+                    iso = existing_review_dates.get("gid:" + fid)
+        video_id += 1
+        videos_out.append(
+            {
+                "id": video_id,
+                "мероприятиеId": None,
+                "поединокId": None,
+                "ситуацияId": sit["id"],
+                "ссылка": url,
+                "дата": iso,
+                "название": "Разбор",
+                "тип": "Разбор",
+            }
+        )
+    if n_drive_dates:
+        print(f"  дат Drive createdTime: {n_drive_dates}")
+
     judge_id = fill_unknown_votes_from_facts(
         duels_out, events, judges_out, facts, people, judge_id, report
     )
@@ -1536,7 +1855,7 @@ def main() -> int:
     write_json("поединки.json", duels_out)
     write_json("судьи.json", judges_out)
     write_json("участияВОрганизации.json", orgs_out)
-    write_json("регистрации.json", [])
+    n_regs = write_registrations(pull_live_registrations())
     write_json("видео.json", videos_out)
     # Круги не из Google — не затирать ручную разметку.
     for curated in ("круги.json", "членстваВКруге.json"):
@@ -1570,7 +1889,7 @@ def main() -> int:
         f"| из них без человека (коллегия неизвестна) | {sum(1 for j in judges_out if j.get('коллегия') == COLLEGE_UNKNOWN)} |",
         f"| УчастиеВОрганизации | {len(orgs_out)} |",
         f"| Видео | {len(videos_out)} |",
-        f"| Регистрация | 0 (формы пока без OAuth) |",
+        f"| Регистрация | {n_regs} (живая MySQL, не Google) |",
         f"| Круг / членство / наблюдатель / протокол / журнал | 0 |",
         "",
         "## 00 / 00Э",
@@ -1628,7 +1947,7 @@ def main() -> int:
         "",
         "## Дыры v1",
         "",
-        "- регистрации с Google Forms не выгружены (нужен доступ к ответам);",
+        "- регистрации: из живой MySQL (портал); Google Forms по-прежнему не читаем;",
         "- «протоколы игр» vs gid состава: выгрузка идёт с gid `1172864695` (полная сетка + факты);",
         "- размер файла на Диске не сравнивался (берётся не-клип, предпочтение .mp4);",
         "- рейтинг «по алфавиту» не пересчитан.",

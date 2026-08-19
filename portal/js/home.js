@@ -39,6 +39,10 @@
         return t === "купала" || t === "новогоднее";
     }
 
+    function isTournament(t) {
+        return t === "турнир";
+    }
+
     function isPlanned(s) {
         return s === "Запланировано" || s === "Подготовка";
     }
@@ -87,6 +91,7 @@
                             cls.push("special");
                             cls.push("offline");
                         }
+                        if (evs.some(function (e) { return isTournament(e.type); })) cls.push("tournament");
                         if (evs.some(function (e) { return e.type === "онлайн"; })) cls.push("online");
                         if (evs.some(function (e) { return isPlanned(e.status); })) cls.push("planned");
                         if (evs.every(function (e) { return isCancelled(e.status); })) cls.push("cancelled");
@@ -132,7 +137,27 @@
         return (evs || []).some(function (e) { return isLiveEvent(e, iso); });
     }
 
+    function queryMeetingIso() {
+        var params;
+        try { params = new URLSearchParams(window.location.search); } catch (e) { return ""; }
+        var iso = String(params.get("iso") || "").trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(iso) && byDay[iso] && byDay[iso].length) return iso;
+        var eid = parseInt(params.get("event") || "0", 10);
+        if (!(eid > 0)) return "";
+        var found = "";
+        events.forEach(function (ev) {
+            if ((ev.id | 0) !== eid) return;
+            var from = (ev.start || "").slice(0, 10);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(from) && byDay[from] && byDay[from].length) {
+                found = from;
+            }
+        });
+        return found;
+    }
+
     function defaultMeetingIso() {
+        var fromQuery = queryMeetingIso();
+        if (fromQuery) return fromQuery;
         var today = todayIso();
         var todayEvs = byDay[today] || [];
         if (todayEvs.some(function (e) { return isPlanned(e.status); })) {
@@ -369,6 +394,10 @@
             html += esc(label);
         }
         if (withVideo) html += videoLink(d.video);
+        var rev = String(d.review || "").trim();
+        if (withVideo && /^https?:\/\//i.test(rev) && rev !== String(d.video || "").trim()) {
+            html += videoLink(rev, "", d.review_label || "разбор");
+        }
         html += "</span></td>";
         return html;
     }
@@ -1057,6 +1086,7 @@
 
     function monthDotKind(year, month) {
         var special = false;
+        var tourney = false;
         var has = false;
         var dim = new Date(year, month + 1, 0).getDate();
         var d;
@@ -1065,9 +1095,12 @@
             if (!evs || !evs.length) continue;
             has = true;
             if (evs.some(function (e) { return isSpecial(e.type); })) special = true;
+            if (evs.some(function (e) { return isTournament(e.type); })) tourney = true;
         }
         if (!has) return "";
-        return special ? "special" : "online";
+        if (special) return "special";
+        if (tourney) return "tournament";
+        return "online";
     }
 
     function lastMonthWithEvents(year) {
@@ -1079,6 +1112,11 @@
     }
 
     function initView() {
+        var qIso = queryMeetingIso();
+        if (qIso) {
+            var qp = qIso.split("-");
+            return { y: Number(qp[0]), m: Number(qp[1]) - 1 };
+        }
         var now = new Date();
         var cy = now.getFullYear();
         var cm = now.getMonth();

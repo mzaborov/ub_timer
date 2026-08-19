@@ -2,10 +2,13 @@
 -- Канон: docs/планы/05_доменная_модель.yaml
 -- Имена таблиц — черновик плана 05; статусы/типы — значения домена (не visibility).
 -- Нет UNIQUE(ФИО), нет UNIQUE(код ситуации).
+-- ТОЛЬКО первая установка / пустая БД / load_domain_mysql.py --fresh.
+-- Обычная заливка схема не гоняет: DROP TABLE здесь уничтожит живые заявки.
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
+DROP TABLE IF EXISTS material_docs;
 DROP TABLE IF EXISTS protocol_events;
 DROP TABLE IF EXISTS duel_change_log;
 DROP TABLE IF EXISTS videos;
@@ -158,17 +161,20 @@ CREATE TABLE duel_judges (
 
 CREATE TABLE videos (
   id INT NOT NULL AUTO_INCREMENT,
-  event_id INT NOT NULL,
+  event_id INT NULL,
   duel_id INT NULL,
+  situation_id INT NULL,
   url VARCHAR(1024) NOT NULL,
   video_date DATE NULL,
   title VARCHAR(255) NULL,
-  video_type VARCHAR(32) NULL COMMENT 'ДеньЦеликом|Поединок',
+  video_type VARCHAR(32) NULL COMMENT 'ДеньЦеликом|Поединок|Разбор',
   PRIMARY KEY (id),
   KEY idx_vid_event (event_id),
   KEY idx_vid_duel (duel_id),
+  KEY idx_vid_sit (situation_id),
   CONSTRAINT fk_vid_event FOREIGN KEY (event_id) REFERENCES events (id),
-  CONSTRAINT fk_vid_duel FOREIGN KEY (duel_id) REFERENCES duels (id)
+  CONSTRAINT fk_vid_duel FOREIGN KEY (duel_id) REFERENCES duels (id),
+  CONSTRAINT fk_vid_sit FOREIGN KEY (situation_id) REFERENCES situations (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE protocol_events (
@@ -195,6 +201,19 @@ CREATE TABLE duel_change_log (
   KEY idx_dcl_duel (duel_id),
   CONSTRAINT fk_dcl_duel FOREIGN KEY (duel_id) REFERENCES duels (id),
   CONSTRAINT fk_dcl_author FOREIGN KEY (author_id) REFERENCES people (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE material_docs (
+  id INT NOT NULL AUTO_INCREMENT,
+  title VARCHAR(255) NOT NULL,
+  slug VARCHAR(191) NOT NULL,
+  body_md MEDIUMTEXT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  is_visible TINYINT(1) NOT NULL DEFAULT 1,
+  updated_at DATETIME NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_mat_slug (slug),
+  KEY idx_mat_sort (sort_order, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SET FOREIGN_KEY_CHECKS = 1;
