@@ -1,0 +1,197 @@
+.org-badge {
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: #fff;
+  color: var(--orange);
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.org-work-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.7rem;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+  background: #fff;
+  color: #1a1a1a;
+  font-weight: 600;
+  font-size: 0.92rem;
+  text-decoration: none;
+}
+.org-work-link:hover,
+.org-work-link:visited { color: #1a1a1a; }
+
+/* Гамма орга: графит + бирюза прошедшего онлайна. Не трогает p= без org. */
+body.page-org {
+  --org: #00897b;
+  --org-dark: #00695c;
+  --org-soft: #e0f2f1;
+  --org-mid: #b2dfdb;
+  --org-edge: #80cbc4;
+  --graphite: #37474f;
+  --org-bg: #eceff1;
+  --orange: #00897b;
+  --orange-soft: #e0f2f1;
+  background: var(--org-bg);
+  color: #263238;
+}
+body.page-org a { color: var(--org-dark); }
+body.page-org a:hover { color: var(--org); }
+
+.org-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.28rem 0.9rem;
+  background: var(--graphite);
+  color: #eceff1;
+}
+.org-crumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.15rem;
+  min-width: 0;
+}
+.org-crumbs > * + *::before {
+  content: "·";
+  margin: 0 0.55rem 0 0.4rem;
+  color: #80cbc4;
+  font-weight: 400;
+}
+.org-to-members,
+.org-crumb {
+  color: #b2dfdb;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.org-to-members:hover,
+.org-to-members:visited,
+.org-crumb:hover,
+.org-crumb:visited { color: #e0f2f1; }
+.org-crumb-now {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #fff;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.org-crumb-now .ico { color: #80cbc4; }
+.org-who {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+  margin-left: auto;
+  font-size: 0.88rem;
+}
+.org-who-name { font-weight: 700; }
+.org-who-role { opacity: 0.82; }
+.org-who form { margin: 0; }
+.org-who .btn-ghost {
+  min-height: 1.55rem;
+  font-size: 0.82rem;
+  padding: 0.1rem 0.5rem;
+}
+
+.org-main {
+  width: min(48rem, calc(100% - 1.6rem));
+  margin: 1rem auto 2rem;
+}
+.org-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.9rem;
+  font-size: 1.25rem;
+  color: var(--org);
+}
+.org-hub {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+}
+.org-hub .hub-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 6.6rem;
+  padding: 0.85rem 0.45rem;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  text-decoration: none;
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-align: center;
+  line-height: 1.25;
+}
+.org-hub .hub-item:hover,
+.org-hub .hub-item:visited { color: var(--text); }
+.org-hub .hub-ico .ico {
+  width: 2.35rem;
+  height: 2.35rem;
+  color: var(--org);
+  vertical-align: 0;
+}
+.org-hub-actions { margin-top: 1rem; }
+.org-back-wrap { margin: 0 0 0.75rem; }
+.org-back {
+  color: var(--org);
+  font-weight: 700;
+  text-decoration: none;
+}
+.org-back:hover { text-decoration: underline; color: var(--org-dark); }
+.org-stub h1 {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+body.page-org .org-work-link {
+  background: var(--org);
+  color: #fff;
+  border-color: var(--org-dark);
+}
+body.page-org .org-work-link:hover,
+body.page-org .org-work-link:visited { color: #fff; }
+
+/* Банк ситуаций: бирюза орга, не --sb-orange таймера. */
+body.page-org-situations .sb-app.sb-org {
+  --sb-orange: var(--org);
+  --sb-orange-dark: var(--org-dark);
+  --sb-row-hover: var(--org-soft);
+  --sb-soft: var(--org-soft);
+  --sb-soft-mid: var(--org-mid);
+  --sb-soft-border: var(--org-edge);
+}
+body.page-org-situations .fa-solid,
+body.page-org-situations .fas {
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  font-style: normal;
+  line-height: 1;
+}
+body.page-org-situations {
+  overflow: hidden;
+  height: 100%;
+  height: 100dvh;
+}
+body.page-org-situations main {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}

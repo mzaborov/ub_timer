@@ -1,0 +1,97 @@
+body.page-org-materials main {
+  width: min(78rem, calc(100% - 1.4rem));
+  margin: 0.6rem auto 2rem;
+}
+.org-mat-ok {
+  color: var(--org, #00897b);
+  font-weight: 700;
+  align-self: center;
+}
+.org-mat-err {
+  color: #b42318;
+  font-weight: 700;
+  margin: 0 0 0.5rem;
+}
+.org-mat-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0 0 0.55rem;
+  font-weight: 650;
+  font-size: 0.9rem;
+}
+.org-mat-form input[type="text"],
+.org-mat-form textarea {
+  font: inherit;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line, #ddd);
+  border-radius: 6px;
+}
+.org-mat-form textarea {
+  min-height: 22rem;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  resize: vertical;
+}
+.org-mat-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  min-height: 18rem;
+}
+.org-mat-preview-lab { margin-bottom: 0.25rem; }
+.org-mat-preview {
+  border: 1px solid var(--line, #ddd);
+  border-radius: 6px;
+  padding: 0.45rem 0.6rem 0.5rem;
+  overflow: auto;
+  background: #fff;
+  min-height: 22rem;
+  line-height: 1.5;
+}
+/* Как .mat-card на главной: оранжевые ##, не бирюза page-org. */
+.org-mat-preview.mat-card {
+  --orange: #e65100;
+  --orange-soft: #fff3e0;
+  display: block;
+}
+.org-mat-preview.mat-card h1 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.35rem;
+  font-size: 1.15rem;
+}
+.org-mat-preview.mat-card h1 .ico {
+  color: var(--orange);
+  width: 1.15em;
+  height: 1.15em;
+  flex-shrink: 0;
+}
+.org-mat-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+.org-mat-actions button {
+  font: inherit;
+  font-weight: 700;
+  padding: 0.35rem 0.85rem;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid var(--line, #ccc);
+  background: #fff;
+}
+.org-mat-actions .is-pri {
+  background: var(--org, #00897b);
+  color: #fff;
+  border-color: var(--org-dark, #00695c);
+}
+.org-mat-actions .is-pri:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+@media (max-width: 800px) {
+  .org-mat-split { grid-template-columns: 1fr; }
+}

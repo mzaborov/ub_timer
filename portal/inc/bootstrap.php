@@ -1,6 +1,10 @@
 <?php
 declare(strict_types=1);
 
+if (!headers_sent()) {
+    header('X-Robots-Tag: noindex, nofollow');
+}
+
 error_reporting(E_ALL);
 ini_set('display_errors', '0');
 date_default_timezone_set('Europe/Moscow');
@@ -27,8 +31,13 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 }
 
 const STREAM_CIRCLE = 'Стрим поединки я-ИТ-ы';
+const FUB_CIRCLE = 'ФУБ';
+const PARTNERS_CIRCLE = 'Партнеры';
+const COMMUNITY_CIRCLE = 'я-ИТ-ы';
 const ORG_ROLES = ['Организатор', 'Куратор'];
 const COOKIE_ME = 'ub_me';
+const COOKIE_ORG = 'ub_org';
+const COOKIE_TTL = 86400 * 400;
 
 function h(?string $s): string
 {
@@ -46,28 +55,98 @@ function current_person_id(): int
     return 0;
 }
 
-function set_person_cookie(int $id): void
+/** Домен cookie ub_me: общий для портала и timer.zaborov.ru/points.php. */
+function portal_cookie_domain(): string
+{
+    $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+    $colon = strpos($host, ':');
+    if ($colon !== false) {
+        $host = substr($host, 0, $colon);
+    }
+    if ($host === 'zaborov.ru' || substr($host, -11) === '.zaborov.ru') {
+        return '.zaborov.ru';
+    }
+    return '';
+}
+
+function portal_cookie_opts(int $expires, bool $shareDomain = false): array
 {
     $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
-    setcookie(COOKIE_ME, (string)$id, [
-        'expires' => time() + 86400 * 400,
+    $opts = [
+        'expires' => $expires,
         'path' => '/',
         'secure' => $secure,
         'httponly' => true,
         'samesite' => 'Lax',
-    ]);
+    ];
+    if ($shareDomain) {
+        $domain = portal_cookie_domain();
+        if ($domain !== '') {
+            $opts['domain'] = $domain;
+        }
+    }
+    return $opts;
+}
+
+function set_person_cookie(int $id): void
+{
+    $opts = portal_cookie_opts(time() + COOKIE_TTL, true);
+    if (!empty($opts['domain'])) {
+        $hostOnly = $opts;
+        unset($hostOnly['domain']);
+        $hostOnly['expires'] = time() - 3600;
+        setcookie(COOKIE_ME, '', $hostOnly);
+    }
+    setcookie(COOKIE_ME, (string)$id, $opts);
 }
 
 function clear_person_cookie(): void
 {
-    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
-    setcookie(COOKIE_ME, '', [
-        'expires' => time() - 3600,
-        'path' => '/',
-        'secure' => $secure,
-        'httponly' => true,
-        'samesite' => 'Lax',
-    ]);
+    $past = portal_cookie_opts(time() - 3600, true);
+    setcookie(COOKIE_ME, '', $past);
+    if (!empty($past['domain'])) {
+        $hostOnly = $past;
+        unset($hostOnly['domain']);
+        setcookie(COOKIE_ME, '', $hostOnly);
+    }
+}
+
+function set_org_cookie(): void
+{
+    setcookie(COOKIE_ORG, '1', portal_cookie_opts(time() + COOKIE_TTL));
+}
+
+function clear_org_cookie(): void
+{
+    setcookie(COOKIE_ORG, '', portal_cookie_opts(time() - 3600));
+}
+
+function clear_org_mode(): void
+{
+    unset($_SESSION['org']);
+    clear_org_cookie();
+}
+
+/** Восстановить режим орга из сессии или cookie. Без роли — стереть. */
+function restore_org_session(bool $canOrg): bool
+{
+    if (!$canOrg) {
+        if (!empty($_SESSION['org']) || !empty($_COOKIE[COOKIE_ORG])) {
+            clear_org_mode();
+        }
+        return false;
+    }
+    if (!empty($_SESSION['org'])) {
+        if (empty($_COOKIE[COOKIE_ORG])) {
+            set_org_cookie();
+        }
+        return true;
+    }
+    if (!empty($_COOKIE[COOKIE_ORG]) && (string)$_COOKIE[COOKIE_ORG] === '1') {
+        $_SESSION['org'] = 1;
+        return true;
+    }
+    return false;
 }
 
 function load_person(mysqli $db, int $id): ?array

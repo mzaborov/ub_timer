@@ -675,8 +675,8 @@ function portal_name_or_empty(?string $name): string
     return $name !== '' ? $name : '';
 }
 
-/** Подпись ситуации как в сетке Google: код, иначе номер, иначе 00/00Э. */
-function portal_sit_label(?string $code, $num, string $prep, string $type): string
+/** Подпись ситуации как в сетке Google: код, иначе номер, иначе 00/00Э, иначе внешнее имя (турнир). */
+function portal_sit_label(?string $code, $num, string $prep, string $type, ?string $notes = null): string
 {
     $code = trim((string)$code);
     if ($code !== '') {
@@ -687,6 +687,10 @@ function portal_sit_label(?string $code, $num, string $prep, string $type): stri
     }
     if ($prep === 'случайный') {
         return $type === 'экспресс' ? '00Э' : '00';
+    }
+    $notes = trim((string)$notes);
+    if ($notes !== '') {
+        return $notes;
     }
     return '—';
 }
@@ -768,19 +772,22 @@ function portal_videos_for_events(mysqli $db, array $eventIds): array
     $eventIds = array_values(array_unique(array_filter(array_map('intval', $eventIds))));
     $eventUrls = [];
     $duelUrls = [];
+    $reviewUrls = [];
     if (!$eventIds) {
-        return ['events' => $eventUrls, 'duels' => $duelUrls];
+        return ['events' => $eventUrls, 'duels' => $duelUrls, 'reviews' => $reviewUrls];
     }
     $in = implode(',', $eventIds);
     try {
         $r = $db->query(
-            "SELECT event_id, duel_id, url, video_type
+            "SELECT event_id, duel_id, url, title, video_type
              FROM videos
-             WHERE event_id IN ($in)
+             WHERE event_id IN ($in) OR (video_type = 'Разбор' AND duel_id IN (
+                 SELECT id FROM duels WHERE event_id IN ($in)
+             ))
              ORDER BY id"
         );
     } catch (Throwable $e) {
-        return ['events' => $eventUrls, 'duels' => $duelUrls];
+        return ['events' => $eventUrls, 'duels' => $duelUrls, 'reviews' => $reviewUrls];
     }
     while ($row = $r->fetch_assoc()) {
         $url = portal_video_url($row['url'] ?? null);
@@ -790,6 +797,16 @@ function portal_videos_for_events(mysqli $db, array $eventIds): array
         $did = isset($row['duel_id']) && $row['duel_id'] !== null && $row['duel_id'] !== ''
             ? (int)$row['duel_id'] : 0;
         $type = (string)($row['video_type'] ?? '');
+        if ($type === 'Разбор') {
+            if ($did > 0 && !isset($reviewUrls[$did])) {
+                $label = 'разбор';
+                if (function_exists('sit_review_label')) {
+                    $label = sit_review_label($url, $row['title'] ?? null);
+                }
+                $reviewUrls[$did] = ['url' => $url, 'label' => $label];
+            }
+            continue;
+        }
         if ($did > 0) {
             if (!isset($duelUrls[$did])) {
                 $duelUrls[$did] = $url;
@@ -801,7 +818,7 @@ function portal_videos_for_events(mysqli $db, array $eventIds): array
             }
         }
     }
-    return ['events' => $eventUrls, 'duels' => $duelUrls];
+    return ['events' => $eventUrls, 'duels' => $duelUrls, 'reviews' => $reviewUrls];
 }
 
 function portal_sit_td(array $d, bool $withVideo = false): string
@@ -816,6 +833,11 @@ function portal_sit_td(array $d, bool $withVideo = false): string
     }
     if ($withVideo) {
         $html .= portal_video_link_html($d['video'] ?? null);
+        $rev = portal_video_url($d['review'] ?? null);
+        if ($rev !== '' && $rev !== portal_video_url($d['video'] ?? null)) {
+            $lab = trim((string)($d['review_label'] ?? 'разбор'));
+            $html .= portal_video_link_html($rev, '', $lab !== '' ? $lab : 'разбор');
+        }
     }
     $html .= '</span></td>';
     return $html;
@@ -1148,7 +1170,7 @@ function portal_duels_by_event(mysqli $db, array $eventIds): array
     $in = implode(',', $eventIds);
     $r = $db->query(
         "SELECT d.id, d.event_id, d.sort_order, d.duel_date, d.duel_type, d.prep_mode,
-                d.player1_id, d.second1_id, d.player2_id, d.second2_id,
+                d.situation_id, d.notes, d.player1_id, d.second1_id, d.player2_id, d.second2_id,
                 s.code AS sit_code, s.num AS sit_num,
                 p1.full_name AS p1_name, s1.full_name AS s1_name,
                 p2.full_name AS p2_name, s2.full_name AS s2_name
@@ -1167,7 +1189,13 @@ function portal_duels_by_event(mysqli $db, array $eventIds): array
         $did = (int)$row['id'];
         $type = (string)$row['duel_type'];
         $express = $type === 'экспресс';
-        $sit = portal_sit_label($row['sit_code'] ?? null, $row['sit_num'] ?? null, (string)$row['prep_mode'], $type);
+        $sit = portal_sit_label(
+            $row['sit_code'] ?? null,
+            $row['sit_num'] ?? null,
+            (string)$row['prep_mode'],
+            $type,
+            $row['notes'] ?? null
+        );
         $dd = (string)($row['duel_date'] ?? '');
         if ($dd === '0000-00-00') {
             $dd = '';
@@ -1179,6 +1207,8 @@ function portal_duels_by_event(mysqli $db, array $eventIds): array
             'type' => $type,
             'sit' => $sit,
             'sit_url' => portal_sit_bank_url($row['sit_code'] ?? null, $sit),
+            'situation_id' => (int)($row['situation_id'] ?? 0),
+            'notes' => trim((string)($row['notes'] ?? '')),
             'p1' => portal_name_or_empty($row['p1_name'] ?? null),
             's1' => $express ? '' : portal_name_or_empty($row['s1_name'] ?? null),
             'p1_id' => (int)($row['player1_id'] ?? 0),
@@ -1268,6 +1298,10 @@ function portal_events_for_calendar(mysqli $db): array
             $did = (int)$d['id'];
             if (!empty($vids['duels'][$did])) {
                 $d['video'] = $vids['duels'][$did];
+            }
+            if (!empty($vids['reviews'][$did])) {
+                $d['review'] = $vids['reviews'][$did]['url'];
+                $d['review_label'] = $vids['reviews'][$did]['label'];
             }
         }
         unset($d);
@@ -1489,7 +1523,7 @@ function portal_person_stats(mysqli $db, int $personId): ?array
 
     $st = $db->prepare(
         'SELECT d.id, d.player1_id, d.second1_id, d.player2_id, d.second2_id,
-                d.duel_date, d.prep_mode, d.duel_type,
+                d.duel_date, d.prep_mode, d.duel_type, d.notes,
                 e.title AS event_title, e.starts_on,
                 s.code AS sit_code, s.num AS sit_num,
                 p1.full_name AS p1_name, p2.full_name AS p2_name
@@ -1524,7 +1558,8 @@ function portal_person_stats(mysqli $db, int $personId): ?array
                 $d['sit_code'] ?? null,
                 $d['sit_num'] ?? null,
                 (string)($d['prep_mode'] ?? ''),
-                (string)($d['duel_type'] ?? '')
+                (string)($d['duel_type'] ?? ''),
+                $d['notes'] ?? null
             );
             $asPlayer[$did] = [
                 'side' => $side,

@@ -32,6 +32,7 @@ header('Content-Type: text/html; charset=utf-8');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Ссылка недоступна</title>
+    <meta name="robots" content="noindex, nofollow">
     <link rel="icon" href="assets/favicon.png">
     <link rel="stylesheet" href="css/portal.css?v=73">
 </head>

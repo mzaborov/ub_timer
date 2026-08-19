@@ -10,3 +10,5 @@ scripts/google-apps-script/.gas-token.json
 AccessKey.csv
 client_secret*.json
 _tmp*
+backups/
+ciocdo/

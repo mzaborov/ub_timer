@@ -2,7 +2,7 @@
 /**
  * HTML тултипа расшифровки рейтинга (PHP 5.2).
  * Слагаемые из rating_weights(); списки — из details, которые считает
- * rating_compute(). Страница rating.php и виджет портала только вызывают.
+ * rating_compute(). Страница points.php и виджет портала только вызывают.
  */
 
 function rating_esc($s) {

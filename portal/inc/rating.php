@@ -54,7 +54,7 @@ function portal_rating_rows(mysqli $db): array
     return $computed['rows'];
 }
 
-/** pid => HTML формулы (те же слагаемые, что на rating.php). */
+/** pid => HTML формулы (те же слагаемые, что на points.php). */
 function portal_rating_tips(array $items, array $fill): array
 {
     return rating_tooltip_pack(array_merge($items, $fill), []);

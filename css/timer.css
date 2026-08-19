@@ -1,4 +1,4 @@
-/* deploy-version: 97 */
+/* deploy-version: 114 */
 @keyframes pulse {
   0%  { opacity: 0;  transform: scale(0.2);}
   20% { opacity: 0.3; transform: scale(0.4);}
@@ -118,10 +118,6 @@ body {
 .the-button > span {
   padding-left: 10px;
   padding-right: 5px;
-}
-
-#community-duels-dropdown {
-  margin-right: 0.15rem;
 }
 
 /* Кубик случайной ситуации (слот 00 / 00Э) — рядом с выбором поединка */
@@ -628,6 +624,27 @@ body.dice-blink-active #Player2Label {
 }
 .situations-bank-description-html strong {
   font-weight: 700;
+  color: #0f766e;
+}
+.situations-bank-description-html em {
+  font-style: normal;
+  font-weight: 650;
+  color: #b42318;
+  background: #fff1f2;
+  padding: 0 0.12em;
+  border-radius: 2px;
+}
+#Duel_Text strong {
+  font-weight: 700;
+  color: #0f766e;
+}
+#Duel_Text em {
+  font-style: normal;
+  font-weight: 650;
+  color: #b42318;
+  background: #fff1f2;
+  padding: 0 0.12em;
+  border-radius: 2px;
 }
 .situations-bank-plain {
   white-space: pre-wrap;
