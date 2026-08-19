@@ -14,10 +14,14 @@ $loginNext = $regSelf !== '' ? $regSelf : ($eventId > 0 ? 'register.php?event=' 
 $meId = current_person_id();
 $me = $meId ? load_person($db, $meId) : null;
 if ($meId && !$me) {
-    unset($_SESSION['person_id'], $_SESSION['org']);
+    unset($_SESSION['person_id']);
+    clear_org_mode();
     clear_person_cookie();
     $meId = 0;
     $me = null;
+}
+if ($me) {
+    set_person_cookie($meId);
 }
 $people = $me ? [] : portal_people_list($db);
 
@@ -134,6 +138,7 @@ $navItems = portal_nav_items($bankUrl, $timerUrl);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?php echo $nye ? 'Регистрация на НГ' : 'Регистрация'; ?></title>
+    <meta name="robots" content="noindex, nofollow">
     <link rel="icon" href="assets/favicon.png">
     <link rel="stylesheet" href="css/portal.css?v=73">
 </head>
@@ -232,7 +237,7 @@ $navItems = portal_nav_items($bankUrl, $timerUrl);
 <?php } ?>
 <script src="js/menu.js?v=3"></script>
 <?php if (!$me) { ?>
-<script src="js/home.js?v=37"></script>
+<script src="js/home.js?v=39"></script>
 <?php } ?>
 </body>
 </html>

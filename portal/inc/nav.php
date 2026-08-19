@@ -3,7 +3,28 @@ declare(strict_types=1);
 
 function portal_norm_page(string $p): string
 {
-    return in_array($p, ['profile', 'events', 'stats', 'rating', 'materials'], true) ? $p : '';
+    return in_array($p, ['profile', 'events', 'stats', 'rating', 'materials', 'org'], true) ? $p : '';
+}
+
+function portal_org_section(string $s): string
+{
+    return in_array($s, ['people', 'situations', 'events', 'materials'], true) ? $s : '';
+}
+
+function portal_org_url(string $s = ''): string
+{
+    $s = portal_org_section($s);
+    return $s === '' ? './?p=org' : './?p=org&s=' . rawurlencode($s);
+}
+
+function portal_org_nav_items(): array
+{
+    return [
+        ['id' => 'people', 'org' => true, 'label' => 'Люди', 'icon' => 'user', 'href' => portal_org_url('people')],
+        ['id' => 'situations', 'org' => true, 'label' => 'Ситуации', 'icon' => 'book', 'href' => portal_org_url('situations')],
+        ['id' => 'events', 'org' => true, 'label' => 'Мероприятия', 'icon' => 'calendar', 'href' => portal_org_url('events')],
+        ['id' => 'materials', 'org' => true, 'label' => 'Материалы', 'icon' => 'folder', 'href' => portal_org_url('materials')],
+    ];
 }
 
 function portal_page_url(string $p): string
@@ -84,18 +105,39 @@ function portal_guest_cta(): string
     return 'Войдите, чтобы увидеть свою статистику и рейтинг';
 }
 
-function portal_menu_drawer(array $items, string $page = '', bool $guest = false): void
-{
+function portal_menu_drawer(
+    array $items,
+    string $page = '',
+    bool $guest = false,
+    bool $orgOn = false,
+    string $orgSection = ''
+): void {
+    if ($orgOn) {
+        $orgHead = [
+            ['id' => 'org', 'org' => true, 'label' => 'Рабочее место', 'icon' => 'lock', 'href' => portal_org_url()],
+        ];
+        if ($page === 'org') {
+            $orgHead = array_merge($orgHead, portal_org_nav_items());
+            $orgHead[] = ['id' => 'home', 'label' => 'К участникам', 'icon' => 'home', 'href' => './'];
+        }
+        $items = array_merge($orgHead, $items);
+    }
     echo '<div class="menu-backdrop" id="menu-backdrop" hidden></div>';
     echo '<aside class="menu-drawer" id="menu-drawer" hidden>';
     echo '<div class="menu-drawer-head"><strong>Меню</strong>';
     echo '<button type="button" class="menu-close" id="menu-close" aria-label="Закрыть">×</button></div>';
     echo '<nav class="menu-links">';
     foreach ($items as $item) {
-        if ($guest && $item['id'] === 'stats') {
+        if ($guest && ($item['id'] === 'stats' || $item['id'] === 'rating')) {
             continue;
         }
-        $on = ($item['id'] === $page);
+        if (!empty($item['org'])) {
+            $on = $page === 'org' && (
+                $item['id'] === 'org' ? $orgSection === '' : $item['id'] === $orgSection
+            );
+        } else {
+            $on = $page !== 'org' && $item['id'] === $page;
+        }
         $cta = $guest && $item['id'] === 'profile';
         $cls = 'menu-item';
         if ($on) {
@@ -122,7 +164,7 @@ function portal_hub(array $items, bool $guest = false): void
 {
     echo '<nav class="hub" aria-label="Разделы">';
     foreach ($items as $item) {
-        if ($guest && $item['id'] === 'stats') {
+        if ($guest && ($item['id'] === 'stats' || $item['id'] === 'rating')) {
             continue;
         }
         $cta = $guest && $item['id'] === 'profile';

@@ -1,6 +1,8 @@
 :root {
   --orange: #e65100;
   --orange-soft: #fff3e0;
+  --tourney: #5e35b1;
+  --tourney-soft: #ede7f6;
   --text: #222;
   --muted: #666;
   --line: #e0e0e0;
@@ -317,6 +319,9 @@ main {
   .grid-top {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 18rem;
+  }
+  body.is-guest .grid-top {
+    grid-template-columns: minmax(0, 1fr);
   }
   .stats-card {
     flex: 1 1 auto;
@@ -823,6 +828,41 @@ main {
 .mat-list ul li { padding: 0.06rem 0; }
 .mat-list ul ul { padding-left: 0.7rem; }
 
+.mat-card .mat-body h1,
+.mat-card .mat-body h2 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--orange);
+  margin: 0.45rem 0 0.15rem;
+}
+.mat-card .mat-body h1:first-child,
+.mat-card .mat-body h2:first-child { margin-top: 0; }
+.mat-card .mat-body h3 {
+  font-size: 0.88rem;
+  color: var(--muted);
+  font-weight: 600;
+  margin: 0.18rem 0 0.06rem;
+}
+.mat-card .mat-body ul,
+.mat-card .mat-body ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.mat-card .mat-body li { padding: 0.06rem 0; }
+.mat-card .mat-body ul ul,
+.mat-card .mat-body ol ol,
+.mat-card .mat-body ul ol,
+.mat-card .mat-body ol ul { padding-left: 0.7rem; }
+.mat-card .mat-body p { margin: 0 0 0.35rem; }
+.mat-card .mat-body a {
+  font-size: 1rem;
+  line-height: 1.35;
+  text-decoration: none;
+  color: #bf360c;
+}
+.mat-card .mat-body a:hover { text-decoration: underline; color: var(--orange); }
+
 /* .card h1 { display:flex } сильнее одного класса — прячем полным селектором */
 .card h1.rating-title-full,
 .rating-list-full { display: none; }
@@ -1059,6 +1099,10 @@ main {
   border-color: #00796b;
   cursor: pointer;
 }
+.month td.ev.tournament {
+  background-color: var(--tourney);
+  border-color: #4527a0;
+}
 .month td.ev.special {
   background-color: var(--orange);
   border-color: #e65100;
@@ -1080,6 +1124,16 @@ main {
     transparent 2px 7px
   );
 }
+.month td.ev.tournament.planned {
+  background-color: #d1c4e9;
+  border-color: #b39ddb;
+  color: #4527a0;
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.72) 0 2px,
+    transparent 2px 7px
+  );
+}
 .month td.ev.special.planned {
   background-color: #ffe0b2;
   border-color: #ffcc80;
@@ -1090,14 +1144,19 @@ main {
     transparent 2px 7px
   );
 }
+.month td.past.ev.tournament.planned {
+  color: #4527a0;
+}
 .month td.past.ev.special.planned {
   color: #e65100;
 }
 .month td.ev.cancelled,
 .month td.ev.online.cancelled,
+.month td.ev.tournament.cancelled,
 .month td.ev.special.cancelled,
 .month td.ev.planned.cancelled,
 .month td.ev.online.planned.cancelled,
+.month td.ev.tournament.planned.cancelled,
 .month td.ev.special.planned.cancelled {
   background-color: #bdbdbd;
   background-image: none;
@@ -1123,6 +1182,9 @@ main {
 .month td.ev.offline.sel::after,
 .month td.ev.special.sel::after {
   border-color: #111111;
+}
+.month td.ev.tournament.sel::after {
+  border-color: #311b92;
 }
 .month td.ev.online.sel::after {
   border-color: #e65100; /* выбранный онлайн: фирменный оранжевый */
@@ -1237,7 +1299,6 @@ main {
     transform: rotate(-45deg);
   }
   .top-links { display: none; }
-  .org-only { display: none !important; }
   .who { display: none; }
 
   .hub { display: none; }
@@ -1600,6 +1661,9 @@ main {
   }
   .cal-month-strip button.dot-special::after {
     background: var(--orange);
+  }
+  .cal-month-strip button.dot-tournament::after {
+    background: var(--tourney);
   }
 
   body.cal-mobile-on .cal-mobile-bar { display: block; }

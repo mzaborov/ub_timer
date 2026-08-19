@@ -2,13 +2,13 @@
 declare(strict_types=1);
 
 require __DIR__ . '/inc/bootstrap.php';
-require __DIR__ . '/inc/rating.php';
-require __DIR__ . '/inc/home_data.php';
 require __DIR__ . '/inc/icons.php';
 require __DIR__ . '/inc/nav.php';
+require __DIR__ . '/inc/org.php';
 
 $orgError = '';
 $page = portal_norm_page((string)($_POST['p'] ?? $_GET['p'] ?? ''));
+$orgSection = portal_org_section((string)($_GET['s'] ?? $_POST['s'] ?? ''));
 $loginNext = portal_safe_next((string)($_GET['next'] ?? $_POST['next'] ?? ''));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $p = load_person($db, $pid);
         if ($p) {
             $_SESSION['person_id'] = $pid;
-            unset($_SESSION['org']);
+            clear_org_mode();
             set_person_cookie($pid);
         }
         $next = portal_safe_next((string)($_POST['next'] ?? ''));
@@ -26,25 +26,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
     if ($action === 'reset_me') {
-        unset($_SESSION['person_id'], $_SESSION['org']);
+        unset($_SESSION['person_id']);
+        clear_org_mode();
         clear_person_cookie();
-        header('Location: ' . portal_page_url($page));
+        header('Location: ' . portal_page_url($page === 'org' ? '' : $page));
         exit;
     }
     if ($action === 'org_login') {
         $pid = current_person_id();
         $roles = $pid ? stream_roles($db, $pid) : [];
         $pw = (string)($_POST['password'] ?? '');
-        if ($pid && can_enter_org($roles) && $portal_org_password !== ''
+        if (!portal_csrf_ok((string)($_POST['csrf'] ?? ''))) {
+            $orgError = 'Сессия устарела, попробуйте ещё раз';
+        } elseif ($pid && can_enter_org($roles) && $portal_org_password !== ''
             && hash_equals($portal_org_password, $pw)) {
             $_SESSION['org'] = 1;
-            header('Location: ./');
+            set_org_cookie();
+            header('Location: ' . portal_org_url());
             exit;
+        } else {
+            $orgError = 'Неверный пароль';
         }
-        $orgError = 'Неверный пароль';
     }
     if ($action === 'org_logout') {
-        unset($_SESSION['org']);
         header('Location: ./');
         exit;
     }
@@ -53,40 +57,128 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $meId = current_person_id();
 $me = $meId ? load_person($db, $meId) : null;
 if ($meId && !$me) {
-    unset($_SESSION['person_id'], $_SESSION['org']);
+    unset($_SESSION['person_id']);
+    clear_org_mode();
     clear_person_cookie();
     $meId = 0;
 }
-if (!$me && $page === 'stats') {
+if ($me) {
+    set_person_cookie($meId);
+}
+if (!$me && ($page === 'stats' || $page === 'rating')) {
     header('Location: ' . portal_page_url('profile'));
     exit;
 }
 
 $roles = $meId ? stream_roles($db, $meId) : [];
 $canOrg = $me && can_enter_org($roles);
-$orgOn = $canOrg && !empty($_SESSION['org']);
+$orgOn = restore_org_session((bool)$canOrg);
 $roleLabel = org_role_label($roles);
 
-$year = (int)date('Y');
-$people = portal_people_list($db);
-$events = portal_events_for_calendar($db);
-$upcoming = portal_next_events($db);
-$myRegs = $meId ? portal_my_registrations($db, $meId, array_column($upcoming, 'id')) : [];
-$last = portal_default_meeting($events);
-$lastLive = $last ? portal_event_is_live($last) : false;
-$ratingRows = portal_rating_rows($db);
-$widget = portal_rating_widget($ratingRows, $meId);
-$widgetItems = $widget['items'];
-$widgetFill = $widget['fill'];
-$ratingTips = portal_rating_tips($ratingRows, []);
-$ratingTips['_formula'] = portal_rating_formula_html();
-$myStats = $meId ? portal_person_stats($db, $meId) : null;
+if ($page === 'org' && !$orgOn) {
+    header('Location: ./');
+    exit;
+}
+
+$orgFlash = '';
+$orgEventError = '';
+$orgPeopleError = '';
+if ($page === 'org' && $orgSection === 'people') {
+    require __DIR__ . '/inc/org_people.php';
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $res = org_people_handle_post($db);
+        if (!empty($_POST['ajax'])) {
+            header('Content-Type: application/json; charset=utf-8');
+            if (empty($res['error'])) {
+                $res['data'] = org_people_payload($db);
+            }
+            echo json_encode($res, JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        $orgPeopleError = (string)($res['error'] ?? '');
+    }
+}
+if ($page === 'org' && $orgSection === 'situations') {
+    require_once __DIR__ . '/inc/org_situations.php';
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $res = org_sit_handle_post($db);
+        if (!empty($_POST['ajax'])) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($res, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+    }
+}
+if ($page === 'org' && $orgSection === 'materials') {
+    require_once __DIR__ . '/inc/org_materials.php';
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $res = org_mat_handle_post($db);
+        if (!empty($_POST['ajax'])) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($res, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+    }
+}
+if ($page === 'org' && $orgSection === 'events') {
+    require __DIR__ . '/inc/home_data.php';
+    require __DIR__ . '/inc/org_events.php';
+    if (!empty($_SESSION['org_flash'])) {
+        $orgFlash = (string)$_SESSION['org_flash'];
+        unset($_SESSION['org_flash']);
+    }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $res = org_events_handle_post($db);
+        if (!empty($res['redirect'])) {
+            header('Location: ' . $res['redirect']);
+            exit;
+        }
+        $orgEventError = (string)($res['error'] ?? '');
+    }
+}
 
 $timerUrl = 'https://timer.zaborov.ru/';
 $bankUrl = 'https://timer.zaborov.ru/situations-bank.html?from=portal';
-$ratingUrl = 'https://timer.zaborov.ru/rating.php';
+$ratingUrl = 'https://timer.zaborov.ru/points.php';
 $navItems = portal_nav_items($bankUrl, $timerUrl);
 $bodyPage = $page === '' ? 'hub' : $page;
+if ($page === 'org' && $orgSection !== '') {
+    $bodyPage = 'org-' . $orgSection;
+}
+
+$year = (int)date('Y');
+$people = [];
+$events = [];
+$upcoming = [];
+$myRegs = [];
+$last = null;
+$lastLive = false;
+$widgetItems = [];
+$widgetFill = [];
+$ratingRows = [];
+$ratingTips = [];
+$myStats = null;
+
+if ($page !== 'org') {
+    require_once __DIR__ . '/inc/materials.php';
+    require __DIR__ . '/inc/home_data.php';
+    $people = portal_people_list($db);
+    $events = portal_events_for_calendar($db);
+    $upcoming = portal_next_events($db);
+    $myRegs = $meId ? portal_my_registrations($db, $meId, array_column($upcoming, 'id')) : [];
+    $last = portal_default_meeting($events);
+    $lastLive = $last ? portal_event_is_live($last) : false;
+    if ($me) {
+        require __DIR__ . '/inc/rating.php';
+        $ratingRows = portal_rating_rows($db);
+        $widget = portal_rating_widget($ratingRows, $meId);
+        $widgetItems = $widget['items'];
+        $widgetFill = $widget['fill'];
+        $ratingTips = portal_rating_tips($ratingRows, []);
+        $ratingTips['_formula'] = portal_rating_formula_html();
+        $myStats = portal_person_stats($db, $meId);
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -94,11 +186,51 @@ $bodyPage = $page === '' ? 'hub' : $page;
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Стрим управленческих навыков</title>
+    <meta name="robots" content="noindex, nofollow">
     <link rel="icon" href="assets/favicon.png">
-    <link rel="stylesheet" href="css/portal.css?v=73">
+    <link rel="stylesheet" href="css/portal.css?v=78">
+    <link rel="stylesheet" href="css/org.css?v=7">
+    <?php if ($page === 'org' && $orgSection === 'events') { ?>
+    <link rel="stylesheet" href="css/org-events.css?v=27">
+    <?php } ?>
+    <?php if ($page === 'org' && $orgSection === 'people') { ?>
+    <link rel="stylesheet" href="css/org-people.css?v=19">
+    <?php } ?>
+    <?php if ($page === 'org' && $orgSection === 'situations') {
+        if (!function_exists('org_sb_asset_ver')) {
+            require_once __DIR__ . '/inc/org_situations.php';
+        }
+        $sbVer = org_sb_asset_ver();
+        $timer = 'https://timer.zaborov.ru';
+        ?>
+    <link rel="stylesheet" href="fontawesome/css/all.min.css?v=<?php echo h($sbVer); ?>">
+    <link rel="stylesheet" href="<?php echo h($timer); ?>/css/situations-bank.css?v=<?php echo h($sbVer); ?>">
+    <?php } ?>
+    <?php if ($page === 'org' && $orgSection === 'materials') { ?>
+    <link rel="stylesheet" href="css/materials.css?v=5">
+    <link rel="stylesheet" href="css/org-materials.css?v=6">
+    <?php } ?>
 </head>
-<body class="page-<?php echo h($bodyPage); ?><?php echo $me ? '' : ' is-guest'; ?>">
+<body class="page-<?php echo h($bodyPage); ?><?php echo $page === 'org' ? ' page-org' : ''; ?><?php echo $me ? '' : ' is-guest'; ?>">
 <?php portal_icon_sprite(); ?>
+<?php if ($page === 'org') { ?>
+<header class="org-top">
+    <?php portal_echo_org_crumbs($orgSection); ?>
+    <?php if ($me) { ?>
+    <div class="org-who">
+        <span class="org-who-name"><?php echo h($me['full_name']); ?></span>
+        <?php if ($roleLabel) { ?>
+        <span class="org-who-role"><?php echo h($roleLabel); ?></span>
+        <?php } ?>
+        <form method="post">
+            <input type="hidden" name="action" value="reset_me">
+            <input type="hidden" name="p" value="org">
+            <button type="submit" class="btn-ghost">Это не я</button>
+        </form>
+    </div>
+    <?php } ?>
+</header>
+<?php } else { ?>
 <header class="top<?php echo $me ? '' : ' top--guest'; ?>">
     <div class="top-bar">
     <a class="brand" href="./" title="портал стрима развития управленческих навыков">
@@ -138,20 +270,21 @@ $bodyPage = $page === '' ? 'hub' : $page;
             <?php if ($roleLabel) { ?>
             <span class="who-role"><?php echo h($roleLabel); ?></span>
             <?php } ?>
+            <?php if ($orgOn && $page !== 'org') { ?>
+            <span class="org-badge">режим участника</span>
+            <?php } ?>
         </div>
         <div class="who-actions">
             <?php if ($canOrg && !$orgOn) { ?>
-            <form method="post" class="org-form org-only" id="org-login-form">
+            <form method="post" class="org-form" id="org-login-form">
                 <input type="hidden" name="action" value="org_login">
                 <input type="hidden" name="password" value="">
+                <?php portal_csrf_field(); ?>
                 <button type="submit"><?php echo portal_icon('lock'); ?> Режим организатора</button>
             </form>
-            <?php if ($orgError) { ?><span class="who-err org-only"><?php echo h($orgError); ?></span><?php } ?>
+            <?php if ($orgError) { ?><span class="who-err"><?php echo h($orgError); ?></span><?php } ?>
             <?php } elseif ($orgOn) { ?>
-            <form method="post" class="org-only">
-                <input type="hidden" name="action" value="org_logout">
-                <button type="submit">Выйти из режима организатора</button>
-            </form>
+            <a class="org-work-link" href="<?php echo h(portal_org_url()); ?>"><?php echo portal_icon('lock'); ?> Рабочее место</a>
             <?php } ?>
             <form method="post">
                 <input type="hidden" name="action" value="reset_me">
@@ -162,49 +295,27 @@ $bodyPage = $page === '' ? 'hub' : $page;
     </div>
     <?php } ?>
 </header>
-<?php portal_menu_drawer($navItems, $page, !$me); ?>
+<?php portal_menu_drawer($navItems, $page, !$me, $orgOn, $orgSection); ?>
+<?php } ?>
 
 <main>
-  <?php portal_hub($navItems, !$me); ?>
+  <?php if ($page === 'org' && $orgSection === 'events') {
+      portal_echo_org_events($db, $orgFlash, $orgEventError);
+  } elseif ($page === 'org' && $orgSection === 'people') {
+      portal_echo_org_people($db);
+  } elseif ($page === 'org' && $orgSection === 'situations') {
+      portal_echo_org_situations($db);
+  } elseif ($page === 'org' && $orgSection === 'materials') {
+      portal_echo_org_materials($db);
+  } elseif ($page === 'org') {
+      portal_echo_org_main($orgSection);
+  } else {
+      portal_hub($navItems, !$me);
+  } ?>
+  <?php if ($page !== 'org') { ?>
   <div class="grid-main">
     <div class="home-left">
-    <section class="card mat-card">
-        <h1><?php echo portal_icon('book'); ?> Материалы</h1>
-        <ul class="mat-list">
-            <li>
-                <div class="mat-group">О поединках</div>
-                <ul>
-                    <li><a href="<?php echo h('https://docs.google.com/document/d/1xLDZo9Ttmv9ElGNWQ2tAzYSDHE523KGwsCwofaGJ-30/edit?usp=drive_link'); ?>" target="_blank" rel="noopener">Правила проведения поединков (М.Заборов)</a></li>
-                    <li><a href="<?php echo h('https://docs.google.com/presentation/d/1IUxWNVIlX8bzUW97SHdpAXtuNtXQuCxa/edit?usp=sharing&ouid=109144507660418421539&rtpof=true&sd=true'); ?>" target="_blank" rel="noopener">Презентация о поединках для клуба</a></li>
-                    <li><a href="<?php echo h('https://disk.yandex.ru/d/sBeLRYROyVRgTg'); ?>" target="_blank" rel="noopener">Инструктаж по Экспрессам от Ирины Окуловой</a></li>
-                </ul>
-            </li>
-            <li>
-                <div class="mat-group">Как судить</div>
-                <ul>
-                    <li><a href="<?php echo h('https://docs.google.com/presentation/d/1_tV0hz5QkF1T9_LkwOuoJxRpvLZ2EIfezVTP0sbRo2I/edit?usp=sharing'); ?>" target="_blank" rel="noopener">Памятка для судей</a></li>
-                    <li><a href="<?php echo h('https://disk.yandex.ru/i/AGhh7Y-l8v2FNQ'); ?>" target="_blank" rel="noopener">Чек лист - как судить</a></li>
-                    <li><a href="<?php echo h('https://youtu.be/gRL5WQvjlMo'); ?>" target="_blank" rel="noopener">Инструктаж для судей (М. Иващенко)</a></li>
-                    <li><a href="<?php echo h('https://disk.yandex.ru/i/jJICOWt-l8DMlA'); ?>" target="_blank" rel="noopener">критерии судейства экспрессов</a></li>
-                </ul>
-            </li>
-            <li>
-                <div class="mat-group">Как готовиться</div>
-                <ul>
-                    <li><a href="<?php echo h('https://docs.google.com/presentation/d/14QaLgR-DRHu7o2h5bRwPpY-RFbcp9jT85ONv-hwCvGU/edit?usp=sharing'); ?>" target="_blank" rel="noopener">Алгоритм подготовки от Уральской школы переговоров</a></li>
-                    <li><a href="<?php echo h('https://drive.google.com/file/d/1-Je9sn_TMglFO8iXp-Jfp-iJ4-vjIklT/view?usp=drive_link'); ?>" target="_blank" rel="noopener">Таблица слоев подготовки к поединку</a></li>
-                    <li><a href="<?php echo h('https://docs.google.com/document/d/1kXCrfJjjwQhcLXGvIR-ZCyJ09oOQtNK9H0WfwpfPy1g/edit?usp=drive_link'); ?>" target="_blank" rel="noopener">Как готовиться (Заборов М.) - черновик</a></li>
-                    <li>
-                        <div class="mat-sub">Примеры подготовки</div>
-                        <ul>
-                            <li><a href="<?php echo h('https://xmind.ai/share/pYr01Fyo'); ?>" target="_blank" rel="noopener">Заборов М.(Xmind)</a></li>
-                            <li><a href="<?php echo h('https://docs.google.com/spreadsheets/d/1IkCRZnhrOSqZyhg1ycZxYEyjcsUmx4QH/edit?usp=sharing&ouid=107060050572514905027&rtpof=true&sd=true'); ?>" target="_blank" rel="noopener">Рашевский Ярослав (Excel)</a></li>
-                        </ul>
-                    </li>
-                </ul>
-            </li>
-        </ul>
-    </section>
+    <?php portal_echo_materials_card($db); ?>
     <section class="card next-card">
         <h1><?php echo portal_icon('next'); ?> Ближайшее</h1>
         <?php if ($upcoming) { ?>
@@ -294,12 +405,10 @@ $bodyPage = $page === '' ? 'hub' : $page;
         </div>
         <div id="year-cal" class="year-cal"></div>
     </section>
+    <?php if ($me) { ?>
     <section class="card rating-card">
         <h1 class="rating-title-widget"><a class="h-link" href="<?php echo h($ratingUrl); ?>"><?php echo portal_icon('star'); ?> Количество баллов</a><?php echo portal_tip_ico('formula'); ?></h1>
         <h1 class="rating-title-full"><a class="h-link" href="<?php echo h($ratingUrl); ?>"><?php echo portal_icon('star'); ?> Полный рейтинг</a><?php echo portal_tip_ico('formula'); ?></h1>
-        <?php if (!$me) { ?>
-        <p class="hint">Выберите себя сверху — подсветим ваше место.</p>
-        <?php } ?>
         <ol class="rating-list rating-list-widget">
             <?php portal_rating_echo_items($widgetItems, $meId); ?>
         </ol>
@@ -307,6 +416,7 @@ $bodyPage = $page === '' ? 'hub' : $page;
             <?php portal_rating_echo_items($ratingRows, $meId); ?>
         </ol>
     </section>
+    <?php } ?>
     </div>
     <section class="card last-card" id="last-card" data-me-id="<?php echo (int)$meId; ?>" data-today="<?php echo h(portal_today_iso()); ?>">
         <h1 class="last-head" id="last-head"<?php if ($last) { ?> title="<?php echo h(portal_last_heading($last)); ?>"<?php } ?>><?php echo portal_icon('flag'); ?> <span class="last-head-line"><span id="last-head-text"><?php echo $last ? h(portal_last_heading($last)) : 'Результаты последней встречи'; ?></span><span id="last-head-video"><?php echo $last ? portal_video_link_html(portal_event_day_video_url($last)) : ''; ?></span></span></h1>
@@ -396,16 +506,45 @@ $bodyPage = $page === '' ? 'hub' : $page;
     </section>
     </div>
   </div>
+  <?php } ?>
 </main>
 
+<?php if ($page !== 'org') { ?>
 <script type="application/json" id="people-json"><?php echo json_encode($people, JSON_UNESCAPED_UNICODE); ?></script>
 <script type="application/json" id="events-json"><?php echo json_encode($events, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?></script>
+<?php if ($me) { ?>
 <script type="application/json" id="rating-fill-json"><?php echo json_encode($widgetFill, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?></script>
 <script type="application/json" id="rating-tips-json"><?php echo rating_tooltip_json($ratingTips); ?></script>
 <script type="application/json" id="stats-tips-json"><?php echo portal_stats_tips_json(is_array($myStats) ? ($myStats['tips'] ?? []) : []); ?></script>
 <div id="rating-tip"></div>
+<?php } ?>
 <?php if (!$me) { portal_who_modal($loginNext, $loginNext !== ''); } ?>
+<script src="js/home.js?v=39"></script>
+<?php } ?>
 <script src="js/menu.js?v=3"></script>
-<script src="js/home.js?v=37"></script>
+<?php if ($page === 'org' && $orgSection === 'people') { ?>
+<script src="js/org-people.js?v=16"></script>
+<?php } ?>
+<?php if ($page === 'org' && $orgSection === 'events') { ?>
+<script src="js/org-events.js?v=7"></script>
+<?php } ?>
+<?php if ($page === 'org' && $orgSection === 'situations') {
+    $sbVer = function_exists('org_sb_asset_ver') ? org_sb_asset_ver() : '106';
+    $timer = 'https://timer.zaborov.ru';
+    ?>
+<script src="vendor/highlight.min.js"></script>
+<script src="<?php echo h($timer); ?>/js/situations-bank.js?v=<?php echo h($sbVer); ?>"></script>
+<script>
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initSituationsBankPage_);
+} else {
+    initSituationsBankPage_();
+}
+</script>
+<?php } ?>
+<?php if ($page === 'org' && $orgSection === 'materials') { ?>
+<script src="vendor/marked.min.js"></script>
+<script src="js/org-materials.js?v=6"></script>
+<?php } ?>
 </body>
 </html>
