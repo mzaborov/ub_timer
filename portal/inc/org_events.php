@@ -3,7 +3,8 @@ declare(strict_types=1);
 
 function org_default_zoom(): string
 {
-    return '';
+    global $portal_default_zoom;
+    return is_string($portal_default_zoom) ? trim($portal_default_zoom) : '';
 }
 
 function org_event_types(): array

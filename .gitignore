@@ -14,8 +14,7 @@ backups/
 ciocdo/
 
 # Дампы людей/кругов и бэкапы — только локально, не в публичный git
-docs/планы/05_данные/*.json
-docs/планы/05_данные/telegram-без-фамилии.md
-data/protocols/*.json
+docs/планы/05_данные/
+data/protocols/
 *.sql.gz
 /Онлайн*.json
