@@ -75,9 +75,6 @@ TEMPLATE_ONLINE10_SLUGS = (
     "online_10_23",
     "online_10_24",
 )
-DEFAULT_ONLINE_ZOOM = (
-    ""
-)
 DEFAULT_ONLINE_START = "11:00"
 DEFAULT_ONLINE_END = "13:30"
 _DRIVE_LIST_CACHE: dict[str, list[tuple[str, str]]] = {}
@@ -1403,13 +1400,14 @@ def write_registrations(rows: list | None) -> int:
 WALL_OVERLAY = OUT_DIR / "стена_календарь.json"
 
 
-def apply_online_zoom(events: list[dict]) -> list[dict]:
+def apply_online_zoom(events: list[dict], zoom_url: str = "") -> list[dict]:
     """Одна комната стрима на все живые онлайны; шаблонные Online 10 2024–2028 без ссылки."""
     skip = set(TEMPLATE_ONLINE10_SLUGS)
+    url = (zoom_url or "").strip()
     for ev in events:
         slug = ev.get("ярлык") or ""
-        if ev.get("тип") == "онлайн" and slug not in skip:
-            ev["ссылкаZoom"] = DEFAULT_ONLINE_ZOOM
+        if ev.get("тип") == "онлайн" and slug not in skip and url:
+            ev["ссылкаZoom"] = url
         else:
             ev["ссылкаZoom"] = None
     return events
@@ -1847,7 +1845,7 @@ def main() -> int:
     empty = []
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     events = apply_calendar_overlay(events, report)
-    events = apply_online_zoom(events)
+    events = apply_online_zoom(events, env.get("PORTAL_DEFAULT_ZOOM", ""))
     events = apply_online_times(events)
     write_json("люди.json", people_list)
     write_json("ситуации.json", situations)

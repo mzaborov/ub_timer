@@ -200,6 +200,7 @@ def write_db_inc(env: dict[str, str]) -> bytes:
     llm_key = env.get("QWEN_API_KEY", "")
     llm_prov = env.get("LLM_PROVIDER", "") or "openrouter"
     llm_model = env.get("QWEN_MODEL", "") or "qwen/qwen-plus"
+    zoom = env.get("PORTAL_DEFAULT_ZOOM", "")
     return (
         "<?php\n"
         "$mysql_host = " + php_str(env["MYSQL_HOST"]) + ";\n"
@@ -207,6 +208,7 @@ def write_db_inc(env: dict[str, str]) -> bytes:
         "$mysql_password = " + php_str(env["MYSQL_PASSWORD"]) + ";\n"
         "$mysql_database = " + php_str(env["MYSQL_DATABASE"]) + ";\n"
         "$portal_org_password = " + php_str(org_pw) + ";\n"
+        "$portal_default_zoom = " + php_str(zoom) + ";\n"
         "$qwen_api_key = " + php_str(llm_key) + ";\n"
         "$llm_provider = " + php_str(llm_prov) + ";\n"
         "$qwen_model = " + php_str(llm_model) + ";\n"

@@ -22,6 +22,10 @@ if (!isset($portal_org_password)) {
     $portal_org_password = '';
 }
 
+if (!isset($portal_default_zoom)) {
+    $portal_default_zoom = '';
+}
+
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 $db = mysqli_connect($mysql_host, $mysql_user, $mysql_password, $mysql_database);
 $db->set_charset('utf8mb4');
