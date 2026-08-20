@@ -12,3 +12,10 @@ client_secret*.json
 _tmp*
 backups/
 ciocdo/
+
+# Дампы людей/кругов и бэкапы — только локально, не в публичный git
+docs/планы/05_данные/*.json
+docs/планы/05_данные/telegram-без-фамилии.md
+data/protocols/*.json
+*.sql.gz
+/Онлайн*.json
