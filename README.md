@@ -112,7 +112,7 @@ ub-timer/
 
 **Источник Google:** published CSV листа состава (`gid=1172864695`, строки сетки встреч 1–21, рост вправо) + банк ситуаций (тот же spreadsheet). Тексты ситуаций подтягиваются по номеру (`SituationNum` / `110`, `00Э`…). Кэш встреч — `sessionStorage`. После загрузки из Google для протокола запоминается контекст встречи (имя + колонки) и **включается Live-запись** (см. [Протокол → Google](#протокол--google-live)).
 
-Реализация: `js/schedule.js` (`loadScheduleFromGoogleLatest`, `openGoogleSchedulePicker`, `buildDuelsListFromGoogleMeeting_`). План: [docs/Архив/расписание_из_google.plan.md](docs/Архив/расписание_из_google.plan.md).
+Реализация: `js/schedule.js` (`loadScheduleFromGoogleLatest`, `openGoogleSchedulePicker`, `buildDuelsListFromGoogleMeeting_`). План: [docs/Архив/расписание_из_google.md](docs/Архив/расписание_из_google.md).
 
 ## Формат файла расписания (Excel / JSON)
 
@@ -148,7 +148,7 @@ ub-timer/
 
 При включённой Live-записи после резолва/переброса номер ситуации уходит в Google (событие 2).
 
-Реализация: `js/schedule.js` (`rollRandomSituation`, `updateRandomSituationDiceButton`). План: [docs/Архив/случайный_поединок.plan.md](docs/Архив/случайный_поединок.plan.md).
+Реализация: `js/schedule.js` (`rollRandomSituation`, `updateRandomSituationDiceButton`). План: [docs/Архив/случайный_поединок.md](docs/Архив/случайный_поединок.md).
 
 ## Секрет названия (колонка Hidden)
 
@@ -343,7 +343,7 @@ ub-timer/
 
 Стороны в Google — фиксированные **Команда 1 / Команда 2**; после жребия UI может поменять местами Player1/Player2 — клиент маппит голоса и «Начинал» на команды сетки.
 
-Это **не** offline-импорт в лист «протоколы игр» ([docs/protocol/](docs/protocol/)). План: [docs/Архив/live_протокол_google.plan.md](docs/Архив/live_протокол_google.plan.md).
+Это **не** offline-импорт в лист «протоколы игр» ([docs/protocol/](docs/protocol/)). План: [docs/Архив/live_протокол_google.md](docs/Архив/live_протокол_google.md).
 
 ### Логика восстановления (для пользователей и разработчиков)
 
@@ -477,7 +477,7 @@ Google Apps Script + LLM (OpenRouter или DashScope):
 
 - подтягивание текста ситуации в расписание по `SituationNum` при загрузке **локального** `.xlsx` (без Google).
 
-План банка: [docs/Архив/банк_ситуаций_ub-timer_fcad0beb.plan.md](docs/Архив/банк_ситуаций_ub-timer_fcad0beb.plan.md). План «судья ФУБ»: [docs/Архив/04_судьи_эксперты.plan.md](docs/Архив/04_судьи_эксперты.plan.md) (выполнен, с v69).
+План банка: [docs/Архив/банк_ситуаций_ub-timer_fcad0beb.md](docs/Архив/банк_ситуаций_ub-timer_fcad0beb.md). План «судья ФУБ»: [docs/Архив/04_судьи_эксперты.md](docs/Архив/04_судьи_эксперты.md) (выполнен, с v69).
 
 ## Технологии
 - Фронтенд без сборки: HTML, CSS, JavaScript.

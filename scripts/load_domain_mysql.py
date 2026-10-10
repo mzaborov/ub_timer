@@ -194,6 +194,49 @@ MATERIAL_DOCS_DDL = """CREATE TABLE material_docs (
   KEY idx_mat_sort (sort_order, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"""
 
+PORTAL_LOG_DDL = """CREATE TABLE portal_log (
+  id INT NOT NULL AUTO_INCREMENT,
+  actor_id INT NULL,
+  actor_name VARCHAR(255) NULL,
+  action VARCHAR(64) NOT NULL,
+  entity VARCHAR(64) NOT NULL,
+  entity_id INT NULL,
+  payload_json TEXT NULL,
+  created_at DATETIME NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_plog_entity (entity, entity_id),
+  KEY idx_plog_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"""
+
+OUTREACH_CAMPAIGNS_DDL = """CREATE TABLE outreach_campaigns (
+  id INT NOT NULL AUTO_INCREMENT,
+  event_id INT NULL,
+  title VARCHAR(191) NOT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'active',
+  created_by_person_id INT NULL,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_oc_event (event_id),
+  CONSTRAINT fk_oc_event FOREIGN KEY (event_id) REFERENCES events (id),
+  CONSTRAINT fk_oc_author FOREIGN KEY (created_by_person_id) REFERENCES people (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"""
+
+OUTREACH_ITEMS_DDL = """CREATE TABLE outreach_items (
+  id INT NOT NULL AUTO_INCREMENT,
+  campaign_id INT NOT NULL,
+  person_id INT NOT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'new',
+  ready_hint VARCHAR(191) NULL,
+  comment TEXT NULL,
+  updated_at DATETIME NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_oi (campaign_id, person_id),
+  KEY idx_oi_campaign (campaign_id),
+  CONSTRAINT fk_oi_campaign FOREIGN KEY (campaign_id) REFERENCES outreach_campaigns (id),
+  CONSTRAINT fk_oi_person FOREIGN KEY (person_id) REFERENCES people (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"""
+
 
 def write_db_inc(env: dict[str, str]) -> bytes:
     org_pw = env.get("PORTAL_ORG_PASSWORD", "")
@@ -251,7 +294,15 @@ function ensure_table($name, $sql) {{
     }}
     return false;
 }}
+if (table_exists('org_change_log') && !table_exists('portal_log')) {{
+    if (q("RENAME TABLE org_change_log TO portal_log")) {{
+        echo "RENAME org_change_log TO portal_log\\n";
+    }}
+}}
 ensure_table('material_docs', {php_str(MATERIAL_DOCS_DDL)});
+ensure_table('portal_log', {php_str(PORTAL_LOG_DDL)});
+ensure_table('outreach_campaigns', {php_str(OUTREACH_CAMPAIGNS_DDL)});
+ensure_table('outreach_items', {php_str(OUTREACH_ITEMS_DDL)});
 echo "SCHEMA_OK\\n";
 """
     body = run_remote_php(env, php, token, extra_puts=extra)
@@ -261,7 +312,7 @@ echo "SCHEMA_OK\\n";
 def run_probe(env: dict[str, str]) -> int:
     token = secrets.token_hex(16)
     php = _php_preamble(token) + """
-$tables = array('people','situations','events','duels','duel_judges','event_organizers','videos','circles','circle_memberships','event_observers','meeting_registrations','protocol_events','duel_change_log','material_docs');
+$tables = array('people','situations','events','duels','duel_judges','event_organizers','videos','circles','circle_memberships','event_observers','meeting_registrations','protocol_events','duel_change_log','material_docs','portal_log','outreach_campaigns','outreach_items');
 echo "mode=probe\\n";
 echo "--- tables ---\\n";
 foreach ($tables as $t) {
@@ -298,7 +349,7 @@ if (!table_exists('meeting_registrations')) {
     echo "NO_TABLE meeting_registrations\\n";
     exit;
 }
-$r = mysql_query("SELECT id, event_id, person_id, full_name, email, telegram, wants_play, wants_judge, wants_second, comment, source FROM meeting_registrations ORDER BY id", $link);
+$r = mysql_query("SELECT id, event_id, person_id, full_name, email, telegram, wants_play, wants_judge, wants_second, duel_type_pref, comment, source FROM meeting_registrations ORDER BY id", $link);
 if (!$r) {
     echo "SQL_ERR " . mysql_error() . "\\n";
     exit;
@@ -315,6 +366,7 @@ while ($row = mysql_fetch_assoc($r)) {
         'хочетИграть' => !empty($row['wants_play']),
         'хочетСудить' => !empty($row['wants_judge']),
         'хочетБытьСекундантом' => !empty($row['wants_second']),
+        'предпочтениеТипПоединка' => $row['duel_type_pref'],
         'комментарий' => $row['comment'],
         'источник' => $row['source'],
     );
@@ -609,7 +661,7 @@ function bump_ai($table) {{
 function fetch_registrations() {{
     $saved = array();
     if (!table_exists('meeting_registrations')) return $saved;
-    $r = mysql_query("SELECT id, event_id, person_id, full_name, email, telegram, wants_play, wants_judge, wants_second, comment, source FROM meeting_registrations ORDER BY id", $GLOBALS['link']);
+    $r = mysql_query("SELECT id, event_id, person_id, full_name, email, telegram, wants_play, wants_judge, wants_second, duel_type_pref, comment, source FROM meeting_registrations ORDER BY id", $GLOBALS['link']);
     if (!$r) return $saved;
     while ($row = mysql_fetch_assoc($r)) $saved[] = $row;
     return $saved;
@@ -640,11 +692,12 @@ function upsert_reg_row($p, $from_sql) {{
             s(!empty($p['хочетИграть'])),
             s(!empty($p['хочетСудить'])),
             s(!empty($p['хочетБытьСекундантом'])),
+            s($p['предпочтениеТипПоединка']),
             s($p['комментарий']),
             s($p['источник']),
         );
     }}
-    $cols = array('id','event_id','person_id','full_name','email','telegram','wants_play','wants_judge','wants_second','comment','source');
+    $cols = array('id','event_id','person_id','full_name','email','telegram','wants_play','wants_judge','wants_second','duel_type_pref','comment','source');
     return upsert('meeting_registrations', $cols, $vals);
 }}
 function run_additive_schema() {{
@@ -676,6 +729,7 @@ function run_additive_schema() {{
         array('meeting_registrations', 'wants_play', 'wants_play TINYINT(1) NOT NULL DEFAULT 0'),
         array('meeting_registrations', 'wants_judge', 'wants_judge TINYINT(1) NOT NULL DEFAULT 0'),
         array('meeting_registrations', 'wants_second', 'wants_second TINYINT(1) NOT NULL DEFAULT 0'),
+        array('meeting_registrations', 'duel_type_pref', 'duel_type_pref VARCHAR(32) NULL'),
         array('meeting_registrations', 'comment', 'comment TEXT NULL'),
         array('meeting_registrations', 'source', 'source VARCHAR(64) NULL'),
         array('duels', 'duel_date', 'duel_date DATE NULL'),
@@ -691,7 +745,13 @@ function run_additive_schema() {{
         array('duel_judges', 'vote', 'vote VARCHAR(64) NULL'),
     );
     foreach ($cols as $c) ensure_col($c[0], $c[1], $c[2]);
+    if (table_exists('org_change_log') && !table_exists('portal_log')) {{
+        if (q("RENAME TABLE org_change_log TO portal_log")) {{
+            echo "RENAME org_change_log TO portal_log\\n";
+        }}
+    }}
     ensure_table('material_docs', {php_str(MATERIAL_DOCS_DDL)});
+    ensure_table('portal_log', {php_str(PORTAL_LOG_DDL)});
     echo "additive_schema=ok\\n";
 }}
 
@@ -859,7 +919,7 @@ echo "change_log=$n\\n";
 bump_ai('duel_change_log');
 
 mysql_query("SET FOREIGN_KEY_CHECKS=1", $link);
-$tables = array('people','situations','events','duels','duel_judges','event_organizers','videos','circles','circle_memberships','event_observers','meeting_registrations','protocol_events','duel_change_log','material_docs');
+$tables = array('people','situations','events','duels','duel_judges','event_organizers','videos','circles','circle_memberships','event_observers','meeting_registrations','protocol_events','duel_change_log','material_docs','portal_log','outreach_campaigns','outreach_items');
 echo "--- counts ---\\n";
 foreach ($tables as $t) {{
     $r = mysql_query("SELECT COUNT(*) FROM `$t`", $link);

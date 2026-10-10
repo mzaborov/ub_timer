@@ -54,6 +54,17 @@
     return n;
   }
 
+  function svgIcon(id) {
+    var ns = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('class', 'ico');
+    svg.setAttribute('aria-hidden', 'true');
+    var use = document.createElementNS(ns, 'use');
+    use.setAttribute('href', '#' + id);
+    svg.appendChild(use);
+    return svg;
+  }
+
   function invKey(cid, inv) {
     return 'i:' + cid + ':' + encodeURIComponent(inv);
   }
@@ -311,7 +322,29 @@
       funnelUl.replaceChildren.apply(
         funnelUl,
         rows.map(function (p) {
-          var li = el('li', '', p.name);
+          var li = el('li', 'org-funnel-item');
+          li.appendChild(el('span', 'org-funnel-name', p.name));
+          var tg = (p.telegram || '').replace(/^@/, '');
+          if (tg) {
+            var a = document.createElement('a');
+            a.className = 'org-funnel-tg';
+            a.href = 'https://t.me/' + tg;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            a.title = 'Написать в Telegram' + (p.telegram ? ': ' + p.telegram : '');
+            a.setAttribute('aria-label', 'Написать в Telegram: ' + p.name);
+            a.appendChild(svgIcon('i-telegram'));
+            li.appendChild(a);
+          }
+          if (p.telegram_id) {
+            var aid = document.createElement('a');
+            aid.className = 'org-funnel-tg org-funnel-tg--id';
+            aid.href = 'tg://user?id=' + p.telegram_id;
+            aid.title = 'Открыть чат по Telegram ID ' + p.telegram_id + ' (может не сработать, нужен Telegram)';
+            aid.setAttribute('aria-label', 'Telegram по ID: ' + p.name);
+            aid.appendChild(svgIcon('i-id'));
+            li.appendChild(aid);
+          }
           return li;
         })
       );
@@ -353,8 +386,43 @@
     });
   }
 
+  var collapsed = new Set();
+  (function initCollapsed() {
+    circles.forEach(function (c) {
+      if (c.kind === 'group') {
+        collapsed.add(c.id);
+      }
+    });
+  })();
+
   function renderTree() {
     tree.replaceChildren();
+    var toolbar = el('div', 'org-tree-toolbar');
+    [
+      { label: 'Свернуть всё', action: 'collapse-all' },
+      { label: 'Развернуть всё', action: 'expand-all' },
+      { label: 'Группы', action: 'toggle-groups' },
+    ].forEach(function (btn) {
+      var b = el('button', 'org-tree-toolbar-btn', btn.label);
+      b.type = 'button';
+      b.addEventListener('click', function () {
+        if (btn.action === 'collapse-all') {
+          circles.forEach(function (c) { collapsed.add(c.id); });
+        } else if (btn.action === 'expand-all') {
+          collapsed.clear();
+        } else if (btn.action === 'toggle-groups') {
+          circles.forEach(function (c) {
+            if (c.kind === 'group') {
+              if (collapsed.has(c.id)) collapsed.delete(c.id); else collapsed.add(c.id);
+            }
+          });
+        }
+        renderTree();
+      });
+      toolbar.appendChild(b);
+    });
+    tree.appendChild(toolbar);
+
     var all = el('div', 'org-tree-node' + (selected.all ? ' is-on' : ''));
     all.setAttribute('data-node', 'all');
     all.setAttribute('role', 'button');
@@ -363,9 +431,41 @@
     all.appendChild(el('span', 'org-tree-n', String(people.length)));
     tree.appendChild(all);
 
+    var byParent = {};
     circles.forEach(function (c) {
-      var wrap = el('div', 'org-tree-circle');
+      var pid = c.parentId == null ? 0 : c.parentId;
+      byParent[pid] = byParent[pid] || [];
+      byParent[pid].push(c);
+    });
+
+    function renderCircle(c, container) {
+      var wrap = el('div', 'org-tree-circle' + (c.kind ? ' org-tree-kind-' + c.kind : ''));
       var row = el('div', 'org-tree-row');
+
+      var names = circleInvs(c.id);
+      if (draftInv && draftInv.circleId === c.id && names.indexOf(draftInv.inv) === -1) {
+        names = names.concat([draftInv.inv]);
+      }
+      var childCircles = byParent[c.id] || [];
+      var hasKids = names.length > 0 || childCircles.length > 0;
+      var isCollapsed = collapsed.has(c.id);
+
+      if (hasKids) {
+        var toggle = el('button', 'org-tree-toggle' + (isCollapsed ? ' is-collapsed' : ''), isCollapsed ? '▶' : '▼');
+        toggle.type = 'button';
+        toggle.title = isCollapsed ? 'Развернуть' : 'Свернуть';
+        toggle.addEventListener('click', function (e) {
+          e.stopPropagation();
+          if (collapsed.has(c.id)) {
+            collapsed.delete(c.id);
+          } else {
+            collapsed.add(c.id);
+          }
+          renderTree();
+        });
+        row.appendChild(toggle);
+      }
+
       var node = el('div', 'org-tree-node' + (selected['c:' + c.id] ? ' is-on' : ''));
       node.setAttribute('data-node', 'c:' + c.id);
       node.setAttribute('role', 'button');
@@ -385,11 +485,8 @@
       row.appendChild(pen);
       wrap.appendChild(row);
 
-      var kids = el('div', 'org-tree-kids');
-      var names = circleInvs(c.id);
-      if (draftInv && draftInv.circleId === c.id && names.indexOf(draftInv.inv) === -1) {
-        names = names.concat([draftInv.inv]);
-      }
+      var kids = el('div', 'org-tree-kids' + (isCollapsed ? ' is-collapsed' : ''));
+
       names.forEach(function (inv) {
         var key = invKey(c.id, inv);
         var irow = el('div', 'org-tree-row');
@@ -507,8 +604,18 @@
         });
       });
       kids.appendChild(addInv);
+
+      childCircles.forEach(function (child) {
+        renderCircle(child, kids);
+      });
+
       wrap.appendChild(kids);
-      tree.appendChild(wrap);
+      container.appendChild(wrap);
+    }
+
+    var roots = byParent[0] || [];
+    roots.forEach(function (c) {
+      renderCircle(c, tree);
     });
   }
 
@@ -740,6 +847,27 @@
     if (!p.active) {
       head.appendChild(el('span', 'org-person-off', 'не активен'));
     }
+    if (p.games === 0 && p.judged === 0) {
+      var delBtn = el('button', 'org-person-del', 'Удалить');
+      delBtn.type = 'button';
+      delBtn.title = 'Только если нет игр и судейств в протоколах';
+      delBtn.addEventListener('click', function () {
+        if (
+          !window.confirm(
+            'Удалить «' + p.name + '»?\nКарточка и членства исчезнут. Действие необратимо.'
+          )
+        ) {
+          return;
+        }
+        api('org_person_delete', { person_id: String(p.id) })
+          .then(function () {
+            personId = 0;
+            renderAll();
+          })
+          .catch(function () {});
+      });
+      head.appendChild(delBtn);
+    }
     card.appendChild(head);
 
     var body = el('div', 'org-person-body');
@@ -768,6 +896,9 @@
     addRow(contacts, 'Email', p.email, p.email ? 'mailto:' + p.email : '');
     var tg = (p.telegram || '').replace(/^@/, '');
     addRow(contacts, 'Telegram', p.telegram, tg ? 'https://t.me/' + tg : '');
+    if (p.telegram_id) {
+      addRow(contacts, 'Telegram (ID)', String(p.telegram_id), 'tg://user?id=' + p.telegram_id);
+    }
     addRow(contacts, 'Заметки', p.notes);
     if (contacts.childNodes.length) {
       left.appendChild(contacts);

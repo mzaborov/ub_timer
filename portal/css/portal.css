@@ -257,9 +257,103 @@ a { color: #bf360c; }
 }
 .who-modal-close:hover { color: var(--text); }
 body.who-modal-open { overflow: hidden; }
+.who-signup-link {
+  margin: 0.65rem 0 0;
+  font-size: 0.9rem;
+  flex: 1 1 100%;
+}
+.top--guest .who-signup-link {
+  margin: 0;
+  flex: 0 0 auto;
+}
+.who-signup-btn {
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.who-signup-btn:hover {
+  background: #fff;
+  color: var(--orange);
+}
+.who-modal-box .who-signup-btn {
+  border-color: var(--orange);
+  background: transparent;
+  color: var(--orange);
+}
+.who-modal-box .who-signup-btn:hover {
+  background: var(--orange);
+  color: #fff;
+}
+.who-signup-link .linkish,
+button.linkish {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--orange);
+  text-decoration: underline;
+  cursor: pointer;
+}
+button.linkish:hover { color: var(--text); }
+.who-signup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.who-signup-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.who-signup-field input {
+  font: inherit;
+  font-weight: 400;
+  color: var(--text);
+  min-height: 2.4rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.who-signup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.25rem;
+}
+.who-signup-actions button[type="submit"] {
+  padding: 0.45rem 0.9rem;
+  background: var(--orange);
+  color: #fff;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.who-signup-actions .btn-ghost {
+  padding: 0.4rem 0.7rem;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  color: var(--muted);
+  cursor: pointer;
+}
 .who-open-btn {
   display: inline-block;
   margin-top: 0.5rem;
+  margin-right: 0.4rem;
   padding: 0.4rem 0.85rem;
   background: var(--orange);
   color: #fff;
@@ -268,6 +362,11 @@ body.who-modal-open { overflow: hidden; }
   font: inherit;
   font-weight: 700;
   cursor: pointer;
+}
+.who-open-btn--ghost {
+  background: transparent;
+  color: var(--orange);
+  border: 1px solid var(--orange);
 }
 
 main {
@@ -448,6 +547,12 @@ main {
   display: inline;
   margin: 0;
 }
+.next-edit {
+  font-size: 0.78rem;
+  color: var(--orange);
+  text-decoration: underline;
+  white-space: nowrap;
+}
 .next-cancel button {
   background: none;
   border: 0;
@@ -492,11 +597,42 @@ main {
   gap: 0.45rem;
   margin: 0.25rem 0;
 }
-.reg-comment {
+.reg-roles .reg-type-pref {
+  display: block;
+  margin: 0.1rem 0 0.35rem 1.45rem;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.reg-roles .reg-type-pref select {
+  margin-top: 0.2rem;
+  min-height: 2rem;
+  font: inherit;
+  font-weight: 400;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+.reg-roles .reg-type-pref select:disabled {
+  background: #f2f2f2;
+  color: #888;
+  opacity: 0.7;
+}
+.reg-comment,
+.reg-type-pref {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
   font-weight: 600;
+}
+.reg-type-pref select {
+  font: inherit;
+  font-weight: 400;
+  min-height: 2.4rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
 }
 .reg-comment textarea {
   font: inherit;
@@ -1107,6 +1243,10 @@ main {
   background-color: var(--orange);
   border-color: #e65100;
 }
+.month td.ev.training {
+  background-color: #1565c0;
+  border-color: #0d47a1;
+}
 .month td.ev.planned {
   background-image: repeating-linear-gradient(
     135deg,
@@ -1144,11 +1284,24 @@ main {
     transparent 2px 7px
   );
 }
+.month td.ev.training.planned {
+  background-color: #bbdefb;
+  border-color: #90caf9;
+  color: #0d47a1;
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.72) 0 2px,
+    transparent 2px 7px
+  );
+}
 .month td.past.ev.tournament.planned {
   color: #4527a0;
 }
 .month td.past.ev.special.planned {
   color: #e65100;
+}
+.month td.past.ev.training.planned {
+  color: #0d47a1;
 }
 .month td.ev.cancelled,
 .month td.ev.online.cancelled,
@@ -1188,6 +1341,9 @@ main {
 }
 .month td.ev.online.sel::after {
   border-color: #e65100; /* выбранный онлайн: фирменный оранжевый */
+}
+.month td.ev.training.sel::after {
+  border-color: #0d47a1;
 }
 .month td.past { color: #424242; }
 .month td.past.ev { color: #fff; }
@@ -1298,6 +1454,37 @@ main {
     top: 0;
     transform: rotate(-45deg);
   }
+  .menu-item--signup,
+  .hub-item--signup {
+    width: 100%;
+    border: 1px dashed var(--orange);
+    background: var(--orange-soft);
+    cursor: pointer;
+    font: inherit;
+    text-align: center;
+  }
+  .menu-item--signup {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.65rem 0.85rem;
+    border-left: 0;
+    border-right: 0;
+    color: var(--text);
+  }
+  .hub-item--signup {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    min-height: 6.6rem;
+    padding: 0.85rem 0.45rem;
+    border-radius: 12px;
+    color: var(--text);
+  }
+  .hub-item--signup .hub-label { color: var(--orange); font-weight: 700; }
+
   .top-links { display: none; }
   .who { display: none; }
 
@@ -1664,6 +1851,9 @@ main {
   }
   .cal-month-strip button.dot-tournament::after {
     background: var(--tourney);
+  }
+  .cal-month-strip button.dot-training::after {
+    background: #1565c0;
   }
 
   body.cal-mobile-on .cal-mobile-bar { display: block; }

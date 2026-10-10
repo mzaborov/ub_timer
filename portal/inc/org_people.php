@@ -5,7 +5,7 @@ function org_people_payload(mysqli $db): array
 {
     $people = [];
     $r = $db->query(
-        'SELECT id, full_name, email, telegram, is_active, notes
+        'SELECT id, full_name, email, telegram, telegram_id, is_active, notes
          FROM people ORDER BY full_name, id'
     );
     while ($row = $r->fetch_assoc()) {
@@ -15,6 +15,7 @@ function org_people_payload(mysqli $db): array
             'name' => (string)$row['full_name'],
             'email' => (string)($row['email'] ?? ''),
             'telegram' => (string)($row['telegram'] ?? ''),
+            'telegram_id' => (int)($row['telegram_id'] ?? 0),
             'active' => (int)$row['is_active'] === 1,
             'notes' => (string)($row['notes'] ?? ''),
             'games' => 0,
@@ -61,12 +62,14 @@ function org_people_payload(mysqli $db): array
         }
     }
     $circles = [];
-    $r = $db->query('SELECT id, title FROM circles ORDER BY id');
+    $r = $db->query('SELECT id, title, parent_id, kind FROM circles ORDER BY id');
     while ($row = $r->fetch_assoc()) {
         $cid = (int)$row['id'];
         $circles[$cid] = [
             'id' => $cid,
             'title' => (string)$row['title'],
+            'parentId' => $row['parent_id'] === null ? null : (int)$row['parent_id'],
+            'kind' => (string)$row['kind'],
             'involvements' => [],
             'members' => 0,
         ];
@@ -143,11 +146,11 @@ function org_person_in_circle(array $p, string $title): bool
     return false;
 }
 
-/** Член телеграм-чата: круг «я-ИТ-ы», вовлечённость «участник чата телеграмм». */
+/** Член телеграм-чата: круг стрима, вовлечённость «участник чата телеграмм». */
 function org_person_in_chat(array $p): bool
 {
     foreach ($p['memberships'] as $m) {
-        if ((string)($m['circle'] ?? '') === COMMUNITY_CIRCLE
+        if ((string)($m['circle'] ?? '') === STREAM_CIRCLE
             && (string)($m['involvement'] ?? '') === 'участник чата телеграмм') {
             return true;
         }
@@ -198,7 +201,7 @@ function org_people_skip_ids(mysqli $db): array
 
 /**
  * Воронка: участники рейтинга (балл > 0) плюс верхние ступени —
- * я-ИТ-ы / чат / стрим при 0 игр и 0 суда. Гостей skip не берём.
+ * я-ИТ_ы A / чат / стрим при 0 игр и 0 суда. Гостей skip не берём.
  */
 function org_people_in_funnel(array $p, array $inRating, array $skip): bool
 {
@@ -213,7 +216,7 @@ function org_people_in_funnel(array $p, array $inRating, array $skip): bool
         return false;
     }
     return org_person_in_chat($p)
-        || org_person_in_circle($p, COMMUNITY_CIRCLE)
+        || org_person_in_circle($p, COMMUNITY_A_CIRCLE)
         || org_person_in_circle($p, STREAM_CIRCLE);
 }
 
@@ -223,7 +226,7 @@ function org_people_funnel_stages(): array
         [
             'key' => 'uninvolved',
             'title' => 'Непричастные ЧС',
-            'hint' => 'В круге я-ИТ-ы, но не в телеграм-чате. Без игр и суда.',
+            'hint' => 'В круге я-ИТ_ы A, но не в телеграм-чате. Без игр и суда.',
         ],
         [
             'key' => 'interested',
@@ -435,7 +438,92 @@ function org_people_handle_post(mysqli $db): array
     if ($action === 'org_person_add') {
         return org_person_add($db);
     }
+    if ($action === 'org_person_delete') {
+        return org_person_delete($db);
+    }
     return ['error' => 'Неизвестное действие'];
+}
+
+/** Игры/судейства в протоколах — блокируют удаление карточки. */
+function org_person_has_protocol_data(mysqli $db, int $pid): bool
+{
+    if ($pid < 1) {
+        return true;
+    }
+    if (org_row_exists(
+        $db,
+        'SELECT id FROM duels
+         WHERE player1_id = ? OR player2_id = ? OR second1_id = ? OR second2_id = ?
+         LIMIT 1',
+        'iiii',
+        [$pid, $pid, $pid, $pid]
+    )) {
+        return true;
+    }
+    return org_row_exists(
+        $db,
+        'SELECT id FROM duel_judges WHERE person_id = ? LIMIT 1',
+        'i',
+        [$pid]
+    );
+}
+
+function org_person_delete(mysqli $db): array
+{
+    $pid = (int)($_POST['person_id'] ?? 0);
+    if ($pid < 1) {
+        return ['error' => 'Нужен человек'];
+    }
+    $st = $db->prepare('SELECT id, full_name FROM people WHERE id = ? LIMIT 1');
+    $st->bind_param('i', $pid);
+    $st->execute();
+    $row = $st->get_result()->fetch_assoc();
+    $st->close();
+    if (!$row) {
+        return ['error' => 'Человек не найден'];
+    }
+    if (org_person_has_protocol_data($db, $pid)) {
+        return ['error' => 'Нельзя удалить: есть данные в протоколах (игры или судейства)'];
+    }
+    $name = (string)$row['full_name'];
+    $db->begin_transaction();
+    try {
+        $st = $db->prepare('DELETE FROM circle_memberships WHERE person_id = ?');
+        $st->bind_param('i', $pid);
+        $st->execute();
+        $st->close();
+        $st = $db->prepare('DELETE FROM meeting_registrations WHERE person_id = ?');
+        $st->bind_param('i', $pid);
+        $st->execute();
+        $st->close();
+        $st = $db->prepare('DELETE FROM event_organizers WHERE person_id = ?');
+        $st->bind_param('i', $pid);
+        $st->execute();
+        $st->close();
+        $st = $db->prepare('DELETE FROM event_observers WHERE person_id = ?');
+        $st->bind_param('i', $pid);
+        $st->execute();
+        $st->close();
+        $st = $db->prepare('UPDATE events SET referee_person_id = NULL WHERE referee_person_id = ?');
+        $st->bind_param('i', $pid);
+        $st->execute();
+        $st->close();
+        $st = $db->prepare('UPDATE duel_change_log SET author_id = NULL WHERE author_id = ?');
+        $st->bind_param('i', $pid);
+        $st->execute();
+        $st->close();
+        $st = $db->prepare('DELETE FROM people WHERE id = ?');
+        $st->bind_param('i', $pid);
+        $st->execute();
+        $st->close();
+        $db->commit();
+    } catch (Throwable $e) {
+        $db->rollback();
+        return ['error' => 'Не удалось удалить'];
+    }
+    require_once __DIR__ . '/portal_log.php';
+    portal_log_write($db, 'delete', 'person', $pid, ['full_name' => $name]);
+    return [];
 }
 
 function org_mem_add(mysqli $db): array

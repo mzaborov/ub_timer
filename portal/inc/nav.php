@@ -8,7 +8,7 @@ function portal_norm_page(string $p): string
 
 function portal_org_section(string $s): string
 {
-    return in_array($s, ['people', 'situations', 'events', 'materials'], true) ? $s : '';
+    return in_array($s, ['people', 'situations', 'events', 'materials', 'outreach'], true) ? $s : '';
 }
 
 function portal_org_url(string $s = ''): string
@@ -23,6 +23,7 @@ function portal_org_nav_items(): array
         ['id' => 'people', 'org' => true, 'label' => 'Люди', 'icon' => 'user', 'href' => portal_org_url('people')],
         ['id' => 'situations', 'org' => true, 'label' => 'Ситуации', 'icon' => 'book', 'href' => portal_org_url('situations')],
         ['id' => 'events', 'org' => true, 'label' => 'Мероприятия', 'icon' => 'calendar', 'href' => portal_org_url('events')],
+        ['id' => 'outreach', 'org' => true, 'label' => 'Опрос', 'icon' => 'send', 'href' => portal_org_url('outreach')],
         ['id' => 'materials', 'org' => true, 'label' => 'Материалы', 'icon' => 'folder', 'href' => portal_org_url('materials')],
     ];
 }
@@ -64,20 +65,60 @@ function portal_who_form(string $page, string $loginNext): void
     echo '</form>';
 }
 
-/** Попап «Кто вы?» — тот же autocomplete, что в шапке. */
-function portal_who_modal(string $loginNext = '', bool $autoOpen = false): void
-{
+/** Попап «Кто вы?» — autocomplete + простая регистрация. */
+function portal_who_modal(
+    string $loginNext = '',
+    bool $autoOpen = false,
+    bool $signupView = false,
+    string $signupError = '',
+    string $signupName = '',
+    string $signupEmail = '',
+    string $signupTelegram = ''
+): void {
     $open = $autoOpen ? ' data-open="1"' : '';
-    echo '<div id="who-modal" class="who-modal"' . $open . ' hidden>';
+    $view = $signupView ? 'signup' : 'identify';
+    echo '<div id="who-modal" class="who-modal" data-view="' . h($view) . '"' . $open . ' hidden>';
     echo '<div class="who-modal-backdrop" data-who-close></div>';
     echo '<div class="who-modal-box" role="dialog" aria-modal="true" aria-labelledby="who-modal-title">';
     echo '<button type="button" class="who-modal-close" data-who-close aria-label="Закрыть">×</button>';
+
+    echo '<div class="who-pane who-pane--identify"' . ($signupView ? ' hidden' : '') . '>';
     echo '<h2 id="who-modal-title">' . portal_icon('user') . ' Кто вы?</h2>';
     echo '<p class="who-modal-cta">Войдите, чтобы записаться на встречу</p>';
     echo '<div class="combo" data-combo>';
     echo '<input id="who-modal-input" type="text" autocomplete="off" placeholder="начните вводить фамилию">';
     echo '<ul class="combo-list" hidden></ul>';
-    echo '</div></div></div>';
+    echo '</div>';
+    echo '<p class="who-signup-link"><button type="button" class="who-signup-btn" data-who-signup>Меня нет в списке</button></p>';
+    echo '</div>';
+
+    echo '<div class="who-pane who-pane--signup"' . ($signupView ? '' : ' hidden') . '>';
+    echo '<h2 id="who-signup-title">' . portal_icon('user') . ' Регистрация</h2>';
+    echo '<p class="who-modal-cta">ФИО обязательно; email и Telegram — по желанию</p>';
+    if ($signupError !== '') {
+        echo '<p class="who-err">' . h($signupError) . '</p>';
+    }
+    echo '<form method="post" action="./" class="who-signup-form" id="who-signup-form">';
+    echo '<input type="hidden" name="action" value="signup">';
+    echo '<input type="hidden" name="next" value="' . h($loginNext) . '">';
+    portal_csrf_field();
+    echo '<label class="who-signup-field">ФИО';
+    echo '<input type="text" name="full_name" required maxlength="191" autocomplete="name" value="' . h($signupName) . '" placeholder="Иванов Иван Иванович">';
+    echo '</label>';
+    echo '<label class="who-signup-field">Email';
+    echo '<input type="email" name="email" maxlength="191" autocomplete="email" value="' . h($signupEmail) . '" placeholder="необязательно">';
+    echo '</label>';
+    echo '<label class="who-signup-field">Telegram';
+    echo '<input type="text" name="telegram" maxlength="64" autocomplete="off" value="' . h($signupTelegram) . '" placeholder="@username или без @">';
+    echo '</label>';
+    echo '<div class="who-signup-actions">';
+    echo '<button type="submit">Зарегистрироваться</button>';
+    echo '<button type="button" class="btn-ghost" data-who-identify>К выбору из списка</button>';
+    echo '</div>';
+    echo '</form>';
+    echo '</div>';
+
+    echo '</div></div>';
 }
 
 function portal_nav_items(string $bankUrl, string $timerUrl): array
@@ -114,7 +155,7 @@ function portal_menu_drawer(
 ): void {
     if ($orgOn) {
         $orgHead = [
-            ['id' => 'org', 'org' => true, 'label' => 'Рабочее место', 'icon' => 'lock', 'href' => portal_org_url()],
+            ['id' => 'org', 'org' => true, 'label' => 'Рабочее место организатора', 'icon' => 'lock', 'href' => portal_org_url()],
         ];
         if ($page === 'org') {
             $orgHead = array_merge($orgHead, portal_org_nav_items());
@@ -157,6 +198,12 @@ function portal_menu_drawer(
         }
         echo '</span></a>';
     }
+    if ($guest) {
+        echo '<button type="button" class="menu-item menu-item--signup" data-who-signup>';
+        echo portal_icon('user');
+        echo '<span class="menu-item-text"><span>Меня нет в списке</span>';
+        echo '<span class="menu-cta">Регистрация нового участника</span></span></button>';
+    }
     echo '</nav></aside>';
 }
 
@@ -175,6 +222,12 @@ function portal_hub(array $items, bool $guest = false): void
             echo '<span class="hub-cta">' . h(portal_guest_cta()) . '</span>';
         }
         echo '</a>';
+    }
+    if ($guest) {
+        echo '<button type="button" class="hub-item hub-item--signup" data-who-signup>';
+        echo '<span class="hub-ico">' . portal_icon('user') . '</span>';
+        echo '<span class="hub-label">Меня нет в списке</span>';
+        echo '<span class="hub-cta">Регистрация</span></button>';
     }
     echo '</nav>';
 }

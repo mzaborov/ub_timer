@@ -112,6 +112,35 @@ body.page-org-people main {
   line-height: 1.45;
 }
 .org-funnel-ul li { padding: 0.08rem 0; }
+.org-funnel-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.org-funnel-name { flex: 1 1 auto; min-width: 0; }
+.org-funnel-tg {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 50%;
+  color: #fff;
+  background: #229ed9;
+  font-size: 0.85rem;
+  line-height: 1;
+  text-decoration: none;
+  opacity: 0.9;
+}
+.org-funnel-tg:hover { opacity: 1; }
+.org-funnel-tg .ico { color: #fff; }
+.org-funnel-tg--id {
+  background: #f0a500;
+  color: #3a2c00;
+  border: 1px dashed rgba(58, 44, 0, 0.55);
+}
+.org-funnel-tg--id .ico { color: #3a2c00; }
 .org-funnel-goal-n {
   display: block;
   font-size: 1.6rem;
@@ -297,8 +326,42 @@ body.page-org-people main {
   padding: 0.22rem 0.4rem;
   font: inherit;
 }
+.org-tree-toolbar {
+  display: flex;
+  gap: 0.35rem;
+  margin: 0 0 0.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #e5e5e5;
+}
+.org-tree-toolbar-btn {
+  border: 1px solid #ddd;
+  background: #fafafa;
+  border-radius: 4px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.org-tree-toolbar-btn:hover { background: #f0f0f0; }
 .org-tree-circle { margin-top: 0.35rem; }
 .org-tree-kids { margin: 0.1rem 0 0 0.7rem; }
+.org-tree-kids.is-collapsed { display: none; }
+.org-tree-kids .org-tree-circle { margin-top: 0.15rem; }
+.org-tree-kids .org-tree-node { font-weight: 500; }
+.org-tree-kids .org-tree-kids .org-tree-node { font-size: 0.94rem; }
+.org-tree-kind-root > .org-tree-row .org-tree-node { font-weight: 700; }
+.org-tree-kind-viewpoint > .org-tree-row .org-tree-node { color: #444; }
+.org-tree-kind-group > .org-tree-row .org-tree-node { font-weight: 500; }
+.org-tree-toggle {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  width: 1.1rem;
+  padding: 0.28rem 0 0;
+  line-height: 1;
+}
+.org-tree-toggle:hover { color: #000; }
 .org-tree-inv { font-weight: 500; font-size: 0.92rem; }
 .org-people-toolbar {
   position: sticky;
@@ -416,6 +479,21 @@ body.page-org-people main {
   color: #b42318;
   font-size: 0.85rem;
   font-weight: 700;
+}
+.org-person-del {
+  margin-left: auto;
+  padding: 0.25rem 0.65rem;
+  border: 1px solid #c62828;
+  border-radius: 6px;
+  background: #fff;
+  color: #c62828;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.org-person-del:hover {
+  background: #ffebee;
 }
 .org-person-dl {
   margin: 0;

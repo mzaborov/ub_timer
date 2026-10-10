@@ -255,20 +255,20 @@ function portal_event_allows_signup(array $event): bool
         return false;
     }
     $type = portal_event_type($event);
-    if (!in_array($type, ['онлайн', 'купала'], true)) {
+    if (!in_array($type, ['онлайн', 'купала', 'обучение'], true)) {
         return false;
     }
     return portal_event_is_upcoming($event);
 }
 
-/** Ссылка на нашу форму заявки (онлайн / купала / новогоднее). */
+/** Ссылка на нашу форму заявки (онлайн / купала / обучение). */
 function portal_register_url(?array $event): string
 {
     if (!$event || portal_event_is_template($event)) {
         return '';
     }
     $type = portal_event_type($event);
-    if (!in_array($type, ['онлайн', 'купала', 'новогоднее'], true)) {
+    if (!in_array($type, ['онлайн', 'купала', 'обучение'], true)) {
         return '';
     }
     return 'register.php?event=' . (int)$event['id'];
@@ -308,7 +308,7 @@ function portal_find_registration(mysqli $db, int $eventId, int $personId): ?arr
     }
     try {
         $st = $db->prepare(
-            'SELECT id, event_id, person_id, full_name, wants_play, wants_judge, wants_second, comment
+            'SELECT id, event_id, person_id, full_name, wants_play, wants_judge, wants_second, duel_type_pref, comment
              FROM meeting_registrations
              WHERE event_id = ? AND person_id = ?
              LIMIT 1'
@@ -370,6 +370,38 @@ function portal_event_has_zoom(array $event): bool
     return trim((string)($event['zoom_url'] ?? '')) !== '';
 }
 
+/**
+ * Окно подключения Zoom (МСК): starts_at − 1 ч … ends_at + 1 ч.
+ * Нет времени — дата мероприятия + 11:00–13:30 (как типичный онлайн).
+ */
+function portal_zoom_join_open(array $event, ?DateTimeImmutable $now = null): bool
+{
+    if (!portal_event_has_zoom($event)) {
+        return false;
+    }
+    $startDate = portal_event_date_start($event);
+    if ($startDate === '') {
+        return false;
+    }
+    $endDate = portal_event_date_end($event);
+    $startClock = portal_event_clock($event, 'start');
+    $endClock = portal_event_clock($event, 'end');
+    if ($startClock === '') {
+        $startClock = '11:00';
+    }
+    if ($endClock === '') {
+        $endClock = '13:30';
+    }
+    $tz = new DateTimeZone('Europe/Moscow');
+    $start = DateTimeImmutable::createFromFormat('Y-m-d H:i', $startDate . ' ' . $startClock, $tz);
+    $end = DateTimeImmutable::createFromFormat('Y-m-d H:i', $endDate . ' ' . $endClock, $tz);
+    if (!$start || !$end) {
+        return false;
+    }
+    $now = $now ?? new DateTimeImmutable('now', $tz);
+    return $now >= $start->modify('-1 hour') && $now <= $end->modify('+1 hour');
+}
+
 /** Короткий редирект на портале; сырой Zoom в ICS/ссылках не светим. */
 function portal_zoom_short_url(?array $event): string
 {
@@ -388,6 +420,9 @@ function portal_zoom_short_url(?array $event): string
 
 function portal_join_button_html(?array $event, string $class = 'join-btn'): string
 {
+    if (!$event || !portal_zoom_join_open($event)) {
+        return '';
+    }
     $href = portal_zoom_short_url($event);
     if ($href === '') {
         return '';
@@ -485,10 +520,12 @@ function portal_build_ics(array $event): string
     $type = portal_event_type($event);
     $dates = portal_event_dates($event);
     $zoomShort = portal_zoom_short_url($event);
-    $url = $zoomShort !== '' ? $zoomShort : portal_event_abs_url($event);
+    $zoomRaw = trim((string)($event['zoom_url'] ?? ''));
+    $zoomLink = $zoomRaw !== '' ? $zoomRaw : $zoomShort;
+    $url = $zoomLink !== '' ? $zoomLink : portal_event_abs_url($event);
     $desc = trim(($type !== '' ? $type . '. ' : '') . ($dates !== '' ? $dates . '. ' : ''));
-    if ($zoomShort !== '') {
-        $desc = trim($desc . ' Подключение: ' . $zoomShort);
+    if ($zoomLink !== '') {
+        $desc = trim($desc . ' Подключение: ' . $zoomLink);
     } else {
         $desc = trim($desc . ' ' . $url);
     }
@@ -517,8 +554,8 @@ function portal_build_ics(array $event): string
     $ics .= portal_ics_fold('SUMMARY:' . portal_ics_escape($title));
     $ics .= portal_ics_fold('DESCRIPTION:' . portal_ics_escape($desc));
     $ics .= portal_ics_fold('URL:' . $url);
-    if ($zoomShort !== '') {
-        $ics .= portal_ics_fold('LOCATION:' . portal_ics_escape($zoomShort));
+    if ($zoomLink !== '') {
+        $ics .= portal_ics_fold('LOCATION:' . portal_ics_escape($zoomLink));
     }
     $ics .= "END:VEVENT\r\n";
     $ics .= "END:VCALENDAR\r\n";
@@ -556,6 +593,7 @@ function portal_echo_next_actions(array $ev, bool $loggedIn, array $myRegs): voi
     } elseif ($reg !== '') {
         if ($isReg) {
             echo '<span class="next-done">Записаны</span>';
+            echo '<a class="next-edit" href="register.php?event=' . $eid . '">Изменить</a>';
             echo '<form method="post" action="register.php?event=' . $eid . '" class="next-cancel"';
             echo ' onsubmit="return confirm(\'Отменить запись?\');">';
             portal_csrf_field();
@@ -570,7 +608,7 @@ function portal_echo_next_actions(array $ev, bool $loggedIn, array $myRegs): voi
             echo '<a class="next-reg" href="' . h($reg) . '" data-need-login="1">зарегистрироваться</a>';
         }
     }
-    if ($isReg && portal_event_is_live($ev) && portal_event_has_zoom($ev)) {
+    if ($isReg && portal_zoom_join_open($ev)) {
         portal_echo_zoom_link($ev, 'join-btn join-btn--next');
     }
     if ($isReg) {
@@ -936,7 +974,7 @@ function portal_registrations_by_event(mysqli $db, array $eventIds): array
     $out = [];
     try {
         $r = $db->query(
-            "SELECT event_id, person_id, full_name, wants_play, wants_judge, wants_second
+            "SELECT event_id, person_id, full_name, wants_play, wants_judge, wants_second, duel_type_pref
              FROM meeting_registrations
              WHERE event_id IN ($in)
              ORDER BY full_name, id"
@@ -952,6 +990,7 @@ function portal_registrations_by_event(mysqli $db, array $eventIds): array
             'play' => (int)($row['wants_play'] ?? 0) === 1,
             'judge' => (int)($row['wants_judge'] ?? 0) === 1,
             'second' => (int)($row['wants_second'] ?? 0) === 1,
+            'duel_type_pref' => (string)($row['duel_type_pref'] ?? ''),
         ];
     }
     return $out;
@@ -974,6 +1013,10 @@ function portal_regs_html(array $regs): string
         }
         if (!empty($r['second'])) {
             $roles[] = 'секундант';
+        }
+        $typePref = trim((string)($r['duel_type_pref'] ?? ''));
+        if ($typePref !== '') {
+            $roles[] = $typePref;
         }
         $s = h($name);
         if ($roles) {
@@ -1309,7 +1352,7 @@ function portal_events_for_calendar(mysqli $db): array
         if (!empty($vids['events'][$eid])) {
             $ev['video'] = $vids['events'][$eid];
         }
-        $ev['join'] = portal_zoom_short_url($ev);
+        $ev['join'] = portal_zoom_join_open($ev) ? portal_zoom_short_url($ev) : '';
         if (portal_event_is_open_status($ev['status'] ?? '')) {
             $ev['regs'] = $regsByEv[$eid] ?? [];
         }

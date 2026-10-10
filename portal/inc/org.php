@@ -8,15 +8,15 @@ function portal_org_section_title(string $s): string
             return $item['label'];
         }
     }
-    return 'Рабочее место';
+    return 'Рабочее место организатора';
 }
 
 function portal_echo_org_crumbs(string $section): void
 {
-    echo '<nav class="org-crumbs" aria-label="Разделы орга">';
+    echo '<nav class="org-crumbs" aria-label="Разделы организатора">';
     echo '<a class="org-to-members" href="./">К участникам</a>';
     if ($section !== '') {
-        echo '<a class="org-crumb" href="' . h(portal_org_url()) . '">← Рабочее место</a>';
+        echo '<a class="org-crumb" href="' . h(portal_org_url()) . '">← Рабочее место организатора</a>';
         echo '<span class="org-crumb-now">'
             . portal_icon(portal_org_section_icon($section)) . ' '
             . h(portal_org_section_title($section)) . '</span>';
@@ -26,7 +26,7 @@ function portal_echo_org_crumbs(string $section): void
 
 function portal_echo_org_hub(): void
 {
-    echo '<nav class="org-hub" aria-label="Разделы орга">';
+    echo '<nav class="org-hub" aria-label="Разделы организатора">';
     foreach (portal_org_nav_items() as $item) {
         echo '<a class="hub-item" href="' . h($item['href']) . '">';
         echo '<span class="hub-ico">' . portal_icon($item['icon']) . '</span>';
@@ -62,7 +62,7 @@ function portal_echo_org_main(string $section): void
 {
     echo '<div class="org-main">';
     if ($section === '') {
-        echo '<h1 class="org-title">' . portal_icon('lock') . ' Рабочее место орга</h1>';
+        echo '<h1 class="org-title">' . portal_icon('lock') . ' Рабочее место организатора</h1>';
         portal_echo_org_hub();
     } else {
         portal_echo_org_section($section);

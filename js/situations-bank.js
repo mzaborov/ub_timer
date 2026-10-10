@@ -41,6 +41,13 @@ function renderSituationPlayEvent_(p) {
 function renderSituationPlayVideoPill_(url, extraClass, label) {
     url = String(url || "").trim();
     if (!/^https?:\/\//i.test(url)) return "";
+    var isReview = extraClass === "sb-review" ||
+        (typeof extraClass === "string" && extraClass.indexOf("sb-review") >= 0);
+    if (isReview) {
+        return '<a class="sb-review-link" href="' +
+            escapeHtmlSituationsBank(url) + '" target="_blank" rel="noopener">' +
+            escapeHtmlSituationsBank(label) + "</a>";
+    }
     extraClass = extraClass ? " " + extraClass : "";
     return '<a class="sb-play-video vid-pill' + extraClass + '" href="' +
         escapeHtmlSituationsBank(url) + '" target="_blank" rel="noopener">' +
@@ -241,8 +248,10 @@ function getSituationGeneralReviews_(row) {
         if ((it.duelId | it.duel_id | 0) > 0) continue;
         if (duelUrls[url]) continue;
         items.push({
+            id: it.id | 0,
             url: url,
             label: String(it.label || "разбор").trim() || "разбор",
+            title: String(it.title || "").trim(),
             date: String(it.date || "").trim(),
             iso: String(it.iso || "").trim(),
             event: String(it.event || "").trim(),
@@ -252,9 +261,55 @@ function getSituationGeneralReviews_(row) {
     return items;
 }
 
+function orgReviewAutoLabel_(url) {
+    url = String(url || "");
+    if (/\.(xlsx|xls|ods|csv)(\?|#|$)/i.test(url) ||
+        url.indexOf("spreadsheets") >= 0 ||
+        /docs\.google\.com\/spreadsheets/i.test(url)) {
+        return "материал";
+    }
+    return "разбор";
+}
+
+function orgReviewDataAttrs_(o) {
+    var a = [
+        'data-sit-id="' + ((o && o.sitId) | 0) + '"',
+        'data-duel-id="' + ((o && o.duelId) | 0) + '"',
+        'data-event-id="' + ((o && o.eventId) | 0) + '"'
+    ];
+    if (o && (o.id | 0) > 0) a.push('data-review-id="' + (o.id | 0) + '"');
+    if (o && o.url) a.push('data-url="' + escapeHtmlSituationsBank(o.url) + '"');
+    if (o && o.title) a.push('data-title="' + escapeHtmlSituationsBank(o.title) + '"');
+    if (o && o.iso) a.push('data-iso="' + escapeHtmlSituationsBank(String(o.iso).slice(0, 10)) + '"');
+    return a.join(" ");
+}
+
+function renderOrgReviewActions_(kind, o) {
+    if (!isSituationsBankOrgMode_()) return "";
+    var attrs = orgReviewDataAttrs_(o);
+    if (kind === "add") {
+        var addLab = (o && (o.duelId | 0) > 0) ? "+ Добавить" : "+ Добавить разбор";
+        return '<button type="button" class="sb-review-act sb-review-act--add" data-review-add="1" ' +
+            attrs + ">" + addLab + "</button>";
+    }
+    return '<span class="sb-review-actions">' +
+        '<button type="button" class="sb-review-act" data-review-edit="1" ' + attrs + ">править</button>" +
+        '<button type="button" class="sb-review-act sb-review-act--del" data-review-delete="1" ' +
+        attrs + ">удалить</button></span>";
+}
+
 function renderSituationReviewsBlock_(row) {
     var reviews = getSituationGeneralReviews_(row);
-    if (!reviews.length) return "";
+    var org = isSituationsBankOrgMode_();
+    if (!reviews.length && !org) return "";
+    var sitId = (row && row.id) | 0;
+    var heading = '<p class="sb-plays-heading' + (org ? " sb-plays-heading--org" : "") + '">Разборы' +
+        (org ? renderOrgReviewActions_("add", { sitId: sitId, duelId: 0, eventId: 0 }) : "") +
+        "</p>";
+    if (!reviews.length) {
+        return '<div class="sb-plays-panel sb-plays-panel--empty">' + heading +
+            '<p class="sb-plays-empty">Пока нет общих разборов</p></div>';
+    }
     var items = "";
     var rowsHtml = "";
     var i;
@@ -263,6 +318,15 @@ function renderSituationReviewsBlock_(row) {
         var eventHtml = r.event ? renderSituationPlayEvent_(r) : "—";
         var dateHtml = r.date ? escapeHtmlSituationsBank(r.date) : "—";
         var pill = renderSituationPlayVideoPill_(r.url, "sb-review", r.label);
+        var act = renderOrgReviewActions_("edit", {
+            id: r.id,
+            sitId: sitId,
+            duelId: 0,
+            eventId: r.eventId,
+            url: r.url,
+            title: r.title || r.label,
+            iso: r.iso
+        });
         var metaHtml = "";
         if (r.date) metaHtml += escapeHtmlSituationsBank(r.date);
         if (r.event) {
@@ -271,15 +335,14 @@ function renderSituationReviewsBlock_(row) {
         }
         items += '<li class="sb-play">' +
             (metaHtml ? '<p class="sb-play-meta">' + metaHtml + "</p>" : "") +
-            '<p class="sb-play-line">' + (pill || escapeHtmlSituationsBank(r.label)) + "</p></li>";
+            '<p class="sb-play-line">' + (pill || escapeHtmlSituationsBank(r.label)) + " " + act + "</p></li>";
         rowsHtml += "<tr>" +
             "<td>" + dateHtml + "</td>" +
             "<td>" + eventHtml + "</td>" +
-            '<td class="sb-plays-td-video">' + pill + "</td>" +
+            '<td class="sb-plays-td-video">' + pill + " " + act + "</td>" +
             "</tr>";
     }
-    return '<div class="sb-plays-panel">' +
-        '<p class="sb-plays-heading">Разборы</p>' +
+    return '<div class="sb-plays-panel">' + heading +
         '<ul class="sb-plays">' + items + "</ul>" +
         '<div class="sb-plays-wrap">' +
         '<table class="sb-plays-table">' +
@@ -323,12 +386,35 @@ function renderSituationPlaysBlock_(row) {
             var videoHtml = renderSituationPlayVideoPill_(p.video, "", "видео");
             var revLab = String(p.reviewLabel || "разбор").trim() || "разбор";
             var reviewHtml = renderSituationPlayVideoPill_(p.review, "sb-review", revLab);
+            var duelId = p.duelId | p.duel_id | 0;
+            var reviewAct = "";
+            if (isSituationsBankOrgMode_() && (row && row.id) && duelId > 0) {
+                if (p.review && (p.reviewId | 0) > 0) {
+                    reviewAct = renderOrgReviewActions_("edit", {
+                        id: p.reviewId,
+                        sitId: row.id,
+                        duelId: duelId,
+                        eventId: p.eventId,
+                        url: p.review,
+                        title: p.reviewTitle || revLab,
+                        iso: p.reviewIso || p.iso
+                    });
+                } else {
+                    reviewAct = renderOrgReviewActions_("add", {
+                        sitId: row.id,
+                        duelId: duelId,
+                        eventId: p.eventId,
+                        iso: p.iso
+                    });
+                }
+            }
             items += '<li class="sb-play">' +
                 (metaHtml ? '<p class="sb-play-meta">' + metaHtml + "</p>" : "") +
                 '<p class="sb-play-line">' + vs +
                 (scoreHtml ? " · " + scoreHtml : "") +
                 (videoHtml ? " " + videoHtml : "") +
                 (reviewHtml ? " " + reviewHtml : "") +
+                (reviewAct ? " " + reviewAct : "") +
                 "</p></li>";
             rowsHtml += "<tr>" +
                 "<td>" + escapeHtmlSituationsBank(p.date || "") + "</td>" +
@@ -337,7 +423,8 @@ function renderSituationPlaysBlock_(row) {
                 "<td>" + renderSituationPlayName_(p.p2, w === 2) + "</td>" +
                 "<td>" + scoreHtml + "</td>" +
                 '<td class="sb-plays-td-video">' + videoHtml + "</td>" +
-                '<td class="sb-plays-td-video">' + reviewHtml + "</td>" +
+                '<td class="sb-plays-td-video">' + (reviewHtml || "") +
+                (reviewAct ? " " + reviewAct : "") + "</td>" +
                 "</tr>";
         }
         inner =
@@ -348,7 +435,7 @@ function renderSituationPlaysBlock_(row) {
             "<th>Дата</th><th>Мероприятие</th><th>Игрок 1</th><th>Игрок 2</th><th>Счёт</th><th>Видео</th><th>Разбор</th>" +
             "</tr></thead><tbody>" + rowsHtml + "</tbody></table></div>";
     }
-    return '<div class="sb-plays-panel">' +
+    return '<div class="sb-plays-panel' + (plays.length ? "" : " sb-plays-panel--empty") + '">' +
         '<p class="sb-plays-heading">Когда играли эту ситуацию</p>' + inner + "</div>";
 }
 
@@ -1667,6 +1754,166 @@ function orgSitGenerate_() {
     });
 }
 
+function orgReviewEditorEl_() {
+    return document.getElementById("sb-review-editor");
+}
+
+function orgReviewShowEditor_(show) {
+    var ed = orgReviewEditorEl_();
+    if (!ed) return;
+    if (show) {
+        ed.classList.remove("sb-hidden");
+        ed.hidden = false;
+    } else {
+        ed.classList.add("sb-hidden");
+        ed.hidden = true;
+    }
+}
+
+function orgReviewUpdateHint_() {
+    var urlEl = document.getElementById("sb-rv-url");
+    var labEl = document.getElementById("sb-rv-label");
+    var hint = document.getElementById("sb-rv-auto-hint");
+    if (!hint) return;
+    var auto = orgReviewAutoLabel_(urlEl ? urlEl.value : "");
+    if (labEl && labEl.value === "auto") {
+        hint.textContent = "сейчас: " + auto;
+    } else {
+        hint.textContent = "";
+    }
+}
+
+function orgReviewFillEditor_(opts) {
+    opts = opts || {};
+    var isEdit = (opts.id | 0) > 0;
+    var title = document.getElementById("sb-review-title");
+    if (title) title.textContent = isEdit ? "Править разбор" : "Добавить разбор";
+    document.getElementById("sb-rv-id").value = (opts.id | 0) || "";
+    document.getElementById("sb-rv-sit").value = (opts.sitId | 0) || "";
+    document.getElementById("sb-rv-duel").value = String((opts.duelId | 0) || 0);
+    document.getElementById("sb-rv-event").value = String((opts.eventId | 0) || 0);
+    document.getElementById("sb-rv-url").value = opts.url || "";
+    var lab = document.getElementById("sb-rv-label");
+    var rawTitle = String(opts.title || "").trim().toLowerCase();
+    if (rawTitle === "разбор" || rawTitle === "материал") lab.value = rawTitle;
+    else lab.value = "auto";
+    var iso = String(opts.iso || "").trim();
+    document.getElementById("sb-rv-date").value = /^\d{4}-\d{2}-\d{2}/.test(iso) ? iso.slice(0, 10) : "";
+    var err = document.getElementById("sb-review-err");
+    if (err) { err.hidden = true; err.textContent = ""; }
+    orgReviewUpdateHint_();
+}
+
+function orgReviewOptsFromBtn_(btn) {
+    if (!btn) return {};
+    return {
+        id: btn.getAttribute("data-review-id") | 0,
+        sitId: btn.getAttribute("data-sit-id") | 0,
+        duelId: btn.getAttribute("data-duel-id") | 0,
+        eventId: btn.getAttribute("data-event-id") | 0,
+        url: btn.getAttribute("data-url") || "",
+        title: btn.getAttribute("data-title") || "",
+        iso: btn.getAttribute("data-iso") || ""
+    };
+}
+
+function orgReviewKeepSituation_(sitId) {
+    var found = null;
+    if (sitId) {
+        for (var i = 0; i < situationsBankRows.length; i++) {
+            if (situationsBankRows[i].id === sitId) { found = situationsBankRows[i]; break; }
+        }
+    }
+    renderSituationsBankList_();
+    if (found) selectSituationBankRow_(found.index, { replaceHistory: true });
+    else {
+        situationsBankSelectedIndex = -1;
+        renderSituationBankDetail_(null);
+        applySituationsBankLayout_();
+    }
+}
+
+function orgReviewOpenAdd_(opts) {
+    orgReviewFillEditor_(opts);
+    orgReviewShowEditor_(true);
+    var url = document.getElementById("sb-rv-url");
+    if (url) url.focus();
+}
+
+function orgReviewOpenEdit_(opts) {
+    if (!opts || !(opts.id | 0)) return;
+    orgReviewFillEditor_(opts);
+    orgReviewShowEditor_(true);
+    var url = document.getElementById("sb-rv-url");
+    if (url) url.focus();
+}
+
+function orgReviewSave_(event) {
+    if (event) event.preventDefault();
+    var err = document.getElementById("sb-review-err");
+    var sitId = parseInt(document.getElementById("sb-rv-sit").value, 10) || 0;
+    var url = (document.getElementById("sb-rv-url").value || "").trim();
+    if (!sitId) {
+        if (err) { err.hidden = false; err.textContent = "Не указана ситуация"; }
+        return;
+    }
+    if (!/^https?:\/\//i.test(url)) {
+        if (err) { err.hidden = false; err.textContent = "Нужна ссылка https://…"; }
+        return;
+    }
+    orgSitPost_("org_review_save", {
+        id: document.getElementById("sb-rv-id").value,
+        situation_id: sitId,
+        duel_id: document.getElementById("sb-rv-duel").value,
+        event_id: document.getElementById("sb-rv-event").value,
+        url: url,
+        title: document.getElementById("sb-rv-label").value,
+        video_date: document.getElementById("sb-rv-date").value
+    }).then(function (res) {
+        if (res.error) throw new Error(res.error);
+        applyOrgSitPayload_(res.data || res);
+        orgReviewShowEditor_(false);
+        orgReviewKeepSituation_(sitId);
+        if (err) { err.hidden = true; err.textContent = ""; }
+    }).catch(function (e) {
+        if (err) { err.hidden = false; err.textContent = e.message || String(e); }
+    });
+}
+
+function orgReviewDelete_(opts) {
+    var id = opts && (opts.id | 0);
+    if (!id) return;
+    if (!window.confirm("Удалить этот разбор?")) return;
+    var sitId = (opts.sitId | 0) || ((getSituationBankRowByIndex_(situationsBankSelectedIndex) || {}).id | 0);
+    orgSitPost_("org_review_delete", { id: id }).then(function (res) {
+        if (res.error) throw new Error(res.error);
+        applyOrgSitPayload_(res.data || res);
+        orgReviewShowEditor_(false);
+        orgReviewKeepSituation_(sitId);
+    }).catch(function (e) {
+        setSituationsBankStatus_(e.message || String(e), true);
+    });
+}
+
+function orgReviewOnDetailClick_(e) {
+    var t = e.target;
+    if (t && t.nodeType === 3) t = t.parentNode;
+    var btn = t && t.closest ? t.closest("[data-review-add],[data-review-edit],[data-review-delete]") : null;
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var opts = orgReviewOptsFromBtn_(btn);
+    if (btn.getAttribute("data-review-delete")) {
+        orgReviewDelete_(opts);
+        return;
+    }
+    if (btn.getAttribute("data-review-edit")) {
+        orgReviewOpenEdit_(opts);
+        return;
+    }
+    orgReviewOpenAdd_(opts);
+}
+
 function initOrgSituationsBank_() {
     if (!isSituationsBankOrgMode_()) return;
     var createBtn = document.getElementById("sb-org-create");
@@ -1680,6 +1927,11 @@ function initOrgSituationsBank_() {
     var nameEl = document.getElementById("sb-ed-name");
     var addRole = document.getElementById("sb-ed-roles-add");
     var tbody = orgSitRolesTbody_();
+    var rvForm = document.getElementById("sb-review-form");
+    var rvCancel = document.getElementById("sb-rv-cancel");
+    var rvUrl = document.getElementById("sb-rv-url");
+    var rvLabel = document.getElementById("sb-rv-label");
+    var detail = document.getElementById("situations-bank-detail");
     if (createBtn) createBtn.addEventListener("click", orgSitOpenCreate_);
     if (editBtn) editBtn.addEventListener("click", orgSitOpenEdit_);
     if (form) form.addEventListener("submit", orgSitSave_);
@@ -1723,6 +1975,11 @@ function initOrgSituationsBank_() {
             if (tbody.querySelectorAll("tr").length === 0) orgSitAppendRoleRow_({});
         });
     }
+    if (detail) detail.addEventListener("click", orgReviewOnDetailClick_);
+    if (rvForm) rvForm.addEventListener("submit", orgReviewSave_);
+    if (rvCancel) rvCancel.addEventListener("click", function () { orgReviewShowEditor_(false); });
+    if (rvUrl) rvUrl.addEventListener("input", orgReviewUpdateHint_);
+    if (rvLabel) rvLabel.addEventListener("change", orgReviewUpdateHint_);
     orgSitInitDescEditor_();
 }
 

@@ -38,6 +38,9 @@ const STREAM_CIRCLE = 'Стрим поединки я-ИТ-ы';
 const FUB_CIRCLE = 'ФУБ';
 const PARTNERS_CIRCLE = 'Партнеры';
 const COMMUNITY_CIRCLE = 'я-ИТ-ы';
+const COMMUNITY_A_CIRCLE = 'A (Ядро)';
+const UNSORTED_CIRCLE = 'Несортированные';
+const UNSORTED_INVOLVEMENT = 'новый';
 const ORG_ROLES = ['Организатор', 'Куратор'];
 const COOKIE_ME = 'ub_me';
 const COOKIE_ORG = 'ub_org';
@@ -164,6 +167,86 @@ function load_person(mysqli $db, int $id): ?array
     $row = $st->get_result()->fetch_assoc();
     $st->close();
     return $row ?: null;
+}
+
+/** Обрезка строки для people / membership (как у оргов). */
+function portal_field_norm(string $s, int $max = 191): string
+{
+    $s = trim($s);
+    if ($s === '') {
+        return '';
+    }
+    if (function_exists('mb_substr')) {
+        return mb_substr($s, 0, $max);
+    }
+    return substr($s, 0, $max);
+}
+
+function portal_circle_id_by_title(mysqli $db, string $title): int
+{
+    $st = $db->prepare('SELECT id FROM circles WHERE title = ? LIMIT 1');
+    $st->bind_param('s', $title);
+    $st->execute();
+    $row = $st->get_result()->fetch_assoc();
+    $st->close();
+    return $row ? (int)$row['id'] : 0;
+}
+
+/** Создаёт круг, если его ещё нет. */
+function portal_ensure_circle(mysqli $db, string $title): int
+{
+    $id = portal_circle_id_by_title($db, $title);
+    if ($id > 0) {
+        return $id;
+    }
+    $st = $db->prepare('INSERT INTO circles (title) VALUES (?)');
+    $st->bind_param('s', $title);
+    $st->execute();
+    $id = (int)$db->insert_id;
+    $st->close();
+    return $id;
+}
+
+/**
+ * Саморегистрация: people + членство в «Несортированные» / «новый».
+ * @return array{ok?:true,person_id?:int,error?:string}
+ */
+function portal_signup_person(mysqli $db, string $fullName, string $email, string $telegram): array
+{
+    $name = portal_field_norm($fullName);
+    $email = portal_field_norm($email);
+    $telegram = portal_field_norm($telegram, 64);
+    if ($name === '') {
+        return ['error' => 'Укажите ФИО'];
+    }
+    $st = $db->prepare('SELECT id FROM people WHERE full_name = ? LIMIT 1');
+    $st->bind_param('s', $name);
+    $st->execute();
+    $exists = $st->get_result()->fetch_assoc();
+    $st->close();
+    if ($exists) {
+        return ['error' => 'Вы уже в списке — выберите себя выше'];
+    }
+    $active = 1;
+    $st = $db->prepare(
+        'INSERT INTO people (full_name, email, telegram, is_active) VALUES (?, ?, ?, ?)'
+    );
+    $st->bind_param('sssi', $name, $email, $telegram, $active);
+    $st->execute();
+    $pid = (int)$db->insert_id;
+    $st->close();
+    if ($pid < 1) {
+        return ['error' => 'Не удалось создать карточку'];
+    }
+    $cid = portal_ensure_circle($db, UNSORTED_CIRCLE);
+    $inv = UNSORTED_INVOLVEMENT;
+    $st = $db->prepare(
+        'INSERT INTO circle_memberships (circle_id, person_id, involvement) VALUES (?, ?, ?)'
+    );
+    $st->bind_param('iis', $cid, $pid, $inv);
+    $st->execute();
+    $st->close();
+    return ['ok' => true, 'person_id' => $pid];
 }
 
 function portal_csrf_token(): string
