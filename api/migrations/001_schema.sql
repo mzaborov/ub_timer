@@ -8,6 +8,10 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
+DROP TABLE IF EXISTS portal_log;
+DROP TABLE IF EXISTS outreach_items;
+DROP TABLE IF EXISTS outreach_campaigns;
+DROP TABLE IF EXISTS org_change_log;
 DROP TABLE IF EXISTS material_docs;
 DROP TABLE IF EXISTS protocol_events;
 DROP TABLE IF EXISTS duel_change_log;
@@ -68,7 +72,7 @@ CREATE TABLE events (
   id INT NOT NULL AUTO_INCREMENT,
   slug VARCHAR(64) NULL,
   title VARCHAR(255) NOT NULL,
-  event_type VARCHAR(32) NOT NULL COMMENT 'онлайн|купала|новогоднее|региональный|турнир',
+  event_type VARCHAR(32) NOT NULL COMMENT 'онлайн|купала|новогоднее|региональный|турнир|обучение',
   starts_on DATE NULL,
   ends_on DATE NULL,
   starts_at TIME NULL COMMENT 'МСК; онлайн по умолчанию 11:00',
@@ -114,6 +118,7 @@ CREATE TABLE meeting_registrations (
   wants_play TINYINT(1) NOT NULL DEFAULT 0,
   wants_judge TINYINT(1) NOT NULL DEFAULT 0,
   wants_second TINYINT(1) NOT NULL DEFAULT 0,
+  duel_type_pref VARCHAR(32) NULL,
   comment TEXT NULL,
   source VARCHAR(64) NULL,
   PRIMARY KEY (id),
@@ -214,6 +219,49 @@ CREATE TABLE material_docs (
   PRIMARY KEY (id),
   UNIQUE KEY uq_mat_slug (slug),
   KEY idx_mat_sort (sort_order, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE portal_log (
+  id INT NOT NULL AUTO_INCREMENT,
+  actor_id INT NULL,
+  actor_name VARCHAR(255) NULL,
+  action VARCHAR(64) NOT NULL,
+  entity VARCHAR(64) NOT NULL,
+  entity_id INT NULL,
+  payload_json TEXT NULL,
+  created_at DATETIME NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_plog_entity (entity, entity_id),
+  KEY idx_plog_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE outreach_campaigns (
+  id INT NOT NULL AUTO_INCREMENT,
+  event_id INT NULL COMMENT 'онлайн, к которому привязан опрос; NULL — свободный список',
+  title VARCHAR(191) NOT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'active' COMMENT 'active|done',
+  created_by_person_id INT NULL,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_oc_event (event_id),
+  CONSTRAINT fk_oc_event FOREIGN KEY (event_id) REFERENCES events (id),
+  CONSTRAINT fk_oc_author FOREIGN KEY (created_by_person_id) REFERENCES people (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE outreach_items (
+  id INT NOT NULL AUTO_INCREMENT,
+  campaign_id INT NOT NULL,
+  person_id INT NOT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'new' COMMENT 'new|written|no_answer|not_interested|later|ready',
+  ready_hint VARCHAR(191) NULL COMMENT 'когда примерно готов (для status=later)',
+  comment TEXT NULL,
+  updated_at DATETIME NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_oi (campaign_id, person_id),
+  KEY idx_oi_campaign (campaign_id),
+  CONSTRAINT fk_oi_campaign FOREIGN KEY (campaign_id) REFERENCES outreach_campaigns (id),
+  CONSTRAINT fk_oi_person FOREIGN KEY (person_id) REFERENCES people (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SET FOREIGN_KEY_CHECKS = 1;

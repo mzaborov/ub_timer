@@ -68,6 +68,19 @@ function portal_icon_sprite(): void
     <rect x="3" y="6" width="13" height="12" rx="2"/>
     <path d="M16 10l5-3v10l-5-3z"/>
   </symbol>
+  <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 3L3 10.5l7 3 3 7L21 3z"/>
+    <path d="M10 13.5L21 3"/>
+  </symbol>
+  <symbol id="i-telegram" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+    <path d="M21.9 4.1 2.8 11.5c-.9.3-.9 1.6.1 1.9l4.9 1.5 1.9 5.8c.3.8 1.3.9 1.8.2l2.6-3.3 4.4 3.2c.7.5 1.6.1 1.8-.7l3-13.9c.2-.9-.7-1.6-1.4-1.3zM9.2 14.2l8.6-6.3-6.7 7.3-.2 3.1-1.7-4.1z"/>
+  </symbol>
+  <symbol id="i-id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3" y="5" width="18" height="14" rx="2"/>
+    <circle cx="8.5" cy="11" r="2"/>
+    <path d="M5.6 16c.6-1.5 1.7-2.2 2.9-2.2s2.3.7 2.9 2.2"/>
+    <path d="M14 9.5h4.5M14 12.5h4.5M14 15.5h3"/>
+  </symbol>
 </svg>
 SVG;
     echo '</div>';

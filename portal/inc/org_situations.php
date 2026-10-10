@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/org_sit_llm.php';
 require_once __DIR__ . '/sit_plays.php';
+require_once __DIR__ . '/portal_log.php';
 
 function org_sit_name_from_code(string $code): string
 {
@@ -211,6 +212,184 @@ function org_sit_save(mysqli $db): array
     return ['id' => $newId, 'data' => org_sit_payload($db)];
 }
 
+function org_review_norm_date(string $raw): array
+{
+    $raw = trim($raw);
+    if ($raw === '') {
+        return ['date' => null];
+    }
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw) && !str_starts_with($raw, '0000')) {
+        return ['date' => $raw];
+    }
+    return ['error' => 'Дата должна быть в формате ГГГГ-ММ-ДД'];
+}
+
+function org_review_norm_title(string $raw, string $url): ?string
+{
+    $raw = trim($raw);
+    $low = function_exists('mb_strtolower') ? mb_strtolower($raw, 'UTF-8') : strtolower($raw);
+    if ($raw === '' || $low === 'auto') {
+        return null;
+    }
+    if ($low === 'разбор' || $low === 'материал') {
+        return $low;
+    }
+    return sit_review_label($url, $raw);
+}
+
+function org_review_load(mysqli $db, int $id): ?array
+{
+    if ($id <= 0) {
+        return null;
+    }
+    $st = $db->prepare(
+        'SELECT id, event_id, duel_id, situation_id, url, video_date, title, video_type
+         FROM videos WHERE id = ? LIMIT 1'
+    );
+    $st->bind_param('i', $id);
+    $st->execute();
+    $row = $st->get_result()->fetch_assoc();
+    $st->close();
+    return $row ?: null;
+}
+
+function org_review_snapshot(array $row): array
+{
+    return [
+        'id' => (int)($row['id'] ?? 0),
+        'situation_id' => (int)($row['situation_id'] ?? 0),
+        'duel_id' => (int)($row['duel_id'] ?? 0),
+        'event_id' => (int)($row['event_id'] ?? 0),
+        'url' => (string)($row['url'] ?? ''),
+        'title' => (string)($row['title'] ?? ''),
+        'video_date' => (string)($row['video_date'] ?? ''),
+    ];
+}
+
+function org_review_save(mysqli $db): array
+{
+    $id = (int)($_POST['id'] ?? 0);
+    $sitId = (int)($_POST['situation_id'] ?? 0);
+    $duelId = (int)($_POST['duel_id'] ?? 0);
+    $eventId = (int)($_POST['event_id'] ?? 0);
+    $url = trim((string)($_POST['url'] ?? ''));
+    if ($sitId <= 0 && $duelId <= 0) {
+        return ['error' => 'Не указана ситуация'];
+    }
+    if (!sit_is_http_url($url)) {
+        return ['error' => 'Нужна ссылка https://…'];
+    }
+    if (strlen($url) > 1024) {
+        return ['error' => 'Ссылка слишком длинная'];
+    }
+    $dateRes = org_review_norm_date((string)($_POST['video_date'] ?? ''));
+    if (!empty($dateRes['error'])) {
+        return ['error' => $dateRes['error']];
+    }
+    $videoDate = $dateRes['date'];
+    $title = org_review_norm_title((string)($_POST['title'] ?? ''), $url);
+    if ($duelId > 0) {
+        $stD = $db->prepare('SELECT id, event_id, situation_id FROM duels WHERE id = ? LIMIT 1');
+        $stD->bind_param('i', $duelId);
+        $stD->execute();
+        $duel = $stD->get_result()->fetch_assoc();
+        $stD->close();
+        if (!$duel) {
+            return ['error' => 'Поединок не найден'];
+        }
+        $duelSit = (int)($duel['situation_id'] ?? 0);
+        if ($sitId <= 0) {
+            $sitId = $duelSit;
+        } elseif ($duelSit > 0 && $duelSit !== $sitId) {
+            return ['error' => 'Поединок относится к другой ситуации'];
+        }
+        if ($eventId <= 0) {
+            $eventId = (int)($duel['event_id'] ?? 0);
+        }
+    }
+    if ($sitId > 0) {
+        $stSit = $db->prepare('SELECT id FROM situations WHERE id = ? LIMIT 1');
+        $stSit->bind_param('i', $sitId);
+        $stSit->execute();
+        $sitOk = (bool)$stSit->get_result()->fetch_assoc();
+        $stSit->close();
+        if (!$sitOk) {
+            return ['error' => 'Ситуация не найдена'];
+        }
+    }
+    $eventBind = $eventId > 0 ? $eventId : null;
+    $duelBind = $duelId > 0 ? $duelId : null;
+    $sitBind = $sitId > 0 ? $sitId : null;
+    $type = 'Разбор';
+    $before = null;
+    if ($id > 0) {
+        $found = org_review_load($db, $id);
+        if (!$found || (string)($found['video_type'] ?? '') !== 'Разбор') {
+            return ['error' => 'Разбор не найден'];
+        }
+        $before = org_review_snapshot($found);
+        $st = $db->prepare(
+            'UPDATE videos
+             SET url = ?, title = ?, video_date = ?, event_id = ?, duel_id = ?
+             WHERE id = ? AND video_type = ?'
+        );
+        $st->bind_param('sssiiis', $url, $title, $videoDate, $eventBind, $duelBind, $id, $type);
+        $st->execute();
+        $st->close();
+    } else {
+        $st = $db->prepare(
+            'INSERT INTO videos (event_id, duel_id, situation_id, url, video_date, title, video_type)
+             VALUES (?, ?, ?, ?, ?, ?, ?)'
+        );
+        $st->bind_param('iiissss', $eventBind, $duelBind, $sitBind, $url, $videoDate, $title, $type);
+        $st->execute();
+        $id = (int)$db->insert_id;
+        $st->close();
+        if ($id <= 0) {
+            return ['error' => 'Не удалось сохранить разбор'];
+        }
+    }
+    $after = [
+        'situation_id' => $sitId,
+        'duel_id' => $duelId,
+        'event_id' => $eventId,
+        'url' => $url,
+        'title' => $title,
+        'video_date' => $videoDate,
+    ];
+    portal_log_write($db, $before ? 'review_update' : 'review_create', 'video', $id, [
+        'before' => $before,
+        'after' => $after,
+    ]);
+    return org_review_json_ok($db, $id);
+}
+
+function org_review_delete(mysqli $db): array
+{
+    $id = (int)($_POST['id'] ?? 0);
+    $found = org_review_load($db, $id);
+    if (!$found || (string)($found['video_type'] ?? '') !== 'Разбор') {
+        return ['error' => 'Разбор не найден'];
+    }
+    $st = $db->prepare('DELETE FROM videos WHERE id = ? AND video_type = ?');
+    $type = 'Разбор';
+    $st->bind_param('is', $id, $type);
+    $st->execute();
+    $st->close();
+    portal_log_write($db, 'review_delete', 'video', $id, [
+        'before' => org_review_snapshot($found),
+    ]);
+    return org_review_json_ok($db, $id);
+}
+
+function org_review_json_ok(mysqli $db, int $id): array
+{
+    if ((string)($_POST['s'] ?? $_GET['s'] ?? '') === 'events') {
+        return ['id' => $id, 'ok' => true];
+    }
+    return ['id' => $id, 'data' => org_sit_payload($db)];
+}
+
 function org_sit_handle_post(mysqli $db): array
 {
     if (!portal_csrf_ok((string)($_POST['csrf'] ?? ''))) {
@@ -222,6 +401,12 @@ function org_sit_handle_post(mysqli $db): array
     }
     if ($action === 'org_sit_save') {
         return org_sit_save($db);
+    }
+    if ($action === 'org_review_save') {
+        return org_review_save($db);
+    }
+    if ($action === 'org_review_delete') {
+        return org_review_delete($db);
     }
     if ($action === 'org_sit_generate') {
         try {
@@ -247,7 +432,7 @@ function org_sb_asset_ver(): string
             return $v;
         }
     }
-    return '109';
+    return '116';
 }
 
 function portal_echo_org_situations(mysqli $db): void
@@ -348,6 +533,26 @@ function portal_echo_org_situations(mysqli $db): void
     echo '<div class="sb-ed-actions">';
     echo '<button type="submit" class="sb-ed-btn sb-ed-btn--pri">Сохранить</button>';
     echo '<button type="button" class="sb-ed-btn" id="sb-ed-cancel">Отмена</button>';
+    echo '</div></form></div>';
+
+    echo '<div id="sb-review-editor" class="sb-editor sb-review-editor sb-hidden" hidden>';
+    echo '<form class="sb-editor-card sb-review-card" id="sb-review-form" autocomplete="off">';
+    echo '<h2 class="sb-editor-title" id="sb-review-title">Добавить разбор</h2>';
+    echo '<p class="sb-editor-err" id="sb-review-err" hidden></p>';
+    echo '<input type="hidden" id="sb-rv-id" value="">';
+    echo '<input type="hidden" id="sb-rv-sit" value="">';
+    echo '<input type="hidden" id="sb-rv-duel" value="0">';
+    echo '<input type="hidden" id="sb-rv-event" value="0">';
+    echo '<label class="sb-ed-lab">Ссылка<input id="sb-rv-url" type="url" required maxlength="1024" placeholder="https://"></label>';
+    echo '<label class="sb-ed-lab">Подпись<select id="sb-rv-label">';
+    echo '<option value="auto">авто (по ссылке)</option>';
+    echo '<option value="разбор">разбор</option>';
+    echo '<option value="материал">материал</option>';
+    echo '</select><span class="sb-rv-auto-hint" id="sb-rv-auto-hint"></span></label>';
+    echo '<label class="sb-ed-lab">Дата<input id="sb-rv-date" type="date"></label>';
+    echo '<div class="sb-ed-actions">';
+    echo '<button type="submit" class="sb-ed-btn sb-ed-btn--pri">Сохранить</button>';
+    echo '<button type="button" class="sb-ed-btn" id="sb-rv-cancel">Отмена</button>';
     echo '</div></form></div>';
 
     echo '</div>';

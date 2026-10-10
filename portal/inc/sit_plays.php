@@ -123,6 +123,12 @@ function sit_reviews_public(array $items): array
             'duelId' => is_array($it) ? (int)($it['duelId'] ?? $it['duel_id'] ?? 0) : 0,
         ];
         if (is_array($it)) {
+            if (!empty($it['id'])) {
+                $row['id'] = (int)$it['id'];
+            }
+            if (isset($it['title']) && trim((string)$it['title']) !== '') {
+                $row['title'] = trim((string)$it['title']);
+            }
             if (!empty($it['date'])) {
                 $row['date'] = (string)$it['date'];
             }
@@ -177,7 +183,7 @@ function sit_video_maps(mysqli $db): array
     $reviewBySit = [];
     $reviewByDuel = [];
     $vidRes = $db->query(
-        'SELECT v.event_id, v.duel_id, v.situation_id, v.url, v.title, v.video_type, v.video_date,
+        'SELECT v.id, v.event_id, v.duel_id, v.situation_id, v.url, v.title, v.video_type, v.video_date,
                 e.title AS event_title, e.starts_on
          FROM videos v
          LEFT JOIN events e ON e.id = v.event_id
@@ -194,7 +200,8 @@ function sit_video_maps(mysqli $db): array
         if ($type === 'Разбор') {
             $sid = isset($v['situation_id']) && $v['situation_id'] !== null && $v['situation_id'] !== ''
                 ? (int)$v['situation_id'] : 0;
-            $label = sit_review_label($url, $v['title'] ?? null);
+            $rawTitle = trim((string)($v['title'] ?? ''));
+            $label = sit_review_label($url, $rawTitle !== '' ? $rawTitle : null);
             $iso = trim((string)($v['video_date'] ?? ''));
             if ($iso === '' || str_starts_with($iso, '0000')) {
                 $iso = trim((string)($v['starts_on'] ?? ''));
@@ -203,8 +210,10 @@ function sit_video_maps(mysqli $db): array
             $eid = isset($v['event_id']) && $v['event_id'] !== null && $v['event_id'] !== ''
                 ? (int)$v['event_id'] : 0;
             $item = [
+                'id' => (int)($v['id'] ?? 0),
                 'url' => $url,
                 'label' => $label,
+                'title' => $rawTitle,
                 'duel_id' => $did,
                 'duelId' => $did,
                 'iso' => $iso,
@@ -216,7 +225,7 @@ function sit_video_maps(mysqli $db): array
                 $reviewBySit[$sid][] = $item;
             }
             if ($did > 0) {
-                $reviewByDuel[$did][] = ['url' => $url, 'label' => $label];
+                $reviewByDuel[$did][] = $item;
             }
             continue;
         }
@@ -325,6 +334,7 @@ function sit_plays_by_code(mysqli $db, ?array $videos = null): array
             ?: sit_pick_url($duelAny[$did] ?? [])
             ?: sit_pick_url($eventDay[(int)$d['event_id']] ?? []);
         $play = [
+            'duelId' => $did,
             'date' => $dateDisp,
             'iso' => $iso,
             'eventId' => (int)$d['event_id'],
@@ -341,6 +351,15 @@ function sit_plays_by_code(mysqli $db, ?array $videos = null): array
         if ($rev) {
             $play['review'] = $rev[0]['url'];
             $play['reviewLabel'] = $rev[0]['label'];
+            if (!empty($rev[0]['id'])) {
+                $play['reviewId'] = (int)$rev[0]['id'];
+            }
+            if (!empty($rev[0]['title'])) {
+                $play['reviewTitle'] = (string)$rev[0]['title'];
+            }
+            if (!empty($rev[0]['iso'])) {
+                $play['reviewIso'] = (string)$rev[0]['iso'];
+            }
         }
         $playsByCode[$code][] = $play;
     }

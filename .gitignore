@@ -18,3 +18,17 @@ docs/планы/05_данные/
 data/protocols/
 *.sql.gz
 /Онлайн*.json
+
+# Telegram-обогащение: venv, выгрузки и отчёты — только локально (в таблицах нет секретов, но не публикуем)
+.venv-tg/
+data/tg_participants.csv
+data/tg_enrich_report.csv
+tg_api.env
+tg_proxies.txt
+
+# Выгрузки/дампы с персональными данными (ФИО, username, tg_id, Bpium) — только локально
+# Репозиторий публичный, такие данные в git не публикуем.
+data/
+__pycache__/
+*.bkp
+.session

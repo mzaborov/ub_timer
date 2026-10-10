@@ -5,7 +5,7 @@ visual_preview: 05_схема_БД.svg
 human_doc: 05_доменная_модель.md
 sources:
   - docs/планы/05_схема_БД.drawio
-  - docs/планы/05_схема_БД_и_портал.plan.md
+  - docs/планы/05_схема_БД_и_портал.md
   - README.md
   - History.log  # хвост про домен, 2026-08-12…13
 notes:
@@ -152,6 +152,37 @@ classes:
       - "В рамках мероприятия уникальна: нельзя две заявки с тем же email; если email пуст — нельзя две с тем же ФИО"
       - "Не глобальный UNIQUE по ФИО на все мероприятия"
       - "Повторная регистрация: «Вы уже зарегистрированы»"
+
+  - name: СобытиеПортала
+    attributes:
+      - name: момент
+        type: DateTime
+        required: true
+      - name: действие
+        type: String
+        required: true
+        note: "review_create / review_update / review_delete; дальше воронка заявки"
+      - name: сущность
+        type: String
+        required: true
+        note: "Полиморфный тип цели: video, event, …"
+      - name: idСущности
+        type: Integer
+        required: false
+      - name: авторId
+        type: Integer
+        required: false
+        note: "0..1 → Человек; линия на диаграмме не рисуется; гость пуст"
+      - name: авторФИО
+        type: String
+        required: false
+        note: "Снимок на момент события"
+      - name: данные
+        type: Json
+        required: false
+    notes:
+      - "Append-only журнал портала (орг и участник)"
+      - "Не СобытиеПротокола и не ЖурналИзмененияПоединка"
 
   - name: Ситуация
     attributes:
@@ -429,6 +460,11 @@ attribute_refs:
     required: false
     on_diagram: false
   - from: ЖурналИзмененияПоединка
+    attr: авторId
+    to: Человек
+    required: false
+    on_diagram: false
+  - from: СобытиеПортала
     attr: авторId
     to: Человек
     required: false
@@ -718,6 +754,7 @@ decisions:
   - ситуация без хранимого названия
   - видео — отдельный класс; всегда к мероприятию; к поединку по типу (ДеньЦеликом null, Поединок обязан)
   - журнал изменений поединка вместо пар план/факт
+  - СобытиеПортала — журнал действий портала; цель полиморфна; не бой и не состав поединка
   - сессия таймера ≈ СобытиеПротокола
   - нет «Команда 1/2» в домене (артефакт Google)
   - нет поля ктоНачинал; жеребьёвка = расстановка игроков + событие

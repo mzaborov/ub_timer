@@ -9,7 +9,7 @@ function org_default_zoom(): string
 
 function org_event_types(): array
 {
-    return ['онлайн', 'купала', 'новогоднее', 'региональный', 'турнир'];
+    return ['онлайн', 'купала', 'новогоднее', 'региональный', 'турнир', 'обучение'];
 }
 
 function org_event_statuses(): array
@@ -20,6 +20,33 @@ function org_event_statuses(): array
 function org_duel_types(): array
 {
     return ['классика', 'экспресс', 'парный'];
+}
+
+function org_norm_duel_type_pref(?string $raw): ?string
+{
+    $raw = mb_strtolower(trim((string)$raw));
+    foreach (org_duel_types() as $t) {
+        if ($raw === mb_strtolower($t)) {
+            return $t;
+        }
+    }
+    return null;
+}
+
+function org_duel_type_pref_options(string $selected): string
+{
+    $options = [
+        '' => 'любой',
+        'классика' => 'классика',
+        'экспресс' => 'экспресс',
+        'парный' => 'парный',
+    ];
+    $html = '';
+    foreach ($options as $value => $label) {
+        $s = $selected === $value ? ' selected' : '';
+        $html .= '<option value="' . h($value) . '"' . $s . '>' . h($label) . '</option>';
+    }
+    return $html;
 }
 
 function org_event_is_planned(array $ev): bool
@@ -142,23 +169,75 @@ function org_event_duels(mysqli $db, int $eventId): array
         ];
     }
     $st->close();
+    $reviews = org_event_reviews_by_duel($db, $eventId);
     foreach ($duels as &$d) {
         $did = (int)$d['id'];
         $d['judge_rows'] = $judges[$did] ?? [];
         $d['video'] = $vids['duels'][$did] ?? '';
-        if (!empty($vids['reviews'][$did])) {
-            $d['review'] = $vids['reviews'][$did]['url'];
-            $d['review_label'] = $vids['reviews'][$did]['label'];
+        if (!empty($reviews[$did])) {
+            $d['review'] = $reviews[$did]['url'];
+            $d['review_label'] = $reviews[$did]['label'];
+            $d['review_id'] = $reviews[$did]['id'];
+            $d['review_title'] = $reviews[$did]['title'];
+            $d['review_iso'] = $reviews[$did]['iso'];
+            $d['review_situation_id'] = $reviews[$did]['situation_id'];
         }
     }
     unset($d);
     return $duels;
 }
 
+/** @return array<int, array{id: int, url: string, label: string, title: string, iso: string, situation_id: int}> */
+function org_event_reviews_by_duel(mysqli $db, int $eventId): array
+{
+    $out = [];
+    if ($eventId <= 0) {
+        return $out;
+    }
+    $st = $db->prepare(
+        "SELECT v.id, v.duel_id, v.situation_id, v.url, v.title, v.video_date
+         FROM videos v
+         INNER JOIN duels d ON d.id = v.duel_id
+         WHERE d.event_id = ? AND v.video_type = 'Разбор'
+         ORDER BY v.id"
+    );
+    $st->bind_param('i', $eventId);
+    $st->execute();
+    $res = $st->get_result();
+    while ($row = $res->fetch_assoc()) {
+        $did = (int)($row['duel_id'] ?? 0);
+        if ($did <= 0 || isset($out[$did])) {
+            continue;
+        }
+        $url = portal_video_url($row['url'] ?? null);
+        if ($url === '') {
+            continue;
+        }
+        $iso = trim((string)($row['video_date'] ?? ''));
+        if ($iso === '' || str_starts_with($iso, '0000')) {
+            $iso = '';
+        }
+        $title = trim((string)($row['title'] ?? ''));
+        $label = function_exists('sit_review_label')
+            ? sit_review_label($url, $title !== '' ? $title : null)
+            : (($title === 'материал' || $title === 'разбор') ? $title : 'разбор');
+        $out[$did] = [
+            'id' => (int)$row['id'],
+            'url' => $url,
+            'label' => $label,
+            'title' => $title,
+            'iso' => $iso,
+            'situation_id' => (int)($row['situation_id'] ?? 0),
+        ];
+    }
+    $st->close();
+    return $out;
+}
+
 function org_event_regs(mysqli $db, int $eventId): array
 {
     $st = $db->prepare(
-        'SELECT id, person_id, full_name, telegram, wants_play, wants_judge, wants_second, comment
+        'SELECT id, person_id, full_name, telegram, wants_play, wants_judge, wants_second, duel_type_pref, comment
          FROM meeting_registrations
          WHERE event_id = ?
          ORDER BY full_name, id'
@@ -176,6 +255,7 @@ function org_event_regs(mysqli $db, int $eventId): array
             'play' => (int)$row['wants_play'] === 1,
             'judge' => (int)$row['wants_judge'] === 1,
             'second' => (int)$row['wants_second'] === 1,
+            'duel_type_pref' => (string)($row['duel_type_pref'] ?? ''),
             'comment' => (string)($row['comment'] ?? ''),
         ];
     }
@@ -401,8 +481,9 @@ function org_funnel_stage(array $c): string
     return 'без игр';
 }
 
-function org_event_metrics(array $duels, array $career): array
+function org_event_metrics(mysqli $db, array $duels, array $career): array
 {
+    $aOnly = org_circle_member_ids($db, COMMUNITY_A_CIRCLE);
     $onGrid = [];
     foreach ($duels as $d) {
         foreach (['p1_id', 'p2_id'] as $k) {
@@ -424,6 +505,9 @@ function org_event_metrics(array $duels, array $career): array
     $first = $second = $third = 0;
     $stillShort = 0;
     foreach (array_keys($onGrid) as $pid) {
+        if (!isset($aOnly[$pid])) {
+            continue;
+        }
         $g = (int)($career[$pid]['games'] ?? 0);
         $from = org_funnel_stage($career[$pid] ?? ['games' => 0, 'judged' => 0, 'seconded' => 0]);
         $next = $g + 1;
@@ -473,10 +557,34 @@ function org_stream_involvement_ids(mysqli $db, string $involvement, bool $prefi
     return $ids;
 }
 
-/** id => ФИО с участием «Арбитр» в круге стрима. $keepId — уже выбранный, даже если членство сняли. */
-function org_referees_map(mysqli $db, int $keepId = 0): array
+/** id людей в круге с заданным title (независимо от involvement). */
+function org_circle_member_ids(mysqli $db, string $title): array
 {
-    $ids = org_stream_involvement_ids($db, 'Арбитр');
+    $sql = 'SELECT cm.person_id FROM circle_memberships cm
+            JOIN circles c ON c.id = cm.circle_id
+            WHERE c.title = ?';
+    $st = $db->prepare($sql);
+    $st->bind_param('s', $title);
+    $st->execute();
+    $ids = [];
+    $res = $st->get_result();
+    while ($row = $res->fetch_assoc()) {
+        $ids[(int)$row['person_id']] = true;
+    }
+    $st->close();
+    return $ids;
+}
+
+/**
+ * id => ФИО для поля referee_person_id.
+ * Для обычных мероприятий — круг стрима с вовлечённостью «Арбитр».
+ * Для обучения — круг стрима с вовлечённостью «Ведущие».
+ * $keepId — уже выбранный, даже если членство сняли.
+ */
+function org_referees_map(mysqli $db, int $keepId = 0, string $eventType = ''): array
+{
+    $involvement = $eventType === 'обучение' ? 'Ведущие' : 'Арбитр';
+    $ids = org_stream_involvement_ids($db, $involvement);
     if ($keepId > 0) {
         $ids[$keepId] = true;
     }
@@ -494,12 +602,12 @@ function org_referees_map(mysqli $db, int $keepId = 0): array
     return $out;
 }
 
-function org_norm_referee_id(mysqli $db, int $ref, int $keepId = 0): int
+function org_norm_referee_id(mysqli $db, int $ref, int $keepId = 0, string $eventType = ''): int
 {
     if ($ref <= 0) {
         return 0;
     }
-    $ok = org_referees_map($db, $keepId);
+    $ok = org_referees_map($db, $keepId, $eventType);
     return isset($ok[$ref]) ? $ref : 0;
 }
 
@@ -518,18 +626,24 @@ function org_event_staff_role_keys(): array
     ];
 }
 
+function org_event_referee_label(string $eventType = ''): string
+{
+    return $eventType === 'обучение' ? 'Ведущий' : 'Арбитр';
+}
+
 /**
  * Ячейки таблицы слева направо, затем вниз.
- * Арбитр — events.referee_person_id, не значение enum.
+ * Арбитр/Ведущий — events.referee_person_id, не значение enum.
  *
  * @return list<array{kind: string, key?: string, label?: string, need?: bool}>
  */
-function org_event_staff_cells(): array
+function org_event_staff_cells(string $eventType = ''): array
 {
+    $refLabel = org_event_referee_label($eventType);
     return [
         ['kind' => 'role', 'key' => 'планированиеМероприятия', 'label' => 'Планирование мероприятия', 'need' => true],
         ['kind' => 'role', 'key' => 'работаСНовичками', 'label' => 'Работа с новичками', 'need' => false],
-        ['kind' => 'referee', 'key' => 'referee', 'label' => 'Арбитр', 'need' => true],
+        ['kind' => 'referee', 'key' => 'referee', 'label' => $refLabel, 'need' => $eventType !== 'обучение'],
         ['kind' => 'role', 'key' => 'показывалЧасы', 'label' => 'Демонстрация часов', 'need' => false],
         ['kind' => 'role', 'key' => 'велЗапись', 'label' => 'Запись', 'need' => false],
         ['kind' => 'role', 'key' => 'настраивалКомнатыZoom', 'label' => 'Zoom', 'need' => false],
@@ -736,6 +850,7 @@ function org_community_org_ids(mysqli $db): array
 function org_attract(mysqli $db, array $career, array $duels, array $regs, int $limit = 12): array
 {
     $skipOrg = org_stream_involvement_ids($db, 'Организатор');
+    $aOnly = org_circle_member_ids($db, COMMUNITY_A_CIRCLE);
     $busy = [];
     foreach ($duels as $d) {
         foreach (['p1_id', 'p2_id', 's1_id', 's2_id'] as $k) {
@@ -753,7 +868,7 @@ function org_attract(mysqli $db, array $career, array $duels, array $regs, int $
     }
     $scored = [];
     foreach ($career as $pid => $c) {
-        if (isset($busy[$pid]) || isset($skipOrg[(int)$pid])) {
+        if (isset($busy[$pid]) || isset($skipOrg[(int)$pid]) || !isset($aOnly[$pid])) {
             continue;
         }
         $g = (int)$c['games'];
@@ -809,6 +924,7 @@ function org_play_recs(mysqli $db, array $career, array $duels, array $regs): ar
     $skipPartners = org_partner_ids($db);
     $skipFubGuests = org_fub_guest_ids($db);
     $curators = org_stream_involvement_ids($db, 'Куратор', true);
+    $aOnly = org_circle_member_ids($db, COMMUNITY_A_CIRCLE);
     $busy = [];
     foreach ($duels as $d) {
         foreach (['p1_id', 'p2_id', 's1_id', 's2_id'] as $k) {
@@ -834,7 +950,7 @@ function org_play_recs(mysqli $db, array $career, array $duels, array $regs): ar
     $orgs = [];
     foreach ($career as $pid => $c) {
         $pid = (int)$pid;
-        if (isset($busy[$pid]) || isset($skipPartners[$pid]) || isset($skipFubGuests[$pid]) || isset($skipStreamOrg[$pid])) {
+        if (isset($busy[$pid]) || isset($skipPartners[$pid]) || isset($skipFubGuests[$pid]) || isset($skipStreamOrg[$pid]) || !isset($aOnly[$pid])) {
             continue;
         }
         $g = (int)$c['games'];
@@ -993,6 +1109,9 @@ function org_events_handle_post(mysqli $db): array
     if ($action === 'org_event_save') {
         return org_event_save($db);
     }
+    if ($action === 'org_event_restore') {
+        return org_event_restore($db);
+    }
     if ($action === 'org_slot_add') {
         return org_slot_add($db);
     }
@@ -1008,8 +1127,21 @@ function org_events_handle_post(mysqli $db): array
     if ($action === 'org_reg_add') {
         return org_reg_add($db);
     }
+    if ($action === 'org_outreach_add') {
+        return org_outreach_add_from_event($db);
+    }
+    if ($action === 'org_outreach_remove') {
+        return org_outreach_remove_from_event($db);
+    }
     if ($action === 'org_reg_remove') {
         return org_reg_remove($db);
+    }
+    if ($action === 'org_reg_update') {
+        return org_reg_update($db);
+    }
+    if ($action === 'org_review_save' || $action === 'org_review_delete') {
+        require_once __DIR__ . '/org_situations.php';
+        return $action === 'org_review_save' ? org_review_save($db) : org_review_delete($db);
     }
     return ['error' => 'Неизвестное действие'];
 }
@@ -1022,8 +1154,12 @@ function org_event_create(mysqli $db): array
         return ['error' => 'Неверный тип'];
     }
     if ($title === '') {
-        $n = org_next_online_num($db);
-        $title = $type === 'онлайн' ? ('Онлайн ' . $n) : 'Мероприятие';
+        if ($type === 'обучение') {
+            $title = 'Обучение';
+        } else {
+            $n = org_next_online_num($db);
+            $title = $type === 'онлайн' ? ('Онлайн ' . $n) : 'Мероприятие';
+        }
     }
     $slug = trim((string)($_POST['slug'] ?? ''));
     if ($slug === '' && $type === 'онлайн' && preg_match('/(\d+)/', $title, $m)) {
@@ -1045,7 +1181,7 @@ function org_event_create(mysqli $db): array
         $enAt = $enAt ?? '13:30:00';
     }
     $zoom = trim((string)($_POST['zoom_url'] ?? '')) ?: null;
-    $ref = org_norm_referee_id($db, (int)($_POST['referee_person_id'] ?? 0));
+    $ref = org_norm_referee_id($db, (int)($_POST['referee_person_id'] ?? 0), 0, $type);
     $slugVal = $slug !== '' ? $slug : null;
     $refBind = $ref > 0 ? $ref : 0;
     $st = $db->prepare(
@@ -1134,7 +1270,7 @@ function org_event_save(mysqli $db): array
     $stAt = org_norm_time($_POST['starts_at'] ?? null);
     $enAt = org_norm_time($_POST['ends_at'] ?? null);
     $zoom = trim((string)($_POST['zoom_url'] ?? '')) ?: null;
-    $ref = org_norm_referee_id($db, (int)($_POST['referee_person_id'] ?? 0), (int)($ev['referee_person_id'] ?? 0));
+    $ref = org_norm_referee_id($db, (int)($_POST['referee_person_id'] ?? 0), (int)($ev['referee_person_id'] ?? 0), $type);
     $refBind = $ref > 0 ? $ref : 0;
     $slugVal = $slug !== '' ? $slug : null;
     $st = $db->prepare(
@@ -1165,6 +1301,24 @@ function org_event_save(mysqli $db): array
         org_norm_staff_roles($db, $_POST['org_role'] ?? [], $keepRoles)
     );
     $_SESSION['org_flash'] = 'Сохранено';
+    return ['redirect' => org_event_url($id)];
+}
+
+function org_event_restore(mysqli $db): array
+{
+    $id = (int)($_POST['event_id'] ?? 0);
+    $ev = org_event_load($db, $id);
+    if (!$ev) {
+        return ['error' => 'Мероприятие не найдено'];
+    }
+    if (($ev['status'] ?? '') !== 'Отменено') {
+        return ['error' => 'Мероприятие не отменено'];
+    }
+    $st = $db->prepare("UPDATE events SET status = 'Запланировано' WHERE id = ?");
+    $st->bind_param('i', $id);
+    $st->execute();
+    $st->close();
+    $_SESSION['org_flash'] = 'Мероприятие восстановлено';
     return ['redirect' => org_event_url($id)];
 }
 
@@ -1313,6 +1467,76 @@ function org_sit_labels_save(mysqli $db): array
     return ['redirect' => org_event_url($eid)];
 }
 
+function org_outreach_add_from_event(mysqli $db): array
+{
+    $eid = (int)($_POST['event_id'] ?? 0);
+    $pid = (int)($_POST['person_id'] ?? 0);
+    $ev = org_event_load($db, $eid);
+    if (!$ev || !org_event_is_planned($ev) || $pid <= 0) {
+        return ['error' => 'Нельзя добавить в опрос'];
+    }
+    $now = date('Y-m-d H:i:s');
+    $cid = 0;
+    $st = $db->prepare('SELECT id FROM outreach_campaigns WHERE event_id = ? ORDER BY id DESC LIMIT 1');
+    $st->bind_param('i', $eid);
+    $st->execute();
+    $row = $st->get_result()->fetch_assoc();
+    $st->close();
+    if ($row) {
+        $cid = (int)$row['id'];
+    } else {
+        $title = 'Опрос: ' . (string)$ev['title'];
+        $st = $db->prepare('INSERT INTO outreach_campaigns (event_id, title, status, created_at, updated_at) VALUES (?, ?, \'active\', ?, ?)');
+        $st->bind_param('isss', $eid, $title, $now, $now);
+        $st->execute();
+        $cid = (int)$db->insert_id;
+        $st->close();
+    }
+    $st = $db->prepare('INSERT INTO outreach_items (campaign_id, person_id, status, updated_at) VALUES (?, ?, \'new\', ?) ON DUPLICATE KEY UPDATE updated_at = VALUES(updated_at)');
+    $st->bind_param('iis', $cid, $pid, $now);
+    $st->execute();
+    $st->close();
+    $_SESSION['org_flash'] = 'Добавлено в опрос';
+    return ['redirect' => org_event_url($eid)];
+}
+
+function org_outreach_remove_from_event(mysqli $db): array
+{
+    $eid = (int)($_POST['event_id'] ?? 0);
+    $pid = (int)($_POST['person_id'] ?? 0);
+    if ($eid > 0 && $pid > 0) {
+        $st = $db->prepare('DELETE oi FROM outreach_items oi JOIN outreach_campaigns c ON c.id = oi.campaign_id WHERE c.event_id = ? AND oi.person_id = ?');
+        $st->bind_param('ii', $eid, $pid);
+        $st->execute();
+        $st->close();
+        $_SESSION['org_flash'] = 'Убрано из опроса';
+    }
+    return ['redirect' => org_event_url($eid)];
+}
+
+/** @return array<int, true> person_id, кто уже в опросе этого мероприятия */
+function org_outreach_in_campaign_ids(mysqli $db, int $eventId): array
+{
+    static $cache = [];
+    if ($eventId <= 0) {
+        return [];
+    }
+    if (array_key_exists($eventId, $cache)) {
+        return $cache[$eventId];
+    }
+    $set = [];
+    $st = $db->prepare('SELECT oi.person_id FROM outreach_items oi JOIN outreach_campaigns c ON c.id = oi.campaign_id WHERE c.event_id = ?');
+    $st->bind_param('i', $eventId);
+    $st->execute();
+    $res = $st->get_result();
+    while ($row = $res->fetch_assoc()) {
+        $set[(int)$row['person_id']] = true;
+    }
+    $st->close();
+    $cache[$eventId] = $set;
+    return $set;
+}
+
 function org_reg_add(mysqli $db): array
 {
     $eid = (int)($_POST['event_id'] ?? 0);
@@ -1348,16 +1572,17 @@ function org_reg_add(mysqli $db): array
     $play = 1;
     $judge = 0;
     $second = 0;
-    $comment = '';
+    $duelTypePref = org_norm_duel_type_pref((string)($_POST['duel_type_pref'] ?? ''));
+    $comment = trim((string)($_POST['comment'] ?? ''));
     $source = 'manual';
     $ins = $db->prepare(
         'INSERT INTO meeting_registrations
          (event_id, person_id, full_name, email, telegram,
-          wants_play, wants_judge, wants_second, comment, source)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+          wants_play, wants_judge, wants_second, duel_type_pref, comment, source)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     $ins->bind_param(
-        'iisssiiiss',
+        'iisssiiisss',
         $eid,
         $pid,
         $name,
@@ -1366,6 +1591,7 @@ function org_reg_add(mysqli $db): array
         $play,
         $judge,
         $second,
+        $duelTypePref,
         $comment,
         $source
     );
@@ -1392,6 +1618,35 @@ function org_reg_remove(mysqli $db): array
         return ['error' => 'Заявка не найдена'];
     }
     $_SESSION['org_flash'] = 'Убран из заявок';
+    return ['redirect' => org_event_url($eid) . '#regs'];
+}
+
+function org_reg_update(mysqli $db): array
+{
+    $eid = (int)($_POST['event_id'] ?? 0);
+    $rid = (int)($_POST['reg_id'] ?? 0);
+    $ev = org_event_load($db, $eid);
+    if (!$ev || !org_event_is_planned($ev) || $rid <= 0) {
+        return ['error' => 'Нельзя обновить заявку'];
+    }
+    $play = !empty($_POST['wants_play']) ? 1 : 0;
+    $judge = !empty($_POST['wants_judge']) ? 1 : 0;
+    $second = !empty($_POST['wants_second']) ? 1 : 0;
+    $duelTypePref = org_norm_duel_type_pref((string)($_POST['duel_type_pref'] ?? ''));
+    $comment = trim((string)($_POST['comment'] ?? ''));
+    $st = $db->prepare(
+        'UPDATE meeting_registrations
+         SET wants_play=?, wants_judge=?, wants_second=?, duel_type_pref=?, comment=?
+         WHERE id = ? AND event_id = ?'
+    );
+    $st->bind_param('iiissii', $play, $judge, $second, $duelTypePref, $comment, $rid, $eid);
+    $st->execute();
+    $ok = $st->affected_rows >= 0;
+    $st->close();
+    if (!$ok) {
+        return ['error' => 'Заявка не найдена'];
+    }
+    $_SESSION['org_flash'] = 'Заявка обновлена';
     return ['redirect' => org_event_url($eid) . '#regs'];
 }
 
@@ -1431,9 +1686,11 @@ function org_echo_person_select(
     int $selected,
     array $people,
     string $empty = '—',
-    bool $needFill = false
+    bool $needFill = false,
+    string $extraAttrs = ''
 ): void {
-    echo '<select name="' . h($name) . '"' . org_need_fill_class($needFill && $selected <= 0) . '>';
+    echo '<select name="' . h($name) . '"' . org_need_fill_class($needFill && $selected <= 0)
+        . ($extraAttrs !== '' ? (' ' . $extraAttrs) : '') . '>';
     echo '<option value="0">' . h($empty) . '</option>';
     foreach ($people as $pid => $fio) {
         echo '<option value="' . (int)$pid . '"' . ($pid === $selected ? ' selected' : '') . '>'
@@ -1449,16 +1706,18 @@ function org_echo_staff_table(
     array $orgPool,
     array $refPool,
     bool $edit,
-    string $refName = ''
+    string $refName = '',
+    string $eventType = '',
+    string $refereeExtraAttrs = ''
 ): void {
     echo '<div class="org-staff-wrap">';
     echo '<table class="org-staff">';
     echo '<thead><tr><th>Роль</th><th>Кто</th><th>Роль</th><th>Кто</th></tr></thead><tbody>';
-    $cells = org_event_staff_cells();
+    $cells = org_event_staff_cells($eventType);
     $n = count($cells);
     for ($i = 0; $i < $n; $i += 2) {
         echo '<tr>';
-        org_echo_staff_cell($cells[$i], $roleMap, $refId, $orgPool, $refPool, $edit, $refName);
+        org_echo_staff_cell($cells[$i], $roleMap, $refId, $orgPool, $refPool, $edit, $refName, $eventType, $refereeExtraAttrs);
         org_echo_staff_cell(
             $cells[$i + 1] ?? ['kind' => 'empty'],
             $roleMap,
@@ -1466,7 +1725,9 @@ function org_echo_staff_table(
             $orgPool,
             $refPool,
             $edit,
-            $refName
+            $refName,
+            $eventType,
+            $refereeExtraAttrs
         );
         echo '</tr>';
     }
@@ -1481,7 +1742,9 @@ function org_echo_staff_cell(
     array $orgPool,
     array $refPool,
     bool $edit,
-    string $refName
+    string $refName,
+    string $eventType = '',
+    string $refereeExtraAttrs = ''
 ): void {
     if (($cell['kind'] ?? '') === 'empty') {
         echo '<td class="org-staff-role"></td><td class="org-staff-who"></td>';
@@ -1492,7 +1755,7 @@ function org_echo_staff_cell(
     echo '<td class="org-staff-who">';
     if (($cell['kind'] ?? '') === 'referee') {
         if ($edit) {
-            org_echo_person_select('referee_person_id', $refId, $refPool, 'нет', $need);
+            org_echo_person_select('referee_person_id', $refId, $refPool, 'нет', $need, $refereeExtraAttrs);
         } else {
             $name = $refName !== '' ? $refName : (string)($refPool[$refId] ?? '');
             echo $name !== '' ? h($name) : '—';
@@ -1541,6 +1804,34 @@ function org_echo_to_reg_btn(int $eventId, int $pid): void
     echo ' <button type="submit" form="reg-add-' . $pid . '" class="btn-ghost org-to-reg">в заявку</button>';
 }
 
+function org_echo_to_list_btn(int $eventId, int $pid): void
+{
+    if ($eventId <= 0 || $pid <= 0) {
+        return;
+    }
+    echo '<form method="post" class="org-inline-form">';
+    portal_csrf_field();
+    echo '<input type="hidden" name="action" value="org_outreach_add">';
+    echo '<input type="hidden" name="event_id" value="' . $eventId . '">';
+    echo '<input type="hidden" name="person_id" value="' . $pid . '">';
+    echo '<button type="submit" class="btn-ghost org-to-reg">+ в опрос</button>';
+    echo '</form>';
+}
+
+function org_echo_to_list_remove_btn(int $eventId, int $pid): void
+{
+    if ($eventId <= 0 || $pid <= 0) {
+        return;
+    }
+    echo '<form method="post" class="org-inline-form">';
+    portal_csrf_field();
+    echo '<input type="hidden" name="action" value="org_outreach_remove">';
+    echo '<input type="hidden" name="event_id" value="' . $eventId . '">';
+    echo '<input type="hidden" name="person_id" value="' . $pid . '">';
+    echo '<button type="submit" class="btn-ghost org-to-reg">убрать</button>';
+    echo '</form>';
+}
+
 function org_echo_reg_add_form(int $eventId, int $pid): void
 {
     if ($eventId <= 0 || $pid <= 0) {
@@ -1579,7 +1870,7 @@ function portal_echo_org_events(mysqli $db, string $flash, string $error): void
     $duels = $selected ? org_event_duels($db, (int)$selected['id']) : [];
     $regs = ($selected && org_event_is_planned($selected)) ? org_event_regs($db, (int)$selected['id']) : [];
     $career = ($selected && org_event_is_planned($selected)) ? org_people_career($db) : [];
-    $metrics = $career ? org_event_metrics($duels, $career) : null;
+    $metrics = $career ? org_event_metrics($db, $duels, $career) : null;
     $onlinePlan = $selected && ($selected['event_type'] ?? '') === 'онлайн';
     $attract = ($career && !$onlinePlan) ? org_attract($db, $career, $duels, $regs) : [];
 
@@ -1594,7 +1885,8 @@ function portal_echo_org_events(mysqli $db, string $flash, string $error): void
         echo '</div>';
     }
     echo '<div class="org-main">';
-    $showRecs = $selected && org_event_is_planned($selected);
+    $isTraining = $selected && ($selected['event_type'] ?? '') === 'обучение';
+    $showRecs = $selected && org_event_is_planned($selected) && !$isTraining;
     echo '<div class="org-ev' . ($showRecs ? ' org-ev-split' : '') . '">';
     echo '<div class="org-ev-main">';
     echo '<div class="org-ev-col org-ev-col-cal">';
@@ -1618,7 +1910,7 @@ function portal_echo_org_events(mysqli $db, string $flash, string $error): void
     } else {
         echo '<p class="muted">Выберите день в календаре или создайте мероприятие.</p>';
     }
-    if ($selected && org_event_is_planned($selected) && $metrics) {
+    if ($selected && org_event_is_planned($selected) && $metrics && !$isTraining) {
         org_echo_metrics($metrics);
     }
     echo '</div>';
@@ -1712,6 +2004,9 @@ function org_echo_year_month(
                     if (in_array('турнир', $types, true)) {
                         $cls[] = 'tournament';
                     }
+                    if (in_array('обучение', $types, true)) {
+                        $cls[] = 'training';
+                    }
                     if (array_intersect($types, ['купала', 'новогоднее'])) {
                         $cls[] = 'special';
                     }
@@ -1720,6 +2015,9 @@ function org_echo_year_month(
                     }
                     if (array_filter($evs, static fn($e) => ($e['status'] ?? '') === 'Проведено')) {
                         $cls[] = 'done';
+                    }
+                    if (array_filter($evs, static fn($e) => ($e['status'] ?? '') === 'Отменено')) {
+                        $cls[] = 'cancelled';
                     }
                     if (count($evs) === 1 && (int)$evs[0]['id'] === $selId) {
                         $cls[] = 'on';
@@ -1770,10 +2068,19 @@ function org_echo_attrs_read(mysqli $db, array $ev): void
     }
     echo '</dl>';
     $ref = (int)($ev['referee_person_id'] ?? 0);
+    $evType = (string)($ev['event_type'] ?? '');
     $roleMap = org_event_role_person_map($db, (int)($ev['id'] ?? 0));
     $orgPool = org_event_orgs_map($db, array_values($roleMap));
-    $refPool = org_referees_map($db, $ref);
-    org_echo_staff_table($roleMap, $ref, $orgPool, $refPool, false, (string)($ev['referee_name'] ?? ''));
+    $refPool = org_referees_map($db, $ref, $evType);
+    org_echo_staff_table($roleMap, $ref, $orgPool, $refPool, false, (string)($ev['referee_name'] ?? ''), $evType);
+    if (($ev['status'] ?? '') === 'Отменено') {
+        echo '<form method="post" class="org-attrs-actions" onsubmit="return confirm(\'Восстановить мероприятие?\');">';
+        portal_csrf_field();
+        echo '<input type="hidden" name="action" value="org_event_restore">';
+        echo '<input type="hidden" name="event_id" value="' . (int)$ev['id'] . '">';
+        echo '<button type="submit">Восстановить мероприятие</button>';
+        echo '</form>';
+    }
     echo '</section>';
 }
 
@@ -1802,7 +2109,12 @@ function org_echo_attrs_form(?array $ev, array $people, mysqli $db, ?string $pre
         $zoom = org_default_zoom();
     }
     $ref = $isNew ? 0 : (int)($ev['referee_person_id'] ?? 0);
-    $referees = org_referees_map($db, $ref);
+    $referees = org_referees_map($db, 0, '') + org_referees_map($db, 0, 'обучение');
+    $arbiterIds = array_keys(org_referees_map($db, 0, ''));
+    $trainerIds = array_keys(org_referees_map($db, 0, 'обучение'));
+    $refereeAttrs = 'data-arbiters="' . h(json_encode($arbiterIds, JSON_UNESCAPED_UNICODE)) . '"'
+        . ' data-trainers="' . h(json_encode($trainerIds, JSON_UNESCAPED_UNICODE)) . '"'
+        . ' data-train-label="Ведущий" data-default-label="Арбитр"';
     $roleMap = $isNew ? [] : org_event_role_person_map($db, (int)$ev['id']);
     $orgPool = org_event_orgs_map($db, array_values($roleMap));
     echo '<section class="card org-attrs">';
@@ -1833,7 +2145,7 @@ function org_echo_attrs_form(?array $ev, array $people, mysqli $db, ?string $pre
     echo '<label>Ярлык <input name="slug" value="' . h($slug) . '"></label>';
     echo '<label>Zoom <input name="zoom_url" value="' . h($zoom) . '" placeholder="полный URL"'
         . org_need_fill_class($zoom === '') . '></label>';
-    org_echo_staff_table($roleMap, $ref, $orgPool, $referees, true);
+    org_echo_staff_table($roleMap, $ref, $orgPool, $referees, true, '', $type, $refereeAttrs);
     echo '<p class="org-attrs-actions"><button type="submit">' . ($isNew ? 'Создать' : 'Сохранить') . '</button></p>';
     echo '</form></section>';
 }
@@ -1868,6 +2180,7 @@ function org_echo_google_grid(array $ev, array $duels): void
         $rows[] = ['jv' . $i, 'Судья ' . $i . ' Голос'];
     }
     $rows[] = ['vid', 'Видео поединка'];
+    $rows[] = ['rev', 'Разбор'];
     echo '<div class="org-gg-scroll"><table class="org-gg">';
     foreach ($rows as $row) {
         [$key, $lab] = $row;
@@ -1878,7 +2191,33 @@ function org_echo_google_grid(array $ev, array $duels): void
         }
         echo '</tr>';
     }
-    echo '</table></div></section>';
+    echo '</table></div>';
+    org_echo_review_editor();
+    echo '</section>';
+}
+
+function org_echo_review_editor(): void
+{
+    echo '<div id="org-rv-editor" class="org-rv-editor" hidden>';
+    echo '<form class="org-rv-card" id="org-rv-form" autocomplete="off">';
+    echo '<h2 class="org-rv-title" id="org-rv-title">Добавить разбор</h2>';
+    echo '<p class="org-rv-err" id="org-rv-err" hidden></p>';
+    echo '<input type="hidden" id="org-rv-id" value="">';
+    echo '<input type="hidden" id="org-rv-sit" value="">';
+    echo '<input type="hidden" id="org-rv-duel" value="0">';
+    echo '<input type="hidden" id="org-rv-event" value="0">';
+    echo '<label class="org-rv-lab">Ссылка<input id="org-rv-url" type="url" required maxlength="1024" placeholder="https://"></label>';
+    echo '<label class="org-rv-lab">Подпись<select id="org-rv-label">';
+    echo '<option value="auto">авто (по ссылке)</option>';
+    echo '<option value="разбор">разбор</option>';
+    echo '<option value="материал">материал</option>';
+    echo '</select><span class="org-rv-hint" id="org-rv-hint"></span></label>';
+    echo '<label class="org-rv-lab">Дата<input id="org-rv-date" type="date"></label>';
+    echo '<div class="org-rv-form-actions">';
+    echo '<button type="submit">Сохранить</button>';
+    echo '<button type="button" id="org-rv-cancel">Отмена</button>';
+    echo '</div></form></div>';
+    echo '<input type="hidden" id="org-events-csrf" value="' . h(portal_csrf_token()) . '">';
 }
 
 function org_echo_sit_labels_form(array $ev, array $duels, array $people, mysqli $db): void
@@ -1981,16 +2320,56 @@ function org_gg_cell(string $key, array $d, array $ev, string $year, int $n): st
     }
     if ($key === 'vid') {
         $u = (string)($d['video'] ?? '');
-        $html = $u !== '' ? '<a href="' . h($u) . '" target="_blank" rel="noopener">Видео</a>' : '';
-        $rev = (string)($d['review'] ?? '');
-        if ($rev !== '' && $rev !== $u) {
-            $lab = trim((string)($d['review_label'] ?? 'разбор')) ?: 'разбор';
-            $html .= ($html !== '' ? ' ' : '')
-                . '<a href="' . h($rev) . '" target="_blank" rel="noopener">' . h($lab) . '</a>';
-        }
-        return $html;
+        return $u !== '' ? '<a href="' . h($u) . '" target="_blank" rel="noopener">Видео</a>' : '';
+    }
+    if ($key === 'rev') {
+        return org_gg_review_cell($d, $ev);
     }
     return '';
+}
+
+function org_gg_review_cell(array $d, array $ev): string
+{
+    $did = (int)($d['id'] ?? 0);
+    $eid = (int)($ev['id'] ?? 0);
+    $sitId = (int)($d['situation_id'] ?? 0);
+    if ($sitId <= 0) {
+        $sitId = (int)($d['review_situation_id'] ?? 0);
+    }
+    $iso = trim((string)($d['review_iso'] ?? ''));
+    if ($iso === '' || str_starts_with($iso, '0000')) {
+        $iso = trim((string)($d['date'] ?? ''));
+    }
+    if ($iso === '' || str_starts_with($iso, '0000')) {
+        $iso = trim((string)($ev['starts_on'] ?? ''));
+    }
+    if (str_starts_with($iso, '0000')) {
+        $iso = '';
+    }
+    $attrs = ' data-duel-id="' . $did . '" data-event-id="' . $eid . '" data-sit-id="' . $sitId . '"';
+    if ($iso !== '') {
+        $attrs .= ' data-iso="' . h(substr($iso, 0, 10)) . '"';
+    }
+    $rev = (string)($d['review'] ?? '');
+    $revId = (int)($d['review_id'] ?? 0);
+    if ($rev !== '' && $revId > 0) {
+        $lab = trim((string)($d['review_label'] ?? 'разбор')) ?: 'разбор';
+        $title = trim((string)($d['review_title'] ?? ''));
+        $attrs .= ' data-review-id="' . $revId . '" data-url="' . h($rev) . '"';
+        if ($title !== '') {
+            $attrs .= ' data-title="' . h($title) . '"';
+        }
+        $html = '<a href="' . h($rev) . '" target="_blank" rel="noopener">'
+            . h($lab) . '</a>';
+        $html .= '<span class="org-rv-acts">';
+        $html .= '<button type="button" class="org-rv-act" data-review-edit="1"' . $attrs . '>править</button>';
+        $html .= '<button type="button" class="org-rv-act org-rv-act--del" data-review-delete="1"'
+            . $attrs . '>удалить</button>';
+        $html .= '</span>';
+        return $html;
+    }
+    return '<button type="button" class="org-rv-act org-rv-act--add" data-review-add="1"'
+        . $attrs . '>+ Добавить</button>';
 }
 
 function org_echo_metrics(array $metrics): void
@@ -2126,7 +2505,9 @@ function org_echo_plan_side(array $ev, array $regs, array $career = []): void
             $dbd = (string)($cb['last_judged'] ?? '');
             return $dbd <=> $da ?: strcmp((string)$a['name'], (string)$b['name']);
         });
-        echo '<ul class="org-regs">';
+        echo '<table class="org-regs-table">';
+        echo '<thead><tr><th>Имя</th><th>Роли</th><th>Тип</th><th>Комм.</th><th></th></tr></thead>';
+        echo '<tbody>';
         foreach ($regs as $r) {
             $roles = [];
             if ($r['play']) {
@@ -2136,32 +2517,59 @@ function org_echo_plan_side(array $ev, array $regs, array $career = []): void
                 $roles[] = 'судья';
             }
             if ($r['second']) {
-                $roles[] = 'секундант';
+                $roles[] = 'секунд';
             }
+            $typePref = trim((string)($r['duel_type_pref'] ?? ''));
             $c = $career[(int)($r['id'] ?? 0)] ?? [];
             $rec = $c ? org_star_rec($c, $r) : ['text' => '', 'kind' => ''];
-            echo '<li><div class="org-reg-row">';
-            echo '<div class="org-reg-body">';
-            echo '<div class="org-reg-head"><strong>' . h($r['name']) . '</strong>';
-            if ($roles) {
-                echo ' <span class="muted">' . h(implode(', ', $roles)) . '</span>';
-            }
-            if ($r['telegram'] !== '') {
-                echo ' <span class="muted">' . h($r['telegram']) . '</span>';
-            }
-            echo '</div>';
+            $rid = (int)($r['reg_id'] ?? 0);
+            $hasEdit = $rid > 0;
+            $comment = trim((string)$r['comment']);
+
+            echo '<tr class="org-reg-view" data-reg-row="' . $rid . '">';
+            echo '<td class="org-reg-name">';
+            echo '<strong>' . h($r['name']) . '</strong>';
             if (($rec['text'] ?? '') !== '') {
                 $kind = (string)($rec['kind'] ?? 'next');
                 echo '<span class="org-rec org-rec-' . h($kind) . '">' . h((string)$rec['text']) . '</span>';
             }
-            echo '</div>';
-            $rid = (int)($r['reg_id'] ?? 0);
-            if ($rid > 0) {
+            echo '</td>';
+            echo '<td class="org-reg-roles">' . h($roles ? implode(', ', $roles) : '—') . '</td>';
+            echo '<td class="org-reg-type">' . h($typePref !== '' ? $typePref : '—') . '</td>';
+            echo '<td class="org-reg-comment"' . ($comment !== '' ? ' title="' . h($comment) . '"' : '') . '>' . h($comment !== '' ? mb_strimwidth($comment, 0, 28, '…') : '—') . '</td>';
+            echo '<td class="org-reg-actions">';
+            if ($hasEdit) {
+                echo '<button type="button" class="btn-ghost org-reg-edit-btn" title="Править заявку">править</button>';
                 echo '<button type="submit" form="reg-del-' . $rid . '" class="btn-ghost org-reg-x" title="Убрать из заявки">×</button>';
             }
-            echo '</div></li>';
+            echo '</td>';
+            echo '</tr>';
+
+            if ($hasEdit) {
+                echo '<tr class="org-reg-edit" hidden data-reg-edit="' . $rid . '">';
+                echo '<td colspan="5">';
+                echo '<form method="post" class="org-reg-edit-form" id="reg-edit-' . $rid . '">';
+                portal_csrf_field();
+                echo '<input type="hidden" name="action" value="org_reg_update">';
+                echo '<input type="hidden" name="event_id" value="' . $eid . '">';
+                echo '<input type="hidden" name="reg_id" value="' . $rid . '">';
+                echo '<div class="org-reg-edit-line">';
+                echo '<label class="org-reg-edit-role"><input type="checkbox" name="wants_play" value="1"' . ($r['play'] ? ' checked' : '') . '> играть</label>';
+                echo '<label class="org-reg-edit-role"><input type="checkbox" name="wants_judge" value="1"' . ($r['judge'] ? ' checked' : '') . '> судить</label>';
+                echo '<label class="org-reg-edit-role"><input type="checkbox" name="wants_second" value="1"' . ($r['second'] ? ' checked' : '') . '> секунд</label>';
+                echo '<label class="org-reg-edit-type">тип <select name="duel_type_pref">' . org_duel_type_pref_options($typePref) . '</select></label>';
+                echo '<label class="org-reg-edit-comment">комм. <textarea name="comment" rows="1" maxlength="2000">' . h($comment) . '</textarea></label>';
+                echo '</div>';
+                echo '<div class="org-reg-edit-actions">';
+                echo '<button type="submit" class="btn-ghost">Сохранить</button>';
+                echo '<button type="button" class="btn-ghost org-reg-edit-cancel">Отмена</button>';
+                echo '</div>';
+                echo '</form>';
+                echo '</td>';
+                echo '</tr>';
+            }
         }
-        echo '</ul>';
+        echo '</tbody></table>';
     }
     echo '<form method="post" class="org-reg-add" id="org-reg-add-form">';
     portal_csrf_field();
@@ -2238,7 +2646,7 @@ function org_echo_event_recs(
 function org_echo_play_recs(mysqli $db, array $career, array $duels, array $regs, int $eventId): array
 {
     $recs = $career ? org_play_recs($db, $career, $duels, $regs) : ['fresh' => [], 'orgs' => [], 'older' => []];
-    $hint = '«Недавно судили, играли» — активность за 90 дней: судейство, игра или секундантство (секундантство только чтобы попасть в группу, на экране не пишем). Внутри: сыграть 1-ю, 2-ю, 3-ю игру. Затем «Орги ни разу не игравшие» — круг я-ИТ-ы, правление и прочие роли, не участники телеги, 0 игр; не стримовые орги. Затем «Судили, играли давно» — те же люди вне 90 дней, те же подгруппы. Уже в сетке, стримовых оргов, гостей ФУБ без стрима и партнёров не показываем.';
+    $hint = '«Недавно судили, играли» — активность за 90 дней: судейство, игра или секундантство (секундантство только чтобы попасть в группу, на экране не пишем). Внутри: сыграть 1-ю, 2-ю, 3-ю игру. Затем «Организаторы ни разу не игравшие» — круг я-ИТ-ы, правление и прочие роли, не участники телеги, 0 игр; не стримовые организаторы. Затем «Судили, играли давно» — те же люди вне 90 дней, те же подгруппы. Уже в сетке, стримовых организаторов, гостей ФУБ без стрима и партнёров не показываем.';
     echo '<section class="card org-play-recs">';
     echo '<h2 class="org-play-recs-h">Кого привлечь';
     echo '<span class="org-recs-help">';
@@ -2253,19 +2661,19 @@ function org_echo_play_recs(mysqli $db, array $career, array $duels, array $regs
     if ($recs['fresh']) {
         echo '<div class="org-recs-tier org-recs-fresh">';
         echo '<h3>Недавно судили, играли</h3>';
-        $addPids += org_echo_play_recs_by_need($recs['fresh'], $eventId);
+        $addPids += org_echo_play_recs_by_need($db, $recs['fresh'], $eventId);
         echo '</div>';
     }
     if ($recs['orgs']) {
         echo '<div class="org-recs-tier org-recs-orgs">';
-        echo '<h3>Орги ни разу не игравшие</h3>';
-        $addPids += org_echo_play_recs_list($recs['orgs'], $eventId);
+        echo '<h3>Организаторы ни разу не игравшие</h3>';
+        $addPids += org_echo_play_recs_list($db, $recs['orgs'], $eventId);
         echo '</div>';
     }
     if ($recs['older']) {
         echo '<div class="org-recs-tier org-recs-older">';
         echo '<h3>Судили, играли давно</h3>';
-        $addPids += org_echo_play_recs_by_need($recs['older'], $eventId);
+        $addPids += org_echo_play_recs_by_need($db, $recs['older'], $eventId);
         echo '</div>';
     }
     echo '</section>';
@@ -2273,7 +2681,7 @@ function org_echo_play_recs(mysqli $db, array $career, array $duels, array $regs
 }
 
 /** @return array<int, true> */
-function org_echo_play_recs_by_need(array $rows, int $eventId): array
+function org_echo_play_recs_by_need(mysqli $db, array $rows, int $eventId): array
 {
     $labels = [
         1 => 'сыграть 1-ю игру',
@@ -2293,15 +2701,16 @@ function org_echo_play_recs_by_need(array $rows, int $eventId): array
         }
         echo '<div class="org-recs-sub org-recs-need-' . $need . '">';
         echo '<h4>' . h($label) . '</h4>';
-        $addPids += org_echo_play_recs_list($chunk, $eventId);
+        $addPids += org_echo_play_recs_list($db, $chunk, $eventId);
         echo '</div>';
     }
     return $addPids;
 }
 
 /** @return array<int, true> */
-function org_echo_play_recs_list(array $rows, int $eventId): array
+function org_echo_play_recs_list(mysqli $db, array $rows, int $eventId): array
 {
+    $inList = org_outreach_in_campaign_ids($db, $eventId);
     $addPids = [];
     echo '<ul class="org-regs org-play-list">';
     foreach ($rows as $a) {
@@ -2309,9 +2718,11 @@ function org_echo_play_recs_list(array $rows, int $eventId): array
         echo '<li><strong>' . h((string)$a['name']) . '</strong>';
         if (!empty($a['applied'])) {
             echo '<span class="org-applied">заявка</span>';
+        } elseif ($pid > 0 && isset($inList[$pid])) {
+            echo '<span class="org-in-list">в списке</span>';
+            org_echo_to_list_remove_btn($eventId, $pid);
         } elseif ($pid > 0) {
-            org_echo_to_reg_btn($eventId, $pid);
-            $addPids[$pid] = true;
+            org_echo_to_list_btn($eventId, $pid);
         }
         echo '</li>';
     }

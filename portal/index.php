@@ -7,6 +7,11 @@ require __DIR__ . '/inc/nav.php';
 require __DIR__ . '/inc/org.php';
 
 $orgError = '';
+$signupError = '';
+$signupOpen = false;
+$signupName = '';
+$signupEmail = '';
+$signupTelegram = '';
 $page = portal_norm_page((string)($_POST['p'] ?? $_GET['p'] ?? ''));
 $orgSection = portal_org_section((string)($_GET['s'] ?? $_POST['s'] ?? ''));
 $loginNext = portal_safe_next((string)($_GET['next'] ?? $_POST['next'] ?? ''));
@@ -24,6 +29,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $next = portal_safe_next((string)($_POST['next'] ?? ''));
         header('Location: ' . ($next !== '' ? $next : portal_page_url($page)));
         exit;
+    }
+    if ($action === 'signup') {
+        $signupName = portal_field_norm((string)($_POST['full_name'] ?? ''));
+        $signupEmail = portal_field_norm((string)($_POST['email'] ?? ''));
+        $signupTelegram = portal_field_norm((string)($_POST['telegram'] ?? ''), 64);
+        $loginNext = portal_safe_next((string)($_POST['next'] ?? ''));
+        if (!portal_csrf_ok((string)($_POST['csrf'] ?? ''))) {
+            $signupError = 'Сессия устарела, обновите страницу';
+            $signupOpen = true;
+        } else {
+            $res = portal_signup_person($db, $signupName, $signupEmail, $signupTelegram);
+            if (!empty($res['error'])) {
+                $signupError = (string)$res['error'];
+                $signupOpen = true;
+            } else {
+                $pid = (int)($res['person_id'] ?? 0);
+                $_SESSION['person_id'] = $pid;
+                clear_org_mode();
+                set_person_cookie($pid);
+                require_once __DIR__ . '/inc/portal_log.php';
+                portal_log_write($db, 'signup', 'person', $pid, [
+                    'full_name' => $signupName,
+                    'email' => $signupEmail,
+                    'telegram' => $signupTelegram,
+                    'circle' => UNSORTED_CIRCLE,
+                ]);
+                $next = portal_safe_next((string)($_POST['next'] ?? ''));
+                header('Location: ' . ($next !== '' ? $next : portal_page_url($page)));
+                exit;
+            }
+        }
     }
     if ($action === 'reset_me') {
         unset($_SESSION['person_id']);
@@ -83,6 +119,7 @@ if ($page === 'org' && !$orgOn) {
 $orgFlash = '';
 $orgEventError = '';
 $orgPeopleError = '';
+$orgOutreachError = '';
 if ($page === 'org' && $orgSection === 'people') {
     require __DIR__ . '/inc/org_people.php';
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -120,6 +157,25 @@ if ($page === 'org' && $orgSection === 'materials') {
         }
     }
 }
+if ($page === 'org' && $orgSection === 'outreach') {
+    require_once __DIR__ . '/inc/home_data.php';
+    require_once __DIR__ . '/inc/org_people.php';
+    require_once __DIR__ . '/inc/org_events.php';
+    require_once __DIR__ . '/inc/org_outreach.php';
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $res = org_outreach_handle_post($db);
+        if (!empty($res['ajax'])) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($res, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+        if (!empty($res['redirect'])) {
+            header('Location: ' . $res['redirect']);
+            exit;
+        }
+        $orgOutreachError = (string)($res['error'] ?? '');
+    }
+}
 if ($page === 'org' && $orgSection === 'events') {
     require __DIR__ . '/inc/home_data.php';
     require __DIR__ . '/inc/org_events.php';
@@ -129,6 +185,11 @@ if ($page === 'org' && $orgSection === 'events') {
     }
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $res = org_events_handle_post($db);
+        if (!empty($_POST['ajax'])) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($res, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
         if (!empty($res['redirect'])) {
             header('Location: ' . $res['redirect']);
             exit;
@@ -185,16 +246,24 @@ if ($page !== 'org') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Стрим управленческих навыков</title>
+    <title><?php
+    if ($page === 'org') {
+        echo $orgSection !== ''
+            ? h(portal_org_section_title($orgSection)) . ' — Рабочее место организатора'
+            : 'Рабочее место организатора';
+    } else {
+        echo 'Стрим управленческих навыков';
+    }
+    ?></title>
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" href="assets/favicon.png">
-    <link rel="stylesheet" href="css/portal.css?v=78">
+    <link rel="stylesheet" href="css/portal.css?v=85">
     <link rel="stylesheet" href="css/org.css?v=7">
     <?php if ($page === 'org' && $orgSection === 'events') { ?>
-    <link rel="stylesheet" href="css/org-events.css?v=27">
+    <link rel="stylesheet" href="css/org-events.css?v=35">
     <?php } ?>
     <?php if ($page === 'org' && $orgSection === 'people') { ?>
-    <link rel="stylesheet" href="css/org-people.css?v=19">
+    <link rel="stylesheet" href="css/org-people.css?v=22">
     <?php } ?>
     <?php if ($page === 'org' && $orgSection === 'situations') {
         if (!function_exists('org_sb_asset_ver')) {
@@ -209,6 +278,9 @@ if ($page !== 'org') {
     <?php if ($page === 'org' && $orgSection === 'materials') { ?>
     <link rel="stylesheet" href="css/materials.css?v=5">
     <link rel="stylesheet" href="css/org-materials.css?v=6">
+    <?php } ?>
+    <?php if ($page === 'org' && $orgSection === 'outreach') { ?>
+    <link rel="stylesheet" href="css/org-outreach.css?v=6">
     <?php } ?>
 </head>
 <body class="page-<?php echo h($bodyPage); ?><?php echo $page === 'org' ? ' page-org' : ''; ?><?php echo $me ? '' : ' is-guest'; ?>">
@@ -260,6 +332,10 @@ if ($page !== 'org') {
             <input type="hidden" name="person_id" id="who-id">
             <ul class="combo-list" hidden></ul>
         </div>
+        <p class="who-signup-link"><button type="button" class="who-signup-btn" data-who-signup>Меня нет в списке</button></p>
+        <?php if ($signupError !== '' && !$signupOpen) { ?>
+        <p class="who-err"><?php echo h($signupError); ?></p>
+        <?php } ?>
         <?php portal_who_form($page, $loginNext); ?>
     </div>
     <?php } else { ?>
@@ -284,7 +360,7 @@ if ($page !== 'org') {
             </form>
             <?php if ($orgError) { ?><span class="who-err"><?php echo h($orgError); ?></span><?php } ?>
             <?php } elseif ($orgOn) { ?>
-            <a class="org-work-link" href="<?php echo h(portal_org_url()); ?>"><?php echo portal_icon('lock'); ?> Рабочее место</a>
+            <a class="org-work-link" href="<?php echo h(portal_org_url()); ?>"><?php echo portal_icon('lock'); ?> Рабочее место организатора</a>
             <?php } ?>
             <form method="post">
                 <input type="hidden" name="action" value="reset_me">
@@ -307,6 +383,8 @@ if ($page !== 'org') {
       portal_echo_org_situations($db);
   } elseif ($page === 'org' && $orgSection === 'materials') {
       portal_echo_org_materials($db);
+  } elseif ($page === 'org' && $orgSection === 'outreach') {
+      portal_echo_org_outreach($db, $orgOutreachError);
   } elseif ($page === 'org') {
       portal_echo_org_main($orgSection);
   } else {
@@ -518,15 +596,15 @@ if ($page !== 'org') {
 <script type="application/json" id="stats-tips-json"><?php echo portal_stats_tips_json(is_array($myStats) ? ($myStats['tips'] ?? []) : []); ?></script>
 <div id="rating-tip"></div>
 <?php } ?>
-<?php if (!$me) { portal_who_modal($loginNext, $loginNext !== ''); } ?>
-<script src="js/home.js?v=39"></script>
+<?php if (!$me) { portal_who_modal($loginNext, $loginNext !== '' || $signupOpen, $signupOpen, $signupError, $signupName, $signupEmail, $signupTelegram); } ?>
+<script src="js/home.js?v=42"></script>
 <?php } ?>
 <script src="js/menu.js?v=3"></script>
 <?php if ($page === 'org' && $orgSection === 'people') { ?>
-<script src="js/org-people.js?v=16"></script>
+<script src="js/org-people.js?v=24"></script>
 <?php } ?>
 <?php if ($page === 'org' && $orgSection === 'events') { ?>
-<script src="js/org-events.js?v=7"></script>
+<script src="js/org-events.js?v=11"></script>
 <?php } ?>
 <?php if ($page === 'org' && $orgSection === 'situations') {
     $sbVer = function_exists('org_sb_asset_ver') ? org_sb_asset_ver() : '106';
@@ -545,6 +623,9 @@ if (document.readyState === "loading") {
 <?php if ($page === 'org' && $orgSection === 'materials') { ?>
 <script src="vendor/marked.min.js"></script>
 <script src="js/org-materials.js?v=6"></script>
+<?php } ?>
+<?php if ($page === 'org' && $orgSection === 'outreach') { ?>
+<script src="js/org-outreach.js?v=3"></script>
 <?php } ?>
 </body>
 </html>

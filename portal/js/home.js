@@ -43,6 +43,10 @@
         return t === "турнир";
     }
 
+    function isTraining(t) {
+        return t === "обучение";
+    }
+
     function isPlanned(s) {
         return s === "Запланировано" || s === "Подготовка";
     }
@@ -93,6 +97,7 @@
                         }
                         if (evs.some(function (e) { return isTournament(e.type); })) cls.push("tournament");
                         if (evs.some(function (e) { return e.type === "онлайн"; })) cls.push("online");
+                        if (evs.some(function (e) { return isTraining(e.type); })) cls.push("training");
                         if (evs.some(function (e) { return isPlanned(e.status); })) cls.push("planned");
                         if (evs.every(function (e) { return isCancelled(e.status); })) cls.push("cancelled");
                         if (iso === selectedIso) cls.push("sel");
@@ -985,16 +990,43 @@
         var form = document.getElementById("who-form");
         if (!modal || !form) return;
         var nextInp = form.querySelector("input[name=next]");
+        var signupForm = document.getElementById("who-signup-form");
+        var signupNext = signupForm ? signupForm.querySelector("input[name=next]") : null;
+        var identifyPane = modal.querySelector(".who-pane--identify");
+        var signupPane = modal.querySelector(".who-pane--signup");
         var originalNext = nextInp ? nextInp.value : "";
         var combo = modal.querySelector("[data-combo]");
 
-        function open(next) {
-            if (nextInp) nextInp.value = next || originalNext;
+        function syncNext(next) {
+            var v = next || originalNext;
+            if (nextInp) nextInp.value = v;
+            if (signupNext) signupNext.value = v;
+        }
+
+        function showView(view) {
+            var signup = view === "signup";
+            modal.setAttribute("data-view", signup ? "signup" : "identify");
+            if (identifyPane) identifyPane.hidden = signup;
+            if (signupPane) signupPane.hidden = !signup;
+            if (signup && signupForm) {
+                var nameInp = signupForm.querySelector("input[name=full_name]");
+                if (nameInp) nameInp.focus();
+            } else if (combo && combo._comboInput) {
+                combo._comboInput.focus();
+            }
+        }
+
+        function open(next, view) {
+            syncNext(next);
             modal.hidden = false;
             document.body.classList.add("who-modal-open");
+            if (view === "signup") {
+                showView("signup");
+                return;
+            }
+            showView("identify");
             if (combo && combo._comboInput) {
                 combo._comboInput.value = "";
-                combo._comboInput.focus();
                 if (combo._comboShow) combo._comboShow("");
             }
         }
@@ -1002,13 +1034,29 @@
         function close() {
             modal.hidden = true;
             document.body.classList.remove("who-modal-open");
-            if (nextInp) nextInp.value = originalNext;
+            syncNext(originalNext);
+            showView("identify");
         }
 
         document.addEventListener("click", function (e) {
+            if (e.target.closest("[data-who-signup]")) {
+                e.preventDefault();
+                var next = nextInp ? nextInp.value : originalNext;
+                if (modal.hidden) open(next, "signup");
+                else {
+                    syncNext(next);
+                    showView("signup");
+                }
+                return;
+            }
+            if (e.target.closest("[data-who-identify]")) {
+                e.preventDefault();
+                showView("identify");
+                return;
+            }
             if (e.target.closest("[data-who-open]")) {
                 e.preventDefault();
-                open(nextInp ? nextInp.value : originalNext);
+                open(nextInp ? nextInp.value : originalNext, "identify");
                 return;
             }
             var a = e.target.closest("a[data-need-login], a.next-reg");
@@ -1020,7 +1068,7 @@
                 next = href;
             }
             e.preventDefault();
-            open(next);
+            open(next, "identify");
         });
 
         modal.addEventListener("click", function (e) {
@@ -1031,7 +1079,8 @@
         });
 
         if (modal.getAttribute("data-open") === "1") {
-            open(nextInp ? nextInp.value : "");
+            var initial = modal.getAttribute("data-view") === "signup" ? "signup" : "identify";
+            open(nextInp ? nextInp.value : "", initial);
         }
     }
 
@@ -1087,6 +1136,7 @@
     function monthDotKind(year, month) {
         var special = false;
         var tourney = false;
+        var training = false;
         var has = false;
         var dim = new Date(year, month + 1, 0).getDate();
         var d;
@@ -1096,10 +1146,12 @@
             has = true;
             if (evs.some(function (e) { return isSpecial(e.type); })) special = true;
             if (evs.some(function (e) { return isTournament(e.type); })) tourney = true;
+            if (evs.some(function (e) { return isTraining(e.type); })) training = true;
         }
         if (!has) return "";
         if (special) return "special";
         if (tourney) return "tournament";
+        if (training) return "training";
         return "online";
     }
 

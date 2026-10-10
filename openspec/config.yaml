@@ -1,0 +1,30 @@
+schema: spec-driven
+
+context: |
+  Project: ub-timer
+  Language: ru
+  Domain: Management duel timer web app for "управленческие поединки".
+  Stack: Pure HTML/CSS/JS, no build; optional Google Apps Script integration; deploy via FTP.
+  Key docs: README.md, docs/verification-after-refactor.md, History.log.
+  Constraint: Preserve script load order in index.html. Do not break duel timer, referee, or protocol logic. Ask before deployment.
+
+rules:
+  proposal:
+    - Keep proposals concise and in Russian.
+    - Include a Non-goals section.
+    - Do not propose changes to timer, referee, or protocol logic unless explicitly requested.
+  tasks:
+    - Break tasks into chunks of max 2 hours.
+    - Environment/configuration tasks only; do not touch project code without confirmation.
+  changes:
+    - Ask before any destructive operation (delete, overwrite, git push, deployment).
+
+operations:
+  apply:
+    guidance:
+      - Ask before editing source files, schedule data, sound assets, or deployment scripts.
+      - Keep test summaries concise.
+  archive:
+    guidance:
+      - Summarize the archive outcome in Russian before finishing.
+      - Note any files or data that were deliberately left untouched.
