@@ -22,6 +22,7 @@ import argparse
 import base64
 import csv
 import json
+import os
 import re
 import subprocess
 import sys
@@ -42,13 +43,17 @@ F_TG, F_NICK, F_TGID, F_ID = "85", "99", "100", "105"
 
 
 def load_env() -> dict[str, str]:
+    """Конфиг из settings.env + секреты из окружения (инжектит kvault)."""
     env: dict[str, str] = {}
-    for line in (REPO / "secrets.env").read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, v = line.split("=", 1)
-        env[k.strip()] = v.strip().strip('"').strip("'")
+    path = REPO / "settings.env"
+    if path.is_file():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            env[k.strip()] = v.strip().strip('"').strip("'")
+    env.update({k: v for k, v in os.environ.items() if v})
     return env
 
 

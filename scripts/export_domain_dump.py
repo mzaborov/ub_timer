@@ -4,7 +4,7 @@
 Запуск из корня репо:
   $env:PYTHONIOENCODING='utf-8'; python scripts/export_domain_dump.py
 
-SID: GOOGLE_SHEETS_SID в secrets.env или окружении
+SID: GOOGLE_SHEETS_SID в settings.env или окружении
      (иначе публичный id таблицы я-ИТ-ы).
 Баллы: BALLS_XLSX_DIR, иначе типичный путь Яндекс.Диска, если он есть.
 Регистрации: из живой MySQL (meeting_registrations), не [].
@@ -91,7 +91,7 @@ TODAY = date.today()
 
 def load_secrets() -> dict[str, str]:
     env: dict[str, str] = {}
-    path = REPO / "secrets.env"
+    path = REPO / "settings.env"
     if path.is_file():
         for line in path.read_text(encoding="utf-8").splitlines():
             line = line.strip()

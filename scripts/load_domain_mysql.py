@@ -23,6 +23,7 @@ import argparse
 import ftplib
 import io
 import json
+import os
 import secrets
 import urllib.error
 import urllib.request
@@ -35,13 +36,17 @@ REGISTRATIONS_JSON = DUMP / "регистрации.json"
 
 
 def load_env() -> dict[str, str]:
+    """Конфиг из settings.env + секреты из окружения (инжектит kvault)."""
     env: dict[str, str] = {}
-    for line in (REPO / "secrets.env").read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, v = line.split("=", 1)
-        env[k.strip()] = v.strip()
+    path = REPO / "settings.env"
+    if path.is_file():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            env[k.strip()] = v.strip()
+    env.update({k: v for k, v in os.environ.items() if v})
     return env
 
 
