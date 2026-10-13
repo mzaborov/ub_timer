@@ -1148,6 +1148,9 @@ function org_events_handle_post(mysqli $db): array
     if ($action === 'org_gen_pairs') {
         return org_gen_pairs($db);
     }
+    if ($action === 'org_slots_clear') {
+        return org_slots_clear($db);
+    }
     if ($action === 'org_review_save' || $action === 'org_review_delete') {
         require_once __DIR__ . '/org_situations.php';
         return $action === 'org_review_save' ? org_review_save($db) : org_review_delete($db);
@@ -1459,6 +1462,27 @@ function org_slots_save(mysqli $db): array
     }
 
     $_SESSION['org_flash'] = 'Сетка сохранена';
+    return ['redirect' => org_event_url($eid) . '#slots'];
+}
+
+function org_slots_clear(mysqli $db): array
+{
+    $eid = (int)($_POST['event_id'] ?? 0);
+    $ev = org_event_load($db, $eid);
+    if (!$ev || !org_event_is_planned($ev)) {
+        return ['error' => 'Нельзя очистить сетку'];
+    }
+    $st = $db->prepare(
+        'UPDATE duels
+         SET player1_id=NULL, player2_id=NULL, second1_id=NULL, second2_id=NULL
+         WHERE event_id=?'
+    );
+    $st->bind_param('i', $eid);
+    $st->execute();
+    $n = $st->affected_rows;
+    $st->close();
+
+    $_SESSION['org_flash'] = 'Сетка очищена: ' . $n . ' слот(ов)';
     return ['redirect' => org_event_url($eid) . '#slots'];
 }
 
@@ -2584,8 +2608,15 @@ function org_echo_slots_card(
     portal_csrf_field();
     echo '<input type="hidden" name="action" value="org_gen_pairs">';
     echo '<input type="hidden" name="event_id" value="' . $eid . '">';
-    echo '<button type="submit" class="btn-ghost" id="org-gen-pairs" title="Собрать игроков в пары из заявок (классика/экспресс)">'
+    echo '<button type="submit" id="org-gen-pairs" title="Собрать игроков в пары из заявок (классика/экспресс)">'
         . 'Сгенерировать пары из заявок</button>';
+    echo '</form>';
+    echo '<form method="post" class="org-inline" id="org-slots-clear-form">';
+    portal_csrf_field();
+    echo '<input type="hidden" name="action" value="org_slots_clear">';
+    echo '<input type="hidden" name="event_id" value="' . $eid . '">';
+    echo '<button type="submit" title="Снять всех игроков и секундантов со всех слотов (типы и судьи остаются)">'
+        . 'Очистить сетку</button>';
     echo '</form>';
     echo '</div>';
     foreach ($duels as $d) {
