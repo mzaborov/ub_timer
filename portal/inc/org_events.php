@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/elo.php';
+require_once __DIR__ . '/org_pairs.php';
+
 function org_default_zoom(): string
 {
     global $portal_default_zoom;
@@ -237,7 +240,8 @@ function org_event_reviews_by_duel(mysqli $db, int $eventId): array
 function org_event_regs(mysqli $db, int $eventId): array
 {
     $st = $db->prepare(
-        'SELECT id, person_id, full_name, telegram, wants_play, wants_judge, wants_second, duel_type_pref, comment
+        'SELECT id, person_id, full_name, telegram, wants_play, wants_judge, wants_second, duel_type_pref, comment,
+                org_no_play, org_banned_types
          FROM meeting_registrations
          WHERE event_id = ?
          ORDER BY full_name, id'
@@ -257,6 +261,8 @@ function org_event_regs(mysqli $db, int $eventId): array
             'second' => (int)$row['wants_second'] === 1,
             'duel_type_pref' => (string)($row['duel_type_pref'] ?? ''),
             'comment' => (string)($row['comment'] ?? ''),
+            'org_no_play' => (int)($row['org_no_play'] ?? 0) === 1,
+            'org_banned_types' => (string)($row['org_banned_types'] ?? ''),
         ];
     }
     $st->close();
@@ -1139,6 +1145,9 @@ function org_events_handle_post(mysqli $db): array
     if ($action === 'org_reg_update') {
         return org_reg_update($db);
     }
+    if ($action === 'org_gen_pairs') {
+        return org_gen_pairs($db);
+    }
     if ($action === 'org_review_save' || $action === 'org_review_delete') {
         require_once __DIR__ . '/org_situations.php';
         return $action === 'org_review_save' ? org_review_save($db) : org_review_delete($db);
@@ -1399,6 +1408,7 @@ function org_slots_save(mysqli $db): array
                 player2_id=NULLIF(?, 0), second2_id=NULLIF(?, 0)
          WHERE id=? AND event_id=?'
     );
+    $seconds = [];
     foreach ($ids as $i => $rawId) {
         $did = (int)$rawId;
         if ($did <= 0) {
@@ -1420,10 +1430,34 @@ function org_slots_save(mysqli $db): array
         $p2 = (int)($p2s[$i] ?? 0);
         $s1 = $type === 'экспресс' ? 0 : (int)($s1s[$i] ?? 0);
         $s2 = $type === 'экспресс' ? 0 : (int)($s2s[$i] ?? 0);
+        if ($s1 > 0) {
+            $seconds[$s1] = true;
+        }
+        if ($s2 > 0) {
+            $seconds[$s2] = true;
+        }
         $st->bind_param('sssiisiiiiii', $date, $type, $prep, $mins, $sid, $notes, $p1, $s1, $p2, $s2, $did, $eid);
         $st->execute();
     }
     $st->close();
+
+    // Секундантов, выбранных не из заявок, добавляем в заявки мероприятия.
+    if ($seconds) {
+        $regPids = [];
+        foreach (org_event_regs($db, $eid) as $rr) {
+            $rp = (int)($rr['id'] ?? 0);
+            if ($rp > 0) {
+                $regPids[$rp] = true;
+            }
+        }
+        foreach (array_keys($seconds) as $spid) {
+            if (!isset($regPids[$spid])) {
+                org_ensure_registration_for_second($db, $eid, (int)$spid);
+                $regPids[$spid] = true;
+            }
+        }
+    }
+
     $_SESSION['org_flash'] = 'Сетка сохранена';
     return ['redirect' => org_event_url($eid) . '#slots'];
 }
@@ -1634,12 +1668,25 @@ function org_reg_update(mysqli $db): array
     $second = !empty($_POST['wants_second']) ? 1 : 0;
     $duelTypePref = org_norm_duel_type_pref((string)($_POST['duel_type_pref'] ?? ''));
     $comment = trim((string)($_POST['comment'] ?? ''));
+    $orgNoPlay = !empty($_POST['org_no_play']) ? 1 : 0;
+    $bannedRaw = $_POST['org_banned_types'] ?? [];
+    $banned = [];
+    if (is_array($bannedRaw)) {
+        foreach ($bannedRaw as $t) {
+            $t = (string)$t;
+            if (in_array($t, org_duel_types(), true)) {
+                $banned[$t] = true;
+            }
+        }
+    }
+    $bannedStr = $banned ? implode(',', array_keys($banned)) : null;
     $st = $db->prepare(
         'UPDATE meeting_registrations
-         SET wants_play=?, wants_judge=?, wants_second=?, duel_type_pref=?, comment=?
+         SET wants_play=?, wants_judge=?, wants_second=?, duel_type_pref=?, comment=?,
+             org_no_play=?, org_banned_types=?
          WHERE id = ? AND event_id = ?'
     );
-    $st->bind_param('iiissii', $play, $judge, $second, $duelTypePref, $comment, $rid, $eid);
+    $st->bind_param('iiissisii', $play, $judge, $second, $duelTypePref, $comment, $orgNoPlay, $bannedStr, $rid, $eid);
     $st->execute();
     $ok = $st->affected_rows >= 0;
     $st->close();
@@ -1648,6 +1695,32 @@ function org_reg_update(mysqli $db): array
     }
     $_SESSION['org_flash'] = 'Заявка обновлена';
     return ['redirect' => org_event_url($eid) . '#regs'];
+}
+
+/** Добавить заявку мероприятия человеку (напр. выбранному секунданту не из заявок). */
+function org_ensure_registration_for_second(mysqli $db, int $eventId, int $personId): void
+{
+    if ($eventId <= 0 || $personId <= 0) {
+        return;
+    }
+    $st = $db->prepare('SELECT full_name FROM people WHERE id = ?');
+    $st->bind_param('i', $personId);
+    $st->execute();
+    $row = $st->get_result()->fetch_assoc();
+    $st->close();
+    if (!$row) {
+        return;
+    }
+    $name = (string)$row['full_name'];
+    $second = 1;
+    $src = 'org_second';
+    $st = $db->prepare(
+        'INSERT INTO meeting_registrations (event_id, person_id, full_name, wants_play, wants_judge, wants_second, source)
+         VALUES (?, ?, ?, 0, 0, ?, ?)'
+    );
+    $st->bind_param('iisis', $eventId, $personId, $name, $second, $src);
+    $st->execute();
+    $st->close();
 }
 
 function org_pick_event(array $events, int $id): ?array
@@ -2486,10 +2559,14 @@ function org_echo_slots_card(
     echo '<input type="hidden" name="action" value="org_slot_add">';
     echo '<input type="hidden" name="event_id" value="' . $eid . '">';
     echo '<button type="submit">Добавить слот</button></form>';
-    echo '<button type="button" class="btn-ghost" id="org-gen-pairs" title="Пока не умеем — скоро">'
+    echo '<form method="post" class="org-inline" id="org-gen-pairs-form">';
+    portal_csrf_field();
+    echo '<input type="hidden" name="action" value="org_gen_pairs">';
+    echo '<input type="hidden" name="event_id" value="' . $eid . '">';
+    echo '<button type="submit" class="btn-ghost" id="org-gen-pairs" title="Собрать игроков в пары из заявок (классика/экспресс)">'
         . 'Сгенерировать пары из заявок</button>';
+    echo '</form>';
     echo '</div>';
-    echo '<p class="org-gen-msg" id="org-gen-msg" hidden>Пока не умеем — скоро</p>';
     foreach ($duels as $d) {
         $did = (int)$d['id'];
         echo '<form method="post" id="slot-del-' . $did . '" class="org-hidden">';
@@ -2547,6 +2624,13 @@ function org_echo_plan_side(array $ev, array $regs, array $career = []): void
             echo '<tr class="org-reg-view" data-reg-row="' . $rid . '">';
             echo '<td class="org-reg-name">';
             echo '<strong>' . h($r['name']) . '</strong>';
+            if (!empty($r['org_no_play'])) {
+                echo ' <span class="org-reg-flag" title="Пометка орга: не играть">не играть</span>';
+            }
+            $bannedView = org_pairs_parse_banned((string)($r['org_banned_types'] ?? ''));
+            if ($bannedView) {
+                echo ' <span class="org-reg-flag" title="Пометка орга: запрещённые типы">⊘ ' . h(implode(', ', array_keys($bannedView))) . '</span>';
+            }
             if (($rec['text'] ?? '') !== '') {
                 $kind = (string)($rec['kind'] ?? 'next');
                 echo '<span class="org-rec org-rec-' . h($kind) . '">' . h((string)$rec['text']) . '</span>';
@@ -2577,6 +2661,15 @@ function org_echo_plan_side(array $ev, array $regs, array $career = []): void
                 echo '<label class="org-reg-edit-role"><input type="checkbox" name="wants_second" value="1"' . ($r['second'] ? ' checked' : '') . '> секунд</label>';
                 echo '<label class="org-reg-edit-type">тип <select name="duel_type_pref">' . org_duel_type_pref_options($typePref) . '</select></label>';
                 echo '<label class="org-reg-edit-comment">комм. <textarea name="comment" rows="1" maxlength="2000">' . h($comment) . '</textarea></label>';
+                echo '</div>';
+                echo '<div class="org-reg-edit-line org-reg-edit-org">';
+                echo '<span class="org-reg-edit-org-label" title="Пометки орга видны только организатору">пометки орга:</span>';
+                echo '<label class="org-reg-edit-role"><input type="checkbox" name="org_no_play" value="1"' . (!empty($r['org_no_play']) ? ' checked' : '') . '> не играть</label>';
+                $banned = org_pairs_parse_banned((string)($r['org_banned_types'] ?? ''));
+                foreach (org_duel_types() as $bt) {
+                    echo '<label class="org-reg-edit-role"><input type="checkbox" name="org_banned_types[]" value="' . h($bt) . '"'
+                        . (isset($banned[$bt]) ? ' checked' : '') . '> не ' . h($bt) . '</label>';
+                }
                 echo '</div>';
                 echo '<div class="org-reg-edit-actions">';
                 echo '<button type="submit" class="btn-ghost">Сохранить</button>';

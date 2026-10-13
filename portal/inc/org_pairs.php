@@ -1,0 +1,364 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Генерация пар игроков из заявок (изменение generate-pairs-from-registrations).
+ * Канон правил: docs/планы/07_пары_из_заявок.md.
+ *
+ * Алгоритм — многопроходный жадный (по образцу автоназначения судей), но только игроки.
+ * Заполняем player1_id/player2_id слотов классика и экспресс. Парный и секунданты — вручную.
+ */
+
+/** Приоритет участника на игру (меньше — раньше). */
+function org_pairs_priority_key(array $p, string $today): float
+{
+    $games = (int)($p['games'] ?? 0);
+    $judged = !empty($p['judged']);
+    $wantsJudge = !empty($p['wants_judge']);
+
+    if ($games < 3) {
+        // Группа A: по ступени воронки; несудившие — последними; желающие судить — чуть позже.
+        $key = (float)$games;
+        if (!$judged) {
+            $key += 0.5;
+        }
+        if ($wantsJudge) {
+            $key += 0.25;
+        }
+        return $key;
+    }
+
+    // Группа B: давно не игравшие — раньше.
+    $last = (string)($p['last_played'] ?? '');
+    $days = org_pairs_days_between($last, $today);
+    $key = 1000.0 - ($days === null ? 0 : min($days, 5000));
+    if ($wantsJudge) {
+        $key += 0.25;
+    }
+    return $key;
+}
+
+/** Разница в днях между ISO-датами; null если дата неизвестна/некорректна. */
+function org_pairs_days_between(string $from, string $to): ?int
+{
+    if ($from === '' || $to === '' || str_starts_with($from, '0000')) {
+        return null;
+    }
+    $a = strtotime($from);
+    $b = strtotime($to);
+    if ($a === false || $b === false) {
+        return null;
+    }
+    return (int)floor(abs($b - $a) / 86400);
+}
+
+/** Сила участника: Elo при достаточном числе игр, иначе карьерный прокси. */
+function org_pairs_strength(array $p): float
+{
+    $eg = (int)($p['elo_games'] ?? 0);
+    if ($eg >= 3) {
+        return (float)($p['elo'] ?? 1500.0);
+    }
+    // Фолбэк: чем больше игр, тем чуть выше; новичок — нейтрально.
+    return 1500.0 + (int)($p['games'] ?? 0) * 5.0;
+}
+
+/** Стоимость кандидата $c в пару к $a для слота типа $type (меньше — лучше). */
+function org_pairs_cost(array $a, array $c, string $type, array $opts, string $today): float
+{
+    $wElo = (float)($opts['w_elo'] ?? 0.02);
+    $wPair = (float)($opts['w_pair'] ?? 3.0);
+    $wPref = (float)($opts['w_pref'] ?? 1.0);
+    $wAvoid = (float)($opts['w_avoid'] ?? 8.0);
+    $window = (int)($opts['pair_window_days'] ?? 180);
+
+    $cost = $wElo * abs(org_pairs_strength($a) - org_pairs_strength($c));
+
+    $last = (string)($a['recent'][(int)$c['pid']] ?? '');
+    if ($last !== '') {
+        $days = org_pairs_days_between($last, $today);
+        if ($days !== null) {
+            $cost += $days < $window ? $wPair * (1.0 - $days / $window) : 0.2;
+        }
+    }
+
+    $pref = (string)($a['pref'] ?? '');
+    if ($pref !== '' && $pref !== $type) {
+        $cost += $wPref;
+    }
+
+    $avoid = $opts['avoid_pairs'] ?? [];
+    $k1 = (int)$a['pid'] . '|' . (int)$c['pid'];
+    $k2 = (int)$c['pid'] . '|' . (int)$a['pid'];
+    if (isset($avoid[$k1]) || isset($avoid[$k2])) {
+        $cost += $wAvoid;
+    }
+    return $cost;
+}
+
+/** Допустим ли участник к слоту типа $type (нет запрета орга по типу). */
+function org_pairs_eligible(array $p, string $type): bool
+{
+    $banned = $p['banned'] ?? [];
+    return empty($banned[$type]);
+}
+
+/**
+ * Чистое назначение игроков по слотам.
+ *
+ * @param list<array{id:int,type:string}> $slots  только классика/экспресс
+ * @param list<array> $players  см. обработчик: pid,name,games,judged,elo,elo_games,pref,wants_judge,banned,last_played,recent
+ * @param array $opts
+ * @return array<int, array{p1:int,p2:int}>  slot_id => игроки
+ */
+function org_pairs_assign(array $slots, array $players, array $opts = []): array
+{
+    $today = (string)($opts['today'] ?? date('Y-m-d'));
+    $maxGames = (int)($opts['max_games'] ?? 2);
+
+    $byId = [];
+    foreach ($players as $p) {
+        $byId[(int)$p['pid']] = $p;
+    }
+
+    $order = [];
+    foreach ($players as $p) {
+        $order[] = (int)$p['pid'];
+    }
+    usort($order, static function (int $x, int $y) use ($byId, $today): int {
+        $a = $byId[$x];
+        $b = $byId[$y];
+        $ka = org_pairs_priority_key($a, $today);
+        $kb = org_pairs_priority_key($b, $today);
+        if (abs($ka - $kb) > 1e-9) {
+            return $ka < $kb ? -1 : 1;
+        }
+        return strcmp((string)$a['name'], (string)$b['name']);
+    });
+
+    $assign = [];
+    $gamesInGen = [];
+
+    for ($limit = 1; $limit <= $maxGames; $limit++) {
+        foreach ($slots as $slot) {
+            $sid = (int)$slot['id'];
+            if (isset($assign[$sid])) {
+                continue;
+            }
+            $type = (string)$slot['type'];
+
+            $picked = null;
+            foreach ($order as $apid) {
+                $a = $byId[$apid];
+                if (!org_pairs_eligible($a, $type)) {
+                    continue;
+                }
+                if (($gamesInGen[$apid] ?? 0) >= $limit) {
+                    continue;
+                }
+                // подбор соперника
+                $bestCost = null;
+                $cands = [];
+                foreach ($order as $cpid) {
+                    if ($cpid === $apid) {
+                        continue;
+                    }
+                    $c = $byId[$cpid];
+                    if (!org_pairs_eligible($c, $type)) {
+                        continue;
+                    }
+                    if (($gamesInGen[$cpid] ?? 0) >= $limit) {
+                        continue;
+                    }
+                    // жёсткое вето: два новичка
+                    if ((int)$a['games'] === 0 && (int)$c['games'] === 0) {
+                        continue;
+                    }
+                    $cost = org_pairs_cost($a, $c, $type, $opts, $today);
+                    if ($bestCost === null || $cost < $bestCost - 1e-9) {
+                        $bestCost = $cost;
+                        $cands = [$c];
+                    } elseif (abs($cost - $bestCost) <= 1e-9) {
+                        $cands[] = $c;
+                    }
+                }
+                if ($cands) {
+                    $partner = $cands[mt_rand(0, count($cands) - 1)];
+                    $picked = ['p1' => $apid, 'p2' => (int)$partner['pid']];
+                    break;
+                }
+            }
+
+            if ($picked === null) {
+                continue;
+            }
+            $assign[$sid] = $picked;
+            $gamesInGen[$picked['p1']] = ($gamesInGen[$picked['p1']] ?? 0) + 1;
+            $gamesInGen[$picked['p2']] = ($gamesInGen[$picked['p2']] ?? 0) + 1;
+        }
+        if (count($assign) >= count($slots)) {
+            break;
+        }
+    }
+
+    return $assign;
+}
+
+/** Строка запрещённых типов орга -> [тип => true]. */
+function org_pairs_parse_banned(string $raw): array
+{
+    $out = [];
+    foreach (explode(',', $raw) as $t) {
+        $t = trim($t);
+        if ($t !== '') {
+            $out[$t] = true;
+        }
+    }
+    return $out;
+}
+
+/** Набор duel_id слота, у которых уже есть судьи. @return array<int,true> */
+function org_pairs_judged_duel_ids(mysqli $db, int $eventId): array
+{
+    $out = [];
+    $st = $db->prepare(
+        'SELECT DISTINCT dj.duel_id
+         FROM duel_judges dj
+         JOIN duels d ON d.id = dj.duel_id
+         WHERE d.event_id = ?'
+    );
+    $st->bind_param('i', $eventId);
+    $st->execute();
+    $res = $st->get_result();
+    while ($row = $res->fetch_assoc()) {
+        $out[(int)$row['duel_id']] = true;
+    }
+    $st->close();
+    return $out;
+}
+
+/** История соперников: pid => [opponent_pid => последняя дата]. */
+function org_pairs_recent_opponents(mysqli $db): array
+{
+    $out = [];
+    $r = $db->query(
+        "SELECT d.player1_id p1, d.player2_id p2,
+                COALESCE(NULLIF(d.duel_date, '0000-00-00'), e.starts_on) dd
+         FROM duels d JOIN events e ON e.id = d.event_id
+         WHERE d.duel_type IN ('классика', 'экспресс')"
+    );
+    if (!$r) {
+        return $out;
+    }
+    while ($row = $r->fetch_assoc()) {
+        $p1 = (int)$row['p1'];
+        $p2 = (int)$row['p2'];
+        if ($p1 <= 0 || $p2 <= 0 || $p1 === $p2) {
+            continue;
+        }
+        $d = (string)($row['dd'] ?? '');
+        if (!isset($out[$p1][$p2]) || $d > $out[$p1][$p2]) {
+            $out[$p1][$p2] = $d;
+        }
+        if (!isset($out[$p2][$p1]) || $d > $out[$p2][$p1]) {
+            $out[$p2][$p1] = $d;
+        }
+    }
+    return $out;
+}
+
+/** Обработчик action org_gen_pairs: собрать пары и сохранить. */
+function org_gen_pairs(mysqli $db): array
+{
+    $eid = (int)($_POST['event_id'] ?? 0);
+    $ev = org_event_load($db, $eid);
+    if (!$ev || !org_event_is_planned($ev)) {
+        return ['error' => 'Нельзя генерировать пары'];
+    }
+
+    $duels = org_event_duels($db, $eid);
+    $judged = org_pairs_judged_duel_ids($db, $eid);
+    $slots = [];
+    $avoid = [];
+    foreach ($duels as $d) {
+        $type = (string)($d['type'] ?? '');
+        if ($type !== 'классика' && $type !== 'экспресс') {
+            continue;
+        }
+        $did = (int)$d['id'];
+        if (isset($judged[$did])) {
+            continue;
+        }
+        $slots[] = ['id' => $did, 'type' => $type];
+        $p1 = (int)($d['p1_id'] ?? 0);
+        $p2 = (int)($d['p2_id'] ?? 0);
+        if ($p1 > 0 && $p2 > 0) {
+            $avoid[$p1 . '|' . $p2] = true;
+            $avoid[$p2 . '|' . $p1] = true;
+        }
+    }
+    if (!$slots) {
+        return ['error' => 'Нет слотов классика/экспресс без судей'];
+    }
+
+    $regs = org_event_regs($db, $eid);
+    $career = org_people_career($db);
+    $elo = portal_elo_map($db);
+    if (!$elo) {
+        // Кэш Elo пуст (например, сразу после миграции) — пересчитать один раз.
+        portal_elo_recompute($db);
+        $elo = portal_elo_map($db);
+    }
+    $recent = org_pairs_recent_opponents($db);
+    $today = function_exists('portal_today_iso') ? portal_today_iso() : date('Y-m-d');
+
+    $players = [];
+    foreach ($regs as $r) {
+        if (empty($r['play']) || !empty($r['org_no_play'])) {
+            continue;
+        }
+        $pid = (int)($r['id'] ?? 0);
+        if ($pid <= 0) {
+            continue;
+        }
+        $c = $career[$pid] ?? [];
+        $e = $elo[$pid] ?? null;
+        $players[] = [
+            'pid' => $pid,
+            'name' => (string)($r['name'] ?? ('#' . $pid)),
+            'games' => (int)($c['games'] ?? 0),
+            'judged' => ((int)($c['judged'] ?? 0) > 0),
+            'elo' => (float)($e['elo'] ?? 1500.0),
+            'elo_games' => (int)($e['games'] ?? 0),
+            'pref' => (string)($r['duel_type_pref'] ?? ''),
+            'wants_judge' => !empty($r['judge']),
+            'banned' => org_pairs_parse_banned((string)($r['org_banned_types'] ?? '')),
+            'last_played' => (string)($c['last_played'] ?? ''),
+            'recent' => $recent[$pid] ?? [],
+        ];
+    }
+    if (!$players) {
+        return ['error' => 'Нет заявок на игру'];
+    }
+
+    $assign = org_pairs_assign($slots, $players, ['today' => $today, 'avoid_pairs' => $avoid]);
+    if (!$assign) {
+        return ['error' => 'Не удалось собрать пары'];
+    }
+
+    $st = $db->prepare(
+        'UPDATE duels SET player1_id=NULLIF(?, 0), player2_id=NULLIF(?, 0) WHERE id=? AND event_id=?'
+    );
+    $n = 0;
+    foreach ($assign as $did => $pair) {
+        $p1 = (int)$pair['p1'];
+        $p2 = (int)$pair['p2'];
+        $st->bind_param('iiii', $p1, $p2, $did, $eid);
+        $st->execute();
+        $n++;
+    }
+    $st->close();
+
+    $_SESSION['org_flash'] = 'Пары сгенерированы: ' . $n . ' слотов из ' . count($slots);
+    return ['redirect' => org_event_url($eid) . '#slots'];
+}

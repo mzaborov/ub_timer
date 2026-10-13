@@ -16,13 +16,11 @@ rules:
   tasks:
     - Break tasks into chunks of max 2 hours.
     - Environment/configuration tasks only; do not touch project code without confirmation.
-  changes:
-    - Ask before any destructive operation (delete, overwrite, git push, deployment).
-
 operations:
   apply:
     guidance:
       - Ask before editing source files, schedule data, sound assets, or deployment scripts.
+      - Ask before any destructive operation (delete, overwrite, git push, deployment).
       - Keep test summaries concise.
   archive:
     guidance:
