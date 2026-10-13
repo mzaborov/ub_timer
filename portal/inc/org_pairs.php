@@ -67,10 +67,10 @@ function org_pairs_strength(array $p): float
 function org_pairs_cost(array $a, array $c, string $type, array $opts, string $today): float
 {
     $wElo = (float)($opts['w_elo'] ?? 0.02);
-    $wPair = (float)($opts['w_pair'] ?? 3.0);
+    $wPair = (float)($opts['w_pair'] ?? 14.0);
     $wPref = (float)($opts['w_pref'] ?? 1.0);
-    $wAvoid = (float)($opts['w_avoid'] ?? 8.0);
-    $window = (int)($opts['pair_window_days'] ?? 180);
+    $wAvoid = (float)($opts['w_avoid'] ?? 24.0);
+    $window = (int)($opts['pair_window_days'] ?? 540);
 
     $cost = $wElo * abs(org_pairs_strength($a) - org_pairs_strength($c));
 
@@ -78,7 +78,9 @@ function org_pairs_cost(array $a, array $c, string $type, array $opts, string $t
     if ($last !== '') {
         $days = org_pairs_days_between($last, $today);
         if ($days !== null) {
-            $cost += $days < $window ? $wPair * (1.0 - $days / $window) : 0.2;
+            // Разнообразие важнее равенства по силе: любой повтор дорог,
+            // свежая встреча — дороже всего, но и старая не «бесплатна».
+            $cost += $days < $window ? $wPair * (1.0 - $days / $window) : $wPair * 0.25;
         }
     }
 
@@ -200,6 +202,66 @@ function org_pairs_assign(array $slots, array $players, array $opts = []): array
             break;
         }
     }
+
+    // Пост-проход: локальное улучшение свапами партнёров между слотами одного типа.
+    // Цель — убрать повторы пар (разнообразие важнее равенства по силе), не нарушая
+    // вето «новичок×новичок», запреты орга по типу и квоты.
+    $typeOf = [];
+    foreach ($slots as $slot) {
+        $typeOf[(int)$slot['id']] = (string)$slot['type'];
+    }
+    $pairCostFor = static function (int $sid, int $p1, int $p2) use ($byId, $typeOf, $opts, $today): float {
+        $type = $typeOf[$sid] ?? '';
+        return org_pairs_cost($byId[$p1], $byId[$p2], $type, $opts, $today);
+    };
+    $okFor = static function (int $sid, int $p1, int $p2) use ($byId, $typeOf): bool {
+        $type = $typeOf[$sid] ?? '';
+        if ($p1 === $p2) {
+            return false;
+        }
+        if (!org_pairs_eligible($byId[$p1], $type) || !org_pairs_eligible($byId[$p2], $type)) {
+            return false;
+        }
+        return !((int)$byId[$p1]['games'] === 0 && (int)$byId[$p2]['games'] === 0);
+    };
+    $ids = array_keys($assign);
+    $sweeps = 0;
+    do {
+        $changed = false;
+        $sweeps++;
+        foreach ($ids as $ia) {
+            foreach ($ids as $ib) {
+                if ($ia >= $ib || !isset($assign[$ia]) || !isset($assign[$ib])) {
+                    continue;
+                }
+                if (($typeOf[$ia] ?? '') !== ($typeOf[$ib] ?? '')) {
+                    continue;
+                }
+                $a1 = (int)$assign[$ia]['p1'];
+                $a2 = (int)$assign[$ia]['p2'];
+                $b1 = (int)$assign[$ib]['p1'];
+                $b2 = (int)$assign[$ib]['p2'];
+                $cur = $pairCostFor($ia, $a1, $a2) + $pairCostFor($ib, $b1, $b2);
+                $variants = [
+                    [[$a1, $b1], [$a2, $b2]],
+                    [[$a1, $b2], [$a2, $b1]],
+                ];
+                foreach ($variants as $v) {
+                    [$n1, $n2] = $v;
+                    if (!$okFor($ia, $n1[0], $n1[1]) || !$okFor($ib, $n2[0], $n2[1])) {
+                        continue;
+                    }
+                    $new = $pairCostFor($ia, $n1[0], $n1[1]) + $pairCostFor($ib, $n2[0], $n2[1]);
+                    if ($new < $cur - 1e-9) {
+                        $assign[$ia] = ['p1' => $n1[0], 'p2' => $n1[1]];
+                        $assign[$ib] = ['p1' => $n2[0], 'p2' => $n2[1]];
+                        $changed = true;
+                        break 2;
+                    }
+                }
+            }
+        }
+    } while ($changed && $sweeps < 60);
 
     return $assign;
 }
