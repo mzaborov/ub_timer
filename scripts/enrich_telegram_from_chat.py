@@ -12,7 +12,7 @@
   (по умолчанию) dry-run — только отчёт и счётчики;
   --apply — выполнить UPDATE.
 
-Сначала получите CSV:  .venv-tg/Scripts/python.exe scripts/tg_participants.py <чаты...>
+Сначала получите CSV:  C:/Projects/.kilo/tools/telegram-mcp/.venv/Scripts/python.exe scripts/tg_participants.py <чаты...>
 Отчёт: data/tg_enrich_report.csv
 """
 from __future__ import annotations
