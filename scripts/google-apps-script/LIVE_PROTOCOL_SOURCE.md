@@ -8,6 +8,6 @@
 
 1. Apps Script → проект Ub-timer → скопировать код Live (`doGet`/`doPost` и хелперы) в `scripts/google-apps-script/live-protocol.gs`.
 2. Либо при наличии OAuth: `python scripts/deploy_gas.py` / clasp pull и закоммитить полученный `.gs`.
-3. В `secrets.env`: `GAS_SCRIPT_ID`, `GAS_WEBAPP_DEPLOYMENT_ID` (id из URL `…/macros/s/<id>/exec`).
+3. В `settings.env`: `GAS_SCRIPT_ID`, `GAS_WEBAPP_DEPLOYMENT_ID` (id из URL `…/macros/s/<id>/exec`).
 
 Манифест `appsscript.json` уже содержит блок `webapp` (ANYONE_ANONYMOUS / USER_DEPLOYING) — без него `deployments.update` сбрасывает entryPoints → HTTP 404.

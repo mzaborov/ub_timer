@@ -6,13 +6,15 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Set-Location $repoRoot
 
-if (-not (Test-Path "secrets.env")) {
-    Write-Host "Ошибка: нет secrets.env" -ForegroundColor Red
-    exit 1
-}
-Get-Content "secrets.env" | ForEach-Object {
-    if ($_ -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$' -and $_ -notmatch '^\s*#') {
-        Set-Item -Path "Env:$($matches[1])" -Value $matches[2].Trim()
+# Конфиг — из settings.env (если есть); секреты FTP_USER/FTP_PASSWORD инжектит kvault:
+#   kvault run -- pwsh scripts/deploy_portal.ps1
+$settingsFile = Join-Path $repoRoot "settings.env"
+if (Test-Path $settingsFile) {
+    Get-Content $settingsFile | ForEach-Object {
+        if ($_ -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$' -and $_ -notmatch '^\s*#') {
+            $n = $matches[1]
+            if (-not [Environment]::GetEnvironmentVariable($n)) { Set-Item -Path "Env:$n" -Value $matches[2].Trim() }
+        }
     }
 }
 
@@ -23,7 +25,8 @@ $remoteDir = $env:FTP_PORTAL_REMOTE_DIR
 if (-not $remoteDir) { $remoteDir = "ciocdo-org-skills.zaborov.ru/www" }
 
 if (-not $hostFtp -or -not $userFtp -or -not $passFtp) {
-    Write-Host "Ошибка: FTP_HOST / FTP_USER / FTP_PASSWORD в secrets.env" -ForegroundColor Red
+    Write-Host "Ошибка: нет FTP_HOST/FTP_USER/FTP_PASSWORD. Секреты задаются через kvault:" -ForegroundColor Red
+    Write-Host "  kvault run -- pwsh scripts/deploy_portal.ps1" -ForegroundColor Yellow
     exit 1
 }
 

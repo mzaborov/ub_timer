@@ -2,8 +2,8 @@
 # Запуск из корня репо: .\scripts\deploy.ps1
 #         .\scripts\deploy.ps1 -TestConnection   — только проверить связь
 #         .\scripts\deploy.ps1 -CompareOnly     — сравнить репу и прод
-# Требует: secrets.env в корне репо (FTP_HOST, FTP_USER, FTP_PASSWORD, FTP_REMOTE_DIR)
-# Опционально: DEPLOY_EXCLUDE_ROOTS, DEPLOY_EXCLUDE_FILES — см. secrets.env.example
+# Секреты (FTP_USER, FTP_PASSWORD) инжектит kvault:  kvault run -- pwsh scripts/deploy.ps1
+# Конфиг (FTP_HOST, FTP_REMOTE_DIR) и опц. DEPLOY_EXCLUDE_* — в settings.env
 
 param(
     [switch]$TestConnection,
@@ -12,20 +12,21 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Работа всегда из корня репозитория (secrets.env и пути к файлам)
+# Работа всегда из корня репозитория (settings.env и пути к файлам)
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Set-Location $repoRoot
 
-# Загрузка переменных из secrets.env
-if (-not (Test-Path "secrets.env")) {
-    Write-Host "Ошибка: файл secrets.env не найден в корне репо. Создайте его по образцу." -ForegroundColor Red
-    exit 1
-}
-Get-Content "secrets.env" | ForEach-Object {
-    if ($_ -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$' -and $_ -notmatch '^\s*#') {
-        $name = $matches[1]
-        $val = $matches[2].Trim()
-        Set-Item -Path "Env:$name" -Value $val
+# Конфиг — из settings.env (если есть). Секреты (FTP_USER, FTP_PASSWORD) уже в env
+# (инжектит kvault), поэтому значения из settings.env их не перекрывают.
+$settingsFile = Join-Path $repoRoot "settings.env"
+if (Test-Path $settingsFile) {
+    Get-Content $settingsFile | ForEach-Object {
+        if ($_ -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$' -and $_ -notmatch '^\s*#') {
+            $name = $matches[1]
+            if (-not [Environment]::GetEnvironmentVariable($name)) {
+                Set-Item -Path "Env:$name" -Value $matches[2].Trim()
+            }
+        }
     }
 }
 
@@ -35,14 +36,15 @@ $passFtp = $env:FTP_PASSWORD
 $remoteDir = $env:FTP_REMOTE_DIR
 
 if (-not $hostFtp -or -not $userFtp -or -not $passFtp) {
-    Write-Host "Ошибка: в secrets.env задайте FTP_HOST, FTP_USER, FTP_PASSWORD." -ForegroundColor Red
+    Write-Host "Ошибка: нет FTP_HOST/FTP_USER/FTP_PASSWORD. Секреты задаются через kvault:" -ForegroundColor Red
+    Write-Host "  kvault run -- pwsh scripts/deploy.ps1" -ForegroundColor Yellow
     exit 1
 }
 if (-not $remoteDir) { $remoteDir = "timer.zaborov.ru/www" }
 
 # Исключения из выкладки: из env или значения по умолчанию
-$defaultExcludeRoots = '.git', 'secrets.env', 'scripts', '.gitignore', '.cursor', 'node_modules', 'History.log', '.vscode', 'git_hint.txt', 'Таблицы для онлайнов', 'docs', '_tmp_rating_sheets', 'portal', 'ciocdo'
-$defaultExcludeFiles = 'secrets.env', 'secrets.env.example', '.gitignore', 'History.log', 'git_hint.txt', 'Макет часов.vsdx', 'Онлайн я-ИТ-ы №24.xlsx'
+$defaultExcludeRoots = '.git', 'secrets.env', 'settings.env', 'scripts', '.gitignore', '.cursor', 'node_modules', 'History.log', '.vscode', 'git_hint.txt', 'Таблицы для онлайнов', 'docs', '_tmp_rating_sheets', 'portal', 'ciocdo'
+$defaultExcludeFiles = 'secrets.env', 'secrets.env.example', 'settings.env', 'settings.env.example', '.gitignore', 'History.log', 'git_hint.txt', 'Макет часов.vsdx', 'Онлайн я-ИТ-ы №24.xlsx'
 # Файлы с расширением .xlsx не выкладываем (данные/примеры расписаний; на сервере пользователи загружают свои)
 $excludeRoot = if ($env:DEPLOY_EXCLUDE_ROOTS) { $env:DEPLOY_EXCLUDE_ROOTS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' } } else { $defaultExcludeRoots }
 $excludeFiles = if ($env:DEPLOY_EXCLUDE_FILES) { $env:DEPLOY_EXCLUDE_FILES -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' } } else { $defaultExcludeFiles }

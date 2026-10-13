@@ -22,7 +22,7 @@ Node.js **не нужен**. Скрипт [`scripts/deploy_gas.py`](../deploy_ga
 1. **Google Cloud Console** → создать/выбрать проект → включить **Google Apps Script API**.
 2. **APIs & Services → Credentials** → **Create OAuth client ID** → тип **Desktop app** → скачать JSON.
 3. Сохранить как `scripts/google-apps-script/gas-oauth-client.json` (в `.gitignore`).
-4. В `secrets.env` (корень репо):
+4. В `settings.env` (корень репо, не-секретный конфиг):
    ```
    GAS_SCRIPT_ID=идентификатор_из_Apps_Script_Настройки_проекта
    ```
@@ -68,7 +68,7 @@ python scripts/deploy_gas.py
 
 ## Script Properties (в Google, не в Git)
 
-Ключи LLM — в `secrets.env` локально, в таблице: **Проект → Свойства скрипта**.
+Ключи LLM — в kvault локально (запуск через `kvault run`), в таблице: **Проект → Свойства скрипта**.
 
 | Свойство | Назначение |
 |----------|------------|

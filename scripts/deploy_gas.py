@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 """Деплой Google Apps Script из scripts/google-apps-script/ через Apps Script API.
 
-Один раз: OAuth (браузер) + GAS_SCRIPT_ID в secrets.env.
-Запуск: python scripts/deploy_gas.py
-        python scripts/deploy_gas.py --dry-run
+Один раз: OAuth (браузер) + GAS_SCRIPT_ID в settings.env.
+Запуск: kvault run -- python scripts/deploy_gas.py
+        kvault run -- python scripts/deploy_gas.py --dry-run
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -20,16 +21,17 @@ SCOPES = ["https://www.googleapis.com/auth/script.projects"]
 
 
 def load_secrets_env() -> dict[str, str]:
-    path = REPO_ROOT / "secrets.env"
+    """Конфиг из settings.env + секреты из окружения (инжектит kvault)."""
+    path = REPO_ROOT / "settings.env"
     env: dict[str, str] = {}
-    if not path.is_file():
-        return env
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, val = line.split("=", 1)
-        env[key.strip()] = val.strip()
+    if path.is_file():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, val = line.split("=", 1)
+            env[key.strip()] = val.strip()
+    env.update({k: v for k, v in os.environ.items() if v})
     return env
 
 
@@ -110,7 +112,7 @@ def main() -> int:
     env = load_secrets_env()
     script_id = env.get("GAS_SCRIPT_ID", "").strip()
     if not script_id and not args.dry_run:
-        print("Задайте GAS_SCRIPT_ID в secrets.env (Apps Script → Настройки → идентификатор).", file=sys.stderr)
+        print("Задайте GAS_SCRIPT_ID в settings.env (Apps Script → Настройки → идентификатор).", file=sys.stderr)
         return 1
 
     creds_path = Path(env.get("GAS_OAUTH_CREDENTIALS", str(DEFAULT_CREDS)))

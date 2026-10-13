@@ -2,10 +2,11 @@
 """Поставить утренний бэкап MySQL в crontab Masterhost (SSH).
 
 Не затирает чужие строки crontab — только блок # ubtimer-backup.
-Секреты: SSH_* в secrets.env (тот же аккаунт, что «Поступи в МАИ»).
+Секреты SSH_* инжектит kvault:  kvault run -- python scripts/setup_backup_cron.py
 """
 from __future__ import annotations
 
+import os
 import stat
 import sys
 from pathlib import Path
@@ -13,33 +14,23 @@ from pathlib import Path
 import paramiko
 
 REPO = Path(__file__).resolve().parents[1]
-MAI = Path(r"C:\Projects\Поступи в МАИ")
 SH_LOCAL = REPO / "scripts" / "server" / "backup_mysql.sh"
 MARKER = "# ubtimer-backup"
 CRON_LINE = "0 7 * * * /bin/bash $HOME/ubtimer-cron/backup_mysql.sh\n"
 
 
-def load_env(path: Path) -> dict[str, str]:
+def load_env() -> dict[str, str]:
+    """Конфиг из settings.env + секреты SSH из окружения (инжектит kvault)."""
     env: dict[str, str] = {}
-    if not path.is_file():
-        return env
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, v = line.split("=", 1)
-        env[k.strip()] = v.strip()
-    return env
-
-
-def ssh_env() -> dict[str, str]:
-    env = load_env(REPO / "secrets.env")
-    if env.get("SSH_USER") and env.get("SSH_PASSWORD"):
-        return env
-    extra = load_env(MAI / "secrets.env")
-    for k in ("SSH_HOST", "SSH_USER", "SSH_PASSWORD", "SSH_PORT"):
-        if extra.get(k) and not env.get(k):
-            env[k] = extra[k]
+    path = REPO / "settings.env"
+    if path.is_file():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            env[k.strip()] = v.strip()
+    env.update({k: v for k, v in os.environ.items() if v})
     return env
 
 
@@ -70,9 +61,10 @@ def merge_crontab(existing: str) -> str:
 
 
 def main() -> int:
-    env = ssh_env()
+    env = load_env()
     if not env.get("SSH_USER") or not env.get("SSH_PASSWORD"):
-        print("Нет SSH_USER / SSH_PASSWORD в secrets.env")
+        print("Нет SSH_USER / SSH_PASSWORD. Секреты инжектит kvault:")
+        print("  kvault run -- python scripts/setup_backup_cron.py")
         return 1
     if not SH_LOCAL.is_file():
         print("нет", SH_LOCAL)

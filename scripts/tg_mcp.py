@@ -6,7 +6,8 @@
   tg_folders()                             — папки чатов;
   tg_dialogs(limit, folder, unread_only)   — список чатов;
   tg_pending(days, folder, limit)          — чаты, где последнее слово за собеседником;
-  tg_read(chat, limit, sender)             — прочитать сообщения чата (для сводки).
+  tg_read(chat, limit, sender)             — прочитать сообщения чата (для сводки);
+  tg_save_draft(chat, text)               — сохранить черновик в чате (видно в клиентах).
 
 Секретов не содержит: сессия — DPAPI, ключи/прокси — из tg_api.env / tg_proxies.txt.
 """
@@ -256,6 +257,19 @@ async def tg_send(chat: str, text: str, confirm: bool = False) -> dict:
     entity = await _resolve(client, chat)
     msg = await client.send_message(entity, text)
     return {"sent": True, "chat": chat, "message_id": msg.id, "date": msg.date.strftime("%Y-%m-%d %H:%M")}
+
+
+@mcp.tool()
+async def tg_save_draft(chat: str, text: str) -> dict:
+    """Сохранить черновик сообщения в чате.
+
+    Черновик появится в поле ввода в ваших клиентах Telegram (синхронизируется
+    аккаунтом). Отправку не выполняет — ничего никому не уходит.
+    """
+    client = await _client_or_raise()
+    entity = await _resolve(client, chat)
+    await client(functions.messages.SaveDraftRequest(peer=entity, message=text))
+    return {"ok": True, "chat": chat, "text": text}
 
 
 @mcp.tool()

@@ -1,5 +1,5 @@
 # Деплой Google Apps Script (Python + Apps Script API)
-# Требуется: pip install -r scripts/requirements-gas.txt, secrets.env, OAuth один раз
+# Требуется: pip install -r scripts/requirements-gas.txt, settings.env, OAuth один раз
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path $PSScriptRoot -Parent
