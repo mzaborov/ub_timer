@@ -305,6 +305,46 @@
   }
   bindTrainingType();
 
+  function bindCopyButtons() {
+    var buttons = document.querySelectorAll('.org-copy-btn');
+    if (!buttons.length) {
+      return;
+    }
+    Array.prototype.forEach.call(buttons, function (btn) {
+      btn.addEventListener('click', function () {
+        var text = btn.getAttribute('data-copy') || '';
+        if (!text) {
+          return;
+        }
+        var done = function () {
+          var old = btn.textContent;
+          btn.textContent = 'Скопировано';
+          btn.classList.add('is-copied');
+          setTimeout(function () {
+            btn.textContent = old;
+            btn.classList.remove('is-copied');
+          }, 1500);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done, function () {});
+        } else {
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          try {
+            document.execCommand('copy');
+            done();
+          } catch (e) {}
+          document.body.removeChild(ta);
+        }
+      });
+    });
+  }
+  bindCopyButtons();
+
   var raw = document.getElementById('org-events-json');
   if (!raw) {
     return;
