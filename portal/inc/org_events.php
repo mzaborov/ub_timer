@@ -2500,6 +2500,7 @@ function org_echo_slots_card(
         }
     }
     $sits = $db ? org_situations_list($db) : [];
+    $pairHist = $db ? org_pairs_pair_history($db, $eid) : [];
     $peopleJs = [];
     foreach ($people as $pid => $fio) {
         $peopleJs[] = [
@@ -2526,7 +2527,24 @@ function org_echo_slots_card(
         . '<th>Игрок 1</th><th>Секундант 1</th><th>Игрок 2</th><th>Секундант 2</th><th></th></tr></thead><tbody>';
     foreach ($duels as $i => $d) {
         $did = (int)$d['id'];
-        echo '<tr>';
+        $rp1 = (int)($d['p1_id'] ?? 0);
+        $rp2 = (int)($d['p2_id'] ?? 0);
+        $pairRec = null;
+        if ($rp1 > 0 && $rp2 > 0 && $rp1 !== $rp2) {
+            $pairRec = $pairHist[min($rp1, $rp2) . '|' . max($rp1, $rp2)] ?? null;
+        }
+        $repeatTip = '';
+        if ($pairRec) {
+            $n = (int)$pairRec['count'];
+            $mod10 = $n % 10;
+            $mod100 = $n % 100;
+            $word = ($mod10 === 1 && $mod100 !== 11)
+                ? 'раз'
+                : (($mod10 >= 2 && $mod10 <= 4 && ($mod100 < 12 || $mod100 > 14)) ? 'раза' : 'раз');
+            $repeatTip = 'Эта пара уже играла: ' . $n . ' ' . $word
+                . ($pairRec['last'] !== '' ? ', последний раз ' . $pairRec['last'] : '');
+        }
+        echo '<tr' . ($pairRec ? ' class="org-slot-repeat"' : '') . '>';
         echo '<td class="org-slot-n">' . ($i + 1) . '<input type="hidden" name="duel_id[]" value="' . $did . '"></td>';
         echo '<td><input type="date" class="org-cell-in" name="duel_date[]" value="'
             . h((string)($d['date'] ?? $ev['starts_on'] ?? '')) . '"></td>';
@@ -2537,8 +2555,11 @@ function org_echo_slots_card(
         echo '</select></td>';
         echo '<td>';
         org_echo_combo('situation_id[]', (int)($d['situation_id'] ?? 0), org_sit_cell_label($d), 'sit', 'sit_label[]');
-        echo '</td><td>';
+        echo '</td><td class="org-slot-p1">';
         org_echo_combo('p1[]', (int)($d['p1_id'] ?? 0), (string)($d['p1'] ?? ''), 'person');
+        if ($pairRec) {
+            echo '<span class="org-repeat-badge" title="' . h($repeatTip) . '">повтор</span>';
+        }
         echo '</td><td>';
         org_echo_combo('s1[]', (int)($d['s1_id'] ?? 0), (string)($d['s1'] ?? ''), 'person');
         echo '</td><td>';

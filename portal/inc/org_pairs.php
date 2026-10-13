@@ -268,6 +268,46 @@ function org_pairs_recent_opponents(mysqli $db): array
 }
 
 /** Обработчик action org_gen_pairs: собрать пары и сохранить. */
+/** История встреч пары: "min|max" => ['count'=>N,'last'=>'YYYY-MM-DD']. $excludeEventId — не учитывать поединки этого события. */
+function org_pairs_pair_history(mysqli $db, int $excludeEventId = 0): array
+{
+    $out = [];
+    $r = $db->query(
+        "SELECT d.event_id eid, d.player1_id p1, d.player2_id p2,
+                COALESCE(NULLIF(d.duel_date, '0000-00-00'), e.starts_on) dd
+         FROM duels d JOIN events e ON e.id = d.event_id
+         WHERE d.duel_type IN ('классика', 'экспресс', 'парный')"
+    );
+    if (!$r) {
+        return $out;
+    }
+    while ($row = $r->fetch_assoc()) {
+        if ($excludeEventId > 0 && (int)$row['eid'] === $excludeEventId) {
+            continue;
+        }
+        $p1 = (int)$row['p1'];
+        $p2 = (int)$row['p2'];
+        if ($p1 <= 0 || $p2 <= 0 || $p1 === $p2) {
+            continue;
+        }
+        $lo = min($p1, $p2);
+        $hi = max($p1, $p2);
+        $key = $lo . '|' . $hi;
+        $d = (string)($row['dd'] ?? '');
+        if (str_starts_with($d, '0000')) {
+            $d = '';
+        }
+        if (!isset($out[$key])) {
+            $out[$key] = ['count' => 0, 'last' => ''];
+        }
+        $out[$key]['count']++;
+        if ($d !== '' && $d > $out[$key]['last']) {
+            $out[$key]['last'] = $d;
+        }
+    }
+    return $out;
+}
+
 function org_gen_pairs(mysqli $db): array
 {
     $eid = (int)($_POST['event_id'] ?? 0);

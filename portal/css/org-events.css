@@ -811,3 +811,20 @@ body.page-org-events .card {
 .org-reg-flag { display:inline-block; margin-left:6px; padding:0 6px; border-radius:8px; background:#f3e8ff; color:#6b21a8; font-size:11px; vertical-align:middle; }
 .org-reg-edit-org { margin-top:4px; border-top:1px dashed #e5e7eb; padding-top:4px; }
 .org-reg-edit-org-label { color:#6b7280; font-size:12px; margin-right:6px; }
+
+/* Подсветка повторов пар: слот, где эти двое уже играли между собой */
+.org-slots tr.org-slot-repeat > td { background: rgba(240, 165, 0, 0.10); }
+.org-slots tr.org-slot-repeat .org-slot-n { box-shadow: inset 3px 0 0 #f0a500; }
+.org-repeat-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: #f0a500;
+  color: #3a2a00;
+  font-size: 11px;
+  line-height: 1.5;
+  vertical-align: middle;
+  white-space: nowrap;
+  cursor: help;
+}
