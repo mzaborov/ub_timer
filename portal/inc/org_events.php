@@ -2066,6 +2066,14 @@ function org_echo_attrs_read(mysqli $db, array $ev): void
     if ($zoom !== '') {
         echo '<div><dt>Zoom</dt><dd><a href="' . h($zoom) . '" target="_blank" rel="noopener">' . h($zoom) . '</a></dd></div>';
     }
+    $regUrl = portal_register_url($ev);
+    if ($regUrl !== '') {
+        $regAbs = rtrim(portal_public_base(), '/') . '/' . ltrim($regUrl, '/');
+        echo '<div><dt>Регистрация</dt><dd class="org-reg-link">'
+            . '<a href="' . h($regAbs) . '" target="_blank" rel="noopener">' . h($regAbs) . '</a>'
+            . '<button type="button" class="org-copy-btn" data-copy="' . h($regAbs) . '">Скопировать</button>'
+            . '</dd></div>';
+    }
     echo '</dl>';
     $ref = (int)($ev['referee_person_id'] ?? 0);
     $evType = (string)($ev['event_type'] ?? '');
@@ -2145,6 +2153,16 @@ function org_echo_attrs_form(?array $ev, array $people, mysqli $db, ?string $pre
     echo '<label>Ярлык <input name="slug" value="' . h($slug) . '"></label>';
     echo '<label>Zoom <input name="zoom_url" value="' . h($zoom) . '" placeholder="полный URL"'
         . org_need_fill_class($zoom === '') . '></label>';
+    if (!$isNew && $ev) {
+        $regUrl = portal_register_url($ev);
+        if ($regUrl !== '') {
+            $regAbs = rtrim(portal_public_base(), '/') . '/' . ltrim($regUrl, '/');
+            echo '<div class="org-reg-link-row"><span class="org-reg-link-label">Регистрация</span>'
+                . '<a href="' . h($regAbs) . '" target="_blank" rel="noopener">' . h($regAbs) . '</a>'
+                . '<button type="button" class="org-copy-btn" data-copy="' . h($regAbs) . '">Скопировать</button>'
+                . '</div>';
+        }
+    }
     org_echo_staff_table($roleMap, $ref, $orgPool, $referees, true, '', $type, $refereeAttrs);
     echo '<p class="org-attrs-actions"><button type="submit">' . ($isNew ? 'Создать' : 'Сохранить') . '</button></p>';
     echo '</form></section>';
