@@ -9,8 +9,8 @@
   - скрипт ничего не отправляет и не меняет: только читает список участников;
   - вход каждый раз: телефон + код из Telegram (+ облачный пароль, если 2FA).
 
-Запуск (из папки проекта, интерпретатор venv):
-  .venv-tg/Scripts/python.exe scripts/tg_participants.py https://t.me/+InviteLink @another_chat
+Запуск (из папки проекта, интерпретатор venv MCP):
+  C:/Projects/.kilo/tools/telegram-mcp/.venv/Scripts/python.exe scripts/tg_participants.py https://t.me/+InviteLink @another_chat
 
 Переменные окружения (по желанию, чтобы не вводить api_id/api_hash руками):
   $env:TG_API_ID = '1234567'; $env:TG_API_HASH = 'abcdef0123456789abcdef0123456789'
@@ -26,7 +26,8 @@ import getpass
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+TOOLS_DIR = Path(__file__).resolve().parents[2] / ".kilo" / "tools" / "telegram-mcp"
+sys.path.insert(0, str(TOOLS_DIR))
 import tg_common as tg  # noqa: E402
 
 from telethon import functions  # noqa: E402

@@ -5,7 +5,7 @@
 Ничего не отправляет и не меняет. Поднимает/гасит локальный Xray при необходимости.
 
 Запуск (из корня проекта):
-  .venv-tg/Scripts/python.exe scripts/tg_stream_logins.py
+  C:/Projects/.kilo/tools/telegram-mcp/.venv/Scripts/python.exe scripts/tg_stream_logins.py
 
 Результат: data/tg_stream_logins.csv (chat, chat_id, user_id, username, first_name, last_name, bot, deleted)
 """
@@ -16,7 +16,8 @@ import csv
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+TOOLS_DIR = Path(__file__).resolve().parents[2] / ".kilo" / "tools" / "telegram-mcp"
+sys.path.insert(0, str(TOOLS_DIR))
 import tg_common as tg  # noqa: E402
 
 from telethon.tl.types import User  # noqa: E402
@@ -57,7 +58,7 @@ async def collect(client, title: str, cid: int) -> list[dict]:
 async def run() -> int:
     session = tg.load_session_string()
     if not session:
-        print("Нет сохранённой сессии. Сначала: .venv-tg/Scripts/python.exe scripts/tg_login.py", file=sys.stderr)
+        print("Нет сохранённой сессии. Сначала: C:\\Projects\\.kilo\\tools\\telegram-mcp\\.venv\\Scripts\\python.exe C:\\Projects\\.kilo\\tools\\telegram-mcp\\tg_login.py", file=sys.stderr)
         return 2
     client = await tg.connect_best(session)
     try:
