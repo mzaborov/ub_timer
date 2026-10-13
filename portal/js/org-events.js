@@ -538,14 +538,6 @@
 
   document.querySelectorAll('.org-combo').forEach(attachCombo);
 
-  var gen = document.getElementById('org-gen-pairs');
-  var msg = document.getElementById('org-gen-msg');
-  if (gen && msg) {
-    gen.addEventListener('click', function () {
-      msg.hidden = false;
-    });
-  }
-
   function bindRegEdit() {
     document.querySelectorAll('.org-reg-edit-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {

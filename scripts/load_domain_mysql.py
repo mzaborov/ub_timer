@@ -213,6 +213,15 @@ PORTAL_LOG_DDL = """CREATE TABLE portal_log (
   KEY idx_plog_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"""
 
+PERSON_ELO_DDL = """CREATE TABLE person_elo (
+  person_id INT NOT NULL,
+  elo DOUBLE NOT NULL DEFAULT 1500,
+  games INT NOT NULL DEFAULT 0,
+  updated_at DATETIME NOT NULL,
+  PRIMARY KEY (person_id),
+  CONSTRAINT fk_elo_person FOREIGN KEY (person_id) REFERENCES people (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"""
+
 OUTREACH_CAMPAIGNS_DDL = """CREATE TABLE outreach_campaigns (
   id INT NOT NULL AUTO_INCREMENT,
   event_id INT NULL,
@@ -308,6 +317,11 @@ ensure_table('material_docs', {php_str(MATERIAL_DOCS_DDL)});
 ensure_table('portal_log', {php_str(PORTAL_LOG_DDL)});
 ensure_table('outreach_campaigns', {php_str(OUTREACH_CAMPAIGNS_DDL)});
 ensure_table('outreach_items', {php_str(OUTREACH_ITEMS_DDL)});
+foreach (array(
+    array('meeting_registrations', 'org_no_play', 'org_no_play TINYINT(1) NOT NULL DEFAULT 0'),
+    array('meeting_registrations', 'org_banned_types', 'org_banned_types VARCHAR(64) NULL')
+) as $c) ensure_col($c[0], $c[1], $c[2]);
+ensure_table('person_elo', {php_str(PERSON_ELO_DDL)});
 echo "SCHEMA_OK\\n";
 """
     body = run_remote_php(env, php, token, extra_puts=extra)
@@ -737,6 +751,8 @@ function run_additive_schema() {{
         array('meeting_registrations', 'duel_type_pref', 'duel_type_pref VARCHAR(32) NULL'),
         array('meeting_registrations', 'comment', 'comment TEXT NULL'),
         array('meeting_registrations', 'source', 'source VARCHAR(64) NULL'),
+        array('meeting_registrations', 'org_no_play', 'org_no_play TINYINT(1) NOT NULL DEFAULT 0'),
+        array('meeting_registrations', 'org_banned_types', 'org_banned_types VARCHAR(64) NULL'),
         array('duels', 'duel_date', 'duel_date DATE NULL'),
         array('duels', 'situation_id', 'situation_id INT NULL'),
         array('duels', 'player1_id', 'player1_id INT NULL'),
@@ -757,6 +773,7 @@ function run_additive_schema() {{
     }}
     ensure_table('material_docs', {php_str(MATERIAL_DOCS_DDL)});
     ensure_table('portal_log', {php_str(PORTAL_LOG_DDL)});
+    ensure_table('person_elo', {php_str(PERSON_ELO_DDL)});
     echo "additive_schema=ok\\n";
 }}
 
@@ -923,8 +940,63 @@ foreach (loadj('change_log.json') as $p) {{
 echo "change_log=$n\\n";
 bump_ai('duel_change_log');
 
+// Elo (person_elo) — пересчёт по истории (change generate-pairs-from-registrations)
+if (table_exists('person_elo')) {{
+    $elo_duels = array();
+    $r = q("SELECT d.id, d.duel_type, d.player1_id p1, d.player2_id p2,
+                   d.second1_id s1, d.second2_id s2,
+                   COALESCE(NULLIF(d.duel_date, '0000-00-00'), e.starts_on) dd
+            FROM duels d JOIN events e ON e.id = d.event_id
+            WHERE d.duel_type IN ('классика', 'экспресс', 'парный')
+            ORDER BY dd, d.id");
+    if ($r) while ($row = mysql_fetch_assoc($r)) $elo_duels[] = $row;
+    $elo_votes = array();
+    $r = q("SELECT duel_id, vote FROM duel_judges WHERE vote IN ('1', '2')");
+    if ($r) while ($row = mysql_fetch_assoc($r)) {{
+        $did = (int)$row['duel_id'];
+        if (!isset($elo_votes[$did])) $elo_votes[$did] = array('1' => 0, '2' => 0);
+        $elo_votes[$did][$row['vote']]++;
+    }}
+    $elo = array(); $elo_games = array();
+    foreach ($elo_duels as $d) {{
+        $paired = ((string)$d['duel_type'] === 'парный');
+        $side1 = array(); $side2 = array();
+        if ((int)$d['p1'] > 0) $side1[] = (int)$d['p1'];
+        if ($paired && (int)$d['s1'] > 0) $side1[] = (int)$d['s1'];
+        if ((int)$d['p2'] > 0) $side2[] = (int)$d['p2'];
+        if ($paired && (int)$d['s2'] > 0) $side2[] = (int)$d['s2'];
+        if (!$side1 || !$side2 || array_intersect($side1, $side2)) continue;
+        $did = (int)$d['id'];
+        $v1 = isset($elo_votes[$did]) ? $elo_votes[$did]['1'] : 0;
+        $v2 = isset($elo_votes[$did]) ? $elo_votes[$did]['2'] : 0;
+        if ($v1 === $v2) continue;
+        $r1 = 0.0;
+        foreach ($side1 as $pid) $r1 = max($r1, isset($elo[$pid]) ? $elo[$pid] : 1500.0);
+        $r2 = 0.0;
+        foreach ($side2 as $pid) $r2 = max($r2, isset($elo[$pid]) ? $elo[$pid] : 1500.0);
+        $e1 = 1.0 / (1.0 + pow(10, ($r2 - $r1) / 400.0));
+        $score1 = $v1 > $v2 ? 1.0 : 0.0;
+        foreach ($side1 as $pid) {{
+            $elo[$pid] = (isset($elo[$pid]) ? $elo[$pid] : 1500.0) + 32.0 * ($score1 - $e1);
+            $elo_games[$pid] = (isset($elo_games[$pid]) ? $elo_games[$pid] : 0) + 1;
+        }}
+        foreach ($side2 as $pid) {{
+            $elo[$pid] = (isset($elo[$pid]) ? $elo[$pid] : 1500.0) + 32.0 * ((1.0 - $score1) - (1.0 - $e1));
+            $elo_games[$pid] = (isset($elo_games[$pid]) ? $elo_games[$pid] : 0) + 1;
+        }}
+    }}
+    $elo_now = date('Y-m-d H:i:s'); $elo_ok = 0;
+    foreach ($elo as $pid => $rv) {{
+        $g = isset($elo_games[$pid]) ? (int)$elo_games[$pid] : 0;
+        if (q("INSERT INTO person_elo (person_id, elo, games, updated_at) VALUES ("
+                . (int)$pid . ", " . round($rv, 2) . ", " . $g . ", '" . $elo_now . "') "
+                . "ON DUPLICATE KEY UPDATE elo=VALUES(elo), games=VALUES(games), updated_at=VALUES(updated_at)")) $elo_ok++;
+    }}
+    echo "elo=$elo_ok\\n";
+}}
+
 mysql_query("SET FOREIGN_KEY_CHECKS=1", $link);
-$tables = array('people','situations','events','duels','duel_judges','event_organizers','videos','circles','circle_memberships','event_observers','meeting_registrations','protocol_events','duel_change_log','material_docs','portal_log','outreach_campaigns','outreach_items');
+$tables = array('people','situations','events','duels','duel_judges','event_organizers','videos','circles','circle_memberships','event_observers','meeting_registrations','protocol_events','duel_change_log','material_docs','portal_log','person_elo','outreach_campaigns','outreach_items');
 echo "--- counts ---\\n";
 foreach ($tables as $t) {{
     $r = mysql_query("SELECT COUNT(*) FROM `$t`", $link);
