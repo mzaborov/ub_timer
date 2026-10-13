@@ -588,4 +588,17 @@
     });
   }
   bindRegTypePref();
+
+  function bindSlotsClear() {
+    var form = document.getElementById('org-slots-clear-form');
+    if (!form) {
+      return;
+    }
+    form.addEventListener('submit', function (e) {
+      if (!window.confirm('Очистить сетку? Будут сняты все игроки и секунданты со всех слотов (типы и судьи сохранятся).')) {
+        e.preventDefault();
+      }
+    });
+  }
+  bindSlotsClear();
 })();
