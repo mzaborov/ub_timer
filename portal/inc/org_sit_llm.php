@@ -5,7 +5,7 @@ declare(strict_types=1);
 
 function portal_llm_config(): array
 {
-    global $qwen_api_key, $llm_provider, $qwen_model;
+    global $qwen_api_key, $llm_provider, $qwen_model, $llm_base_url;
     $key = isset($qwen_api_key) ? trim((string)$qwen_api_key) : '';
     $prov = isset($llm_provider) ? strtolower(trim((string)$llm_provider)) : 'openrouter';
     if ($prov === '') {
@@ -15,7 +15,8 @@ function portal_llm_config(): array
     if ($model === '') {
         $model = $prov === 'dashscope' ? 'qwen-plus' : 'qwen/qwen-plus';
     }
-    return ['key' => $key, 'provider' => $prov, 'model' => $model];
+    $base = isset($llm_base_url) ? trim((string)$llm_base_url) : '';
+    return ['key' => $key, 'provider' => $prov, 'model' => $model, 'base_url' => $base];
 }
 
 function org_sit_norm_type(string $raw): string
@@ -208,7 +209,10 @@ function org_sit_call_llm(string $prompt): string
         throw new RuntimeException('Нет QWEN_API_KEY в конфиге сервера (secrets.env → db.inc.php)');
     }
     $headers = ['Authorization' => 'Bearer ' . $cfg['key']];
-    if ($cfg['provider'] === 'dashscope') {
+    $base = $cfg['base_url'] !== '' ? rtrim($cfg['base_url'], '/') : '';
+    if ($base !== '') {
+        $url = $base . '/chat/completions';
+    } elseif ($cfg['provider'] === 'dashscope') {
         $url = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
     } else {
         $url = 'https://openrouter.ai/api/v1/chat/completions';
