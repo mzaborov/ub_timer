@@ -583,13 +583,13 @@ function org_circle_member_ids(mysqli $db, string $title): array
 
 /**
  * id => ФИО для поля referee_person_id.
- * Для обычных мероприятий — круг стрима с вовлечённостью «Арбитр».
- * Для обучения — круг стрима с вовлечённостью «Ведущие».
+ * Обычные мероприятия — круг стрима с вовлечённостью «Арбитр».
+ * Обучение — любой организатор круга стрима (вовлечённость «Организатор»).
  * $keepId — уже выбранный, даже если членство сняли.
  */
 function org_referees_map(mysqli $db, int $keepId = 0, string $eventType = ''): array
 {
-    $involvement = $eventType === 'обучение' ? 'Ведущие' : 'Арбитр';
+    $involvement = $eventType === 'обучение' ? 'Организатор' : 'Арбитр';
     $ids = org_stream_involvement_ids($db, $involvement);
     if ($keepId > 0) {
         $ids[$keepId] = true;
