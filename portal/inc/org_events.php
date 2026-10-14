@@ -2652,6 +2652,7 @@ function org_echo_plan_side(array $ev, array $regs, array $career = []): void
             $dbd = (string)($cb['last_judged'] ?? '');
             return $dbd <=> $da ?: strcmp((string)$a['name'], (string)$b['name']);
         });
+        echo '<div class="org-regs-scroll">';
         echo '<table class="org-regs-table">';
         echo '<thead><tr><th>Имя</th><th>Роли</th><th>Тип</th><th>Комм.</th><th></th></tr></thead>';
         echo '<tbody>';
@@ -2732,7 +2733,7 @@ function org_echo_plan_side(array $ev, array $regs, array $career = []): void
                 echo '</tr>';
             }
         }
-        echo '</tbody></table>';
+        echo '</tbody></table></div>';
     }
     echo '<form method="post" class="org-reg-add" id="org-reg-add-form">';
     portal_csrf_field();

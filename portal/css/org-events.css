@@ -413,6 +413,11 @@ body.page-org-events .card {
 }
 .org-metric b { display: block; font-size: 0.95rem; color: var(--orange); }
 .org-shift { margin: 0.28rem 0 0; padding-left: 1rem; font-size: 0.76rem; }
+.org-regs-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 .org-regs-table {
   width: 100%;
   border-collapse: collapse;
@@ -436,13 +441,16 @@ body.page-org-events .card {
   border-bottom: 1px solid var(--line);
 }
 .org-reg-name {
-  min-width: 8rem;
+  min-width: 0;
+  word-break: break-word;
 }
 .org-reg-name strong {
   display: block;
   font-weight: 700;
 }
-.org-reg-roles,
+.org-reg-roles {
+  white-space: normal;
+}
 .org-reg-type,
 .org-reg-comment {
   white-space: nowrap;
