@@ -208,6 +208,23 @@ function portal_ensure_circle(mysqli $db, string $title): int
 }
 
 /**
+ * Ключ ФИО для матчинга: регистр, порядок слов и пунктуация не важны
+ * («Иван Иванов» == «Иванов Иван»). Пустая строка — если слов нет.
+ */
+function portal_name_key(string $name): string
+{
+    $name = mb_strtolower(trim($name), 'UTF-8');
+    $name = str_replace('ё', 'е', $name);
+    $name = (string)preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $name);
+    $tokens = preg_split('/\s+/u', $name, -1, PREG_SPLIT_NO_EMPTY);
+    if (!$tokens) {
+        return '';
+    }
+    sort($tokens, SORT_STRING);
+    return implode(' ', $tokens);
+}
+
+/**
  * Саморегистрация: people + членство в «Несортированные» / «новый».
  * @return array{ok?:true,person_id?:int,error?:string}
  */
@@ -219,13 +236,18 @@ function portal_signup_person(mysqli $db, string $fullName, string $email, strin
     if ($name === '') {
         return ['error' => 'Укажите ФИО'];
     }
-    $st = $db->prepare('SELECT id FROM people WHERE full_name = ? LIMIT 1');
-    $st->bind_param('s', $name);
-    $st->execute();
-    $exists = $st->get_result()->fetch_assoc();
-    $st->close();
-    if ($exists) {
-        return ['error' => 'Вы уже в списке — выберите себя выше'];
+    // Не плодим дубли: совпадение по набору слов ФИО (в т.ч. обратный порядок) или по email.
+    $key = portal_name_key($name);
+    $r = $db->query('SELECT full_name, email FROM people');
+    if ($r) {
+        while ($row = $r->fetch_assoc()) {
+            if ($key !== '' && portal_name_key((string)$row['full_name']) === $key) {
+                return ['error' => 'Вы уже в списке — выберите себя выше'];
+            }
+            if ($email !== '' && strcasecmp($email, (string)($row['email'] ?? '')) === 0) {
+                return ['error' => 'Вы уже в списке — выберите себя выше'];
+            }
+        }
     }
     $active = 1;
     $st = $db->prepare(
