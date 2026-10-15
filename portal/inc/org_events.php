@@ -487,59 +487,79 @@ function org_funnel_stage(array $c): string
     return 'без игр';
 }
 
+/**
+ * Движение участников мероприятия по воронке стрима: сколько на этом событии
+ * впервые посудят / впервые сыграют / достигнут цели стрима (3 игры) / станут наставниками.
+ * Считаем по всем участникам сетки: игроки, секунданты (парный) и судьи.
+ */
 function org_event_metrics(mysqli $db, array $duels, array $career): array
 {
-    $aOnly = org_circle_member_ids($db, COMMUNITY_A_CIRCLE);
-    $onGrid = [];
+    $players = [];
+    $seconds = [];
+    $judges = [];
     foreach ($duels as $d) {
         foreach (['p1_id', 'p2_id'] as $k) {
             $pid = (int)($d[$k] ?? 0);
             if ($pid > 0) {
-                $onGrid[$pid] = true;
+                $players[$pid] = true;
             }
         }
         if (($d['type'] ?? '') === 'парный') {
             foreach (['s1_id', 's2_id'] as $k) {
                 $pid = (int)($d[$k] ?? 0);
                 if ($pid > 0) {
-                    $onGrid[$pid] = true;
+                    $seconds[$pid] = true;
                 }
             }
         }
-    }
-    $shift = [];
-    $first = $second = $third = 0;
-    $stillShort = 0;
-    foreach (array_keys($onGrid) as $pid) {
-        if (!isset($aOnly[$pid])) {
-            continue;
+        foreach (($d['judge_rows'] ?? []) as $j) {
+            $pid = (int)($j['id'] ?? 0);
+            if ($pid > 0) {
+                $judges[$pid] = true;
+            }
         }
+    }
+
+    $playFirst = 0;
+    $reachGoal = 0;
+    foreach (array_keys($players) as $pid) {
         $g = (int)($career[$pid]['games'] ?? 0);
-        $from = org_funnel_stage($career[$pid] ?? ['games' => 0, 'judged' => 0, 'seconded' => 0]);
-        $next = $g + 1;
-        if ($next === 1) {
-            $first++;
-        } elseif ($next === 2) {
-            $second++;
-        } elseif ($next === 3) {
-            $third++;
+        if ($g === 0) {
+            $playFirst++;
         }
-        if ($g + 1 < 3) {
-            $stillShort++;
+        if ($g === 2) {
+            $reachGoal++;
         }
-        $to = $next >= 3
-            ? (((int)($career[$pid]['seconded'] ?? 0) > 0) ? 'наставник' : 'профи')
-            : ('сыграл ' . $next);
-        $key = $from . ' → ' . $to;
-        $shift[$key] = ($shift[$key] ?? 0) + 1;
     }
+
+    $judgeFirst = 0;
+    foreach (array_keys($judges) as $pid) {
+        if ((int)($career[$pid]['judged'] ?? 0) === 0) {
+            $judgeFirst++;
+        }
+    }
+
+    $becomeMentor = 0;
+    $staff = $players + $seconds;
+    foreach (array_keys($staff) as $pid) {
+        $c = $career[$pid] ?? ['games' => 0, 'judged' => 0, 'seconded' => 0];
+        $g = (int)($c['games'] ?? 0);
+        $sec = (int)($c['seconded'] ?? 0);
+        $before = $g >= 3 && $sec > 0;
+        $gAfter = $g + (isset($players[$pid]) ? 1 : 0);
+        $secAfter = $sec + (isset($seconds[$pid]) ? 1 : 0);
+        $after = $gAfter >= 3 && $secAfter > 0;
+        if (!$before && $after) {
+            $becomeMentor++;
+        }
+    }
+
     return [
-        'on_grid' => count($onGrid),
-        'first' => $first,
-        'second' => $second,
-        'third' => $third,
-        'still_short' => $stillShort,
-        'shift' => $shift,
+        'on_grid' => count($players + $seconds + $judges),
+        'judge_first' => $judgeFirst,
+        'play_first' => $playFirst,
+        'reach_goal' => $reachGoal,
+        'become_mentor' => $becomeMentor,
     ];
 }
 
@@ -2522,23 +2542,18 @@ function org_echo_slots_card(
     if ($metrics) {
         echo '<div class="org-funnel">';
         echo '<div class="org-funnel-head">Воронка стрима '
-            . '<span class="org-funnel-hint" title="Считаем по сетке: кто из круга «A (Ядро)» стоит в слотах и какую по счёту игру сыграет на этом мероприятии. Цель стрима — 3 игры.">'
-            . '— как этот онлайн двигает людей</span></div>';
+            . '<span class="org-funnel-hint" title="Кого это мероприятие двигает по воронке. Считаем по всем участникам сетки: игроки, секунданты (парный) и судьи.">'
+            . '— кого двигает этот онлайн</span></div>';
         echo '<ul class="org-funnel-list">';
-        echo '<li>1-ю игру сыграют <b>' . (int)$metrics['first'] . '</b></li>';
-        echo '<li>2-ю игру сыграют <b>' . (int)$metrics['second'] . '</b></li>';
-        echo '<li>3-ю игру сыграют <b>' . (int)$metrics['third'] . '</b></li>';
-        echo '<li>не дойдут до цели стрима (3 игры) <b>' . (int)$metrics['still_short'] . '</b></li>';
+        echo '<li title="Судьи события, у кого ещё нет ни одного судейства">1-й раз посудит <b>'
+            . (int)$metrics['judge_first'] . '</b></li>';
+        echo '<li title="Игроки события, у кого ещё нет ни одной игры">1-й раз сыграет <b>'
+            . (int)$metrics['play_first'] . '</b></li>';
+        echo '<li title="Игроки с 2 играми: после этой игры станет 3 — цель стрима">достигнет целей стрима <b>'
+            . (int)$metrics['reach_goal'] . '</b></li>';
+        echo '<li title="Участники, у кого после события станет 3+ игр и хотя бы раз секундирование">станет наставником <b>'
+            . (int)$metrics['become_mentor'] . '</b></li>';
         echo '</ul>';
-        if (!empty($metrics['shift'])) {
-            echo '<div class="org-funnel-shift"><span class="org-funnel-shift-cap">Переходы по воронке:</span> ';
-            $parts = [];
-            foreach ($metrics['shift'] as $lab => $n) {
-                $parts[] = h((string)$lab) . ' — ' . (int)$n;
-            }
-            echo implode('; ', $parts);
-            echo '</div>';
-        }
         echo '</div>';
     }
     echo '<form method="post" id="org-slots-form">';
