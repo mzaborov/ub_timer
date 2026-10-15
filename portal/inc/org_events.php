@@ -536,11 +536,15 @@ function org_event_metrics(mysqli $db, array $duels, array $career): array
     };
 
     $playFirst = [];
+    $playSecond = [];
     $reachGoal = [];
     foreach (array_keys($players) as $pid) {
         $g = (int)($career[$pid]['games'] ?? 0);
         if ($g === 0) {
             $playFirst[$pid] = $nameOf($pid);
+        }
+        if ($g === 1) {
+            $playSecond[$pid] = $nameOf($pid);
         }
         if ($g === 2) {
             $reachGoal[$pid] = $nameOf($pid);
@@ -573,10 +577,12 @@ function org_event_metrics(mysqli $db, array $duels, array $career): array
         'on_grid' => count($players + $seconds + $judges),
         'judge_first' => count($judgeFirst),
         'play_first' => count($playFirst),
+        'play_second' => count($playSecond),
         'reach_goal' => count($reachGoal),
         'become_mentor' => count($becomeMentor),
         'judge_first_names' => array_values(array_filter($judgeFirst)),
         'play_first_names' => array_values(array_filter($playFirst)),
+        'play_second_names' => array_values(array_filter($playSecond)),
         'reach_goal_names' => array_values(array_filter($reachGoal)),
         'become_mentor_names' => array_values(array_filter($becomeMentor)),
     ];
@@ -2571,6 +2577,8 @@ function org_echo_slots_card(
             . (int)$metrics['judge_first'] . '</b></li>';
         echo '<li title="1-й раз сыграют: ' . h($namesTip($metrics['play_first_names'])) . '">1-й раз сыграет <b>'
             . (int)$metrics['play_first'] . '</b></li>';
+        echo '<li title="Сыграют второй раз: ' . h($namesTip($metrics['play_second_names'])) . '">сыграет второй раз <b>'
+            . (int)$metrics['play_second'] . '</b></li>';
         echo '<li title="Достигнут целей стрима: ' . h($namesTip($metrics['reach_goal_names'])) . '">достигнет целей стрима <b>'
             . (int)$metrics['reach_goal'] . '</b></li>';
         echo '<li title="Станет наставником: ' . h($namesTip($metrics['become_mentor_names'])) . '">станет наставником <b>'
