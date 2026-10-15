@@ -146,6 +146,10 @@ $ev = $r ? mysql_fetch_assoc($r) : null;
 if (!$ev) {{ echo "NOT_FOUND\\n"; exit; }}
 if (strpos($ev['title'], $prefix) !== 0) {{ echo "REFUSE_NOT_TEST\\n"; exit; }}
 $r = q("SELECT id FROM duels WHERE event_id=" . (int)$event_id);
+while ($d = mysql_fetch_assoc($r)) {{ q("DELETE FROM protocol_events WHERE duel_id=" . (int)$d['id']); }}
+$r = q("SELECT id FROM duels WHERE event_id=" . (int)$event_id);
+while ($d = mysql_fetch_assoc($r)) {{ q("DELETE FROM duel_change_log WHERE duel_id=" . (int)$d['id']); }}
+$r = q("SELECT id FROM duels WHERE event_id=" . (int)$event_id);
 while ($d = mysql_fetch_assoc($r)) {{ q("DELETE FROM duel_judges WHERE duel_id=" . (int)$d['id']); }}
 q("DELETE FROM duels WHERE event_id=" . (int)$event_id);
 q("DELETE FROM event_organizers WHERE event_id=" . (int)$event_id);
