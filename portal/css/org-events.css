@@ -396,18 +396,24 @@ body.page-org-events .card {
   margin: 0 0 0.18rem;
   font-size: 0.92rem;
 }
-.org-funnel-cap { font-weight: 600; color: #1a1a1a; }
-.org-funnel-line {
+.org-funnel {
+  margin: 0.1rem 0 0.5rem;
+  font-size: 0.85rem;
+}
+.org-funnel-head { font-weight: 600; color: #1a1a1a; margin-bottom: 0.15rem; }
+.org-funnel-hint { font-weight: 400; font-size: 0.78rem; color: var(--muted); }
+.org-funnel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.1rem 0.6rem;
-  margin: 0.1rem 0 0.45rem;
-  font-size: 0.8rem;
+  gap: 0.1rem 1rem;
   color: var(--muted);
 }
-.org-funnel-i { white-space: nowrap; }
-.org-funnel-i b { color: var(--orange); font-size: 0.98rem; }
+.org-funnel-list b { color: var(--orange); font-size: 1rem; }
+.org-funnel-shift { margin-top: 0.15rem; font-size: 0.8rem; color: var(--muted); }
+.org-funnel-shift-cap { font-weight: 600; color: #1a1a1a; }
 .org-regs-total { font-weight: 400; font-size: 0.82rem; color: var(--muted); }
 .org-reg-roles {
   display: flex;
