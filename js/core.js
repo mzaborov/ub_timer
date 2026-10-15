@@ -23,12 +23,16 @@
     }
     function applyTimerValue(playerIndex, seconds) {
         var idx = playerIndex;
+        var oldVal = time[idx];
         time[idx] = Math.max(1, Math.min(game_time, seconds));
         var donut = (idx === 0) ? donut1 : donut2;
         var color = colorForDonut(idx, time[idx]);
         donut.setState({ value: time[idx], color: color });
         document.getElementById("timer" + (idx + 1)).textContent = formatTime(time[idx]);
         if (duel_is_active) saveProtocolStateToLocalStorage();
+        if (typeof dbLogEvent_ === "function" && oldVal !== time[idx]) {
+            dbLogEvent_("корректировкаВремени", { player: idx + 1, old: oldVal, new: time[idx] });
+        }
     }
     function startEdit(timerId) {
         if (clock_is_active || !duel_is_active) return;
@@ -174,6 +178,7 @@ function finishDice() {
     document.getElementById("dice_button").disabled = duel_is_active;
     if (typeof updateRandomSituationDiceButton === "function") updateRandomSituationDiceButton();
     if (typeof notifyLiveProtocolStarted_ === "function") notifyLiveProtocolStarted_(currentDuel);
+    if (typeof dbLogEvent_ === "function") dbLogEvent_("жеребьёвка", { who_starts: current_player });
 }
 
 function setDiceBlinkHighlight(playerNum) {
@@ -395,6 +400,10 @@ function changePlayer() {
            document.getElementById("Player2RoleGoal").innerHTML =duelsList[currentDuel].SituationRoles[0].Phrase;
         }
      }
+    if (typeof dbLogEvent_ === "function") {
+        dbLogEvent_("сменаХода", { from: previousPlayer, to: newPlayer, round: current_round });
+        dbLogEvent_("стартРаунда", { round: current_round, player: current_player });
+    }
 
 
 }
@@ -469,6 +478,10 @@ function start_duel() {
     if (reopenBtn) reopenBtn.style.display = "none";
     if (typeof updateRandomSituationDiceButton === "function") updateRandomSituationDiceButton();
     saveProtocolStateToLocalStorage();
+    if (typeof dbLogEvent_ === "function") {
+        dbLogEvent_("началоПоединка", { player: 1, round: 1 });
+        dbLogEvent_("стартРаунда", { round: 1, player: 1 });
+    }
 }
 
 function stop_duel() {
@@ -509,6 +522,7 @@ function stop_duel() {
     var reopenBtn = document.getElementById("reopen_judges_form_btn");
     if (reopenBtn) reopenBtn.style.display = "none";
     myModal.show();
+    if (typeof dbLogEvent_ === "function") dbLogEvent_("завершение", { rounds: roundRoles.length, durations: roundDurations.slice() });
 }
 
 function protest(regime)
@@ -541,6 +555,7 @@ function protest(regime)
                  document.getElementById("protest").classList.remove("disabled");     
                } 
                protest_is_active =!protest_is_active;
+               if (typeof dbLogEvent_ === "function") dbLogEvent_("протест", { action: protest_is_active ? "start" : "stop", round: current_round, player: current_player });
                document.getElementById("change_player").disabled = protest_is_active;
                document.getElementById("start_stop_timer").disabled = protest_is_active; 
                document.getElementById("pause").disabled = protest_is_active;
@@ -556,7 +571,7 @@ function pause(regime)
         case   "start" : 
                 stop_timer();
                 pauseProtestEvents.push({ type: "pause", round: current_round, player: current_player, gameTimeLeft: time[current_player - 1] });
-                if (typeof applyPauseModalLabel === "function") applyPauseModalLabel(current_player);
+                if (typeof dbLogEvent_ === "function") dbLogEvent_("пауза", { action: "start", round: current_round, player: current_player });                if (typeof applyPauseModalLabel === "function") applyPauseModalLabel(current_player);
                 else document.getElementById("pauseModalLabel").textContent = "Секундант Игрока №" + current_player + " взял паузу";
                 pauseTime=60; 
                 pause_donut.setState({ value: pauseTime, color: secondaryTimerColor});
@@ -582,6 +597,7 @@ function pause(regime)
                 document.getElementById("pause_continue_duel_button").classList.remove("btn-primary");
                 document.getElementById("pause_continue_duel_button").classList.add("btn-secondary");
                 stopAudio(audioTicking);
+                if (typeof dbLogEvent_ === "function") dbLogEvent_("пауза", { action: "stop", round: current_round, player: current_player });
                 break;              
       }
 }

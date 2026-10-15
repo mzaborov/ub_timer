@@ -301,6 +301,174 @@ function dbj_event($link) {
     ));
 }
 
+/** Запись: POST JSON {event_id, ops:[...]}. Каждая операция — маленькая идемпотентная. */
+function dbj_write($link) {
+    $raw = file_get_contents('php://input');
+    $in = json_decode($raw, true);
+    if (!is_array($in)) {
+        dbj_err('bad_json', 400);
+    }
+    $eventId = isset($in['event_id']) ? (int)$in['event_id'] : 0;
+    $ops = isset($in['ops']) && is_array($in['ops']) ? $in['ops'] : array();
+    if (!$ops) {
+        dbj_out(array('ok' => true, 'applied' => 0));
+    }
+
+    $allowedDuelFields = array(
+        'situation_id', 'player1_id', 'second1_id', 'player2_id', 'second2_id',
+        'referee_qty', 'duel_type', 'prep_mode', 'round_minutes', 'sort_order', 'notes'
+    );
+
+    $applied = 0;
+    $results = array();
+    foreach ($ops as $op) {
+        if (!is_array($op) || !isset($op['op'])) {
+            continue;
+        }
+        $kind = (string)$op['op'];
+
+        if ($kind === 'event') {
+            $duelId = isset($op['duel_id']) ? (int)$op['duel_id'] : 0;
+            if ($duelId <= 0) { $results[] = 'event:no_duel'; continue; }
+            $type = isset($op['type']) ? (string)$op['type'] : '';
+            if ($type === '') { $results[] = 'event:no_type'; continue; }
+            $moment = (isset($op['moment_sec']) && $op['moment_sec'] !== null && $op['moment_sec'] !== '') ? (int)$op['moment_sec'] : null;
+            $payload = isset($op['payload']) ? json_encode($op['payload']) : null;
+            $r = mysql_query('SELECT IFNULL(MAX(seq_num),0)+1 FROM protocol_events WHERE duel_id=' . $duelId, $link);
+            $seqRow = $r ? mysql_fetch_row($r) : array(1);
+            $seq = (int)$seqRow[0];
+            if (!$seq) { $seq = 1; }
+            $ok = mysql_query(
+                'INSERT INTO protocol_events (duel_id, seq_num, moment_sec, event_type, payload_json) VALUES ('
+                . $duelId . ', ' . $seq . ', '
+                . ($moment === null ? 'NULL' : (int)$moment) . ', '
+                . "'" . mysql_real_escape_string($type, $link) . "', "
+                . ($payload === null ? 'NULL' : "'" . mysql_real_escape_string($payload, $link) . "'") . ')',
+                $link
+            );
+            if ($ok) { $applied++; } else { $results[] = 'event:' . mysql_error($link); }
+            continue;
+        }
+
+        if ($kind === 'duel') {
+            $duelId = isset($op['duel_id']) ? (int)$op['duel_id'] : 0;
+            $fields = isset($op['fields']) && is_array($op['fields']) ? $op['fields'] : array();
+            if ($duelId <= 0 || !$fields) { $results[] = 'duel:bad'; continue; }
+            $set = array();
+            foreach ($fields as $f => $v) {
+                if (!in_array($f, $allowedDuelFields, true)) { continue; }
+                if ($v === null || $v === '') {
+                    $set[] = '`' . $f . '`=NULL';
+                } elseif ($f === 'situation_id' || $f === 'player1_id' || $f === 'second1_id'
+                    || $f === 'player2_id' || $f === 'second2_id' || $f === 'referee_qty'
+                    || $f === 'round_minutes' || $f === 'sort_order') {
+                    $set[] = '`' . $f . '`=' . (int)$v;
+                } else {
+                    $set[] = '`' . $f . "`='" . mysql_real_escape_string((string)$v, $link) . "'";
+                }
+            }
+            if (!$set) { $results[] = 'duel:no_fields'; continue; }
+            $ok = mysql_query('UPDATE duels SET ' . implode(',', $set) . ' WHERE id=' . $duelId, $link);
+            if ($ok) { $applied++; } else { $results[] = 'duel:' . mysql_error($link); }
+            continue;
+        }
+
+        if ($kind === 'log') {
+            $duelId = isset($op['duel_id']) ? (int)$op['duel_id'] : 0;
+            if ($duelId <= 0) { $results[] = 'log:no_duel'; continue; }
+            $field = isset($op['field']) ? substr((string)$op['field'], 0, 64) : '';
+            if ($field === '') { $results[] = 'log:no_field'; continue; }
+            $old = array_key_exists('old', $op) ? $op['old'] : null;
+            $new = array_key_exists('new', $op) ? $op['new'] : null;
+            $author = (isset($op['author_id']) && $op['author_id'] !== null && $op['author_id'] !== '') ? (int)$op['author_id'] : null;
+            $sql = 'INSERT INTO duel_change_log (duel_id, changed_at, field_name, old_value, new_value, author_id) VALUES ('
+                . $duelId . ", '" . date('Y-m-d H:i:s') . "', "
+                . "'" . mysql_real_escape_string($field, $link) . "', "
+                . ($old === null ? 'NULL' : "'" . mysql_real_escape_string((string)$old, $link) . "'") . ', '
+                . ($new === null ? 'NULL' : "'" . mysql_real_escape_string((string)$new, $link) . "'") . ', '
+                . ($author === null ? 'NULL' : (int)$author) . ')';
+            $ok = mysql_query($sql, $link);
+            if ($ok) { $applied++; } else { $results[] = 'log:' . mysql_error($link); }
+            continue;
+        }
+
+        if ($kind === 'judges') {
+            $duelId = isset($op['duel_id']) ? (int)$op['duel_id'] : 0;
+            $list = isset($op['judges']) && is_array($op['judges']) ? $op['judges'] : array();
+            if ($duelId <= 0) { $results[] = 'judges:no_duel'; continue; }
+            $hasAgreed = dbj_has_column($link, 'duel_judges', 'agreed');
+            mysql_query('DELETE FROM duel_judges WHERE duel_id=' . $duelId, $link);
+            $n = 0;
+            foreach ($list as $j) {
+                if (!is_array($j)) { continue; }
+                $pid = (isset($j['person_id']) && $j['person_id'] !== null && $j['person_id'] !== '') ? (int)$j['person_id'] : null;
+                if ($pid === null) { continue; }
+                $college = isset($j['college']) ? $j['college'] : null;
+                $vote = isset($j['vote']) ? $j['vote'] : null;
+                $agreed = (isset($j['agreed']) && $j['agreed']) ? 1 : 0;
+                $cols = 'duel_id, person_id, college, vote';
+                $vals = $duelId . ', ' . $pid . ', '
+                    . ($college === null || $college === '' ? 'NULL' : "'" . mysql_real_escape_string((string)$college, $link) . "'") . ', '
+                    . ($vote === null || $vote === '' ? 'NULL' : "'" . mysql_real_escape_string((string)$vote, $link) . "'");
+                if ($hasAgreed) { $cols .= ', agreed'; $vals .= ', ' . $agreed; }
+                if (mysql_query('INSERT INTO duel_judges (' . $cols . ') VALUES (' . $vals . ')', $link)) { $n++; }
+            }
+            $applied++;
+            continue;
+        }
+
+        if ($kind === 'agree') {
+            $duelId = isset($op['duel_id']) ? (int)$op['duel_id'] : 0;
+            $pid = (isset($op['person_id']) && $op['person_id'] !== null && $op['person_id'] !== '') ? (int)$op['person_id'] : 0;
+            if ($duelId <= 0 || $pid <= 0) { $results[] = 'agree:bad'; continue; }
+            if (!dbj_has_column($link, 'duel_judges', 'agreed')) { $results[] = 'agree:no_column'; continue; }
+            $val = !empty($op['agreed']) ? 1 : 0;
+            $ok = mysql_query('UPDATE duel_judges SET agreed=' . $val . ' WHERE duel_id=' . $duelId . ' AND person_id=' . $pid, $link);
+            if ($ok) { $applied++; } else { $results[] = 'agree:' . mysql_error($link); }
+            continue;
+        }
+
+        if ($kind === 'vote') {
+            $duelId = isset($op['duel_id']) ? (int)$op['duel_id'] : 0;
+            $pid = (isset($op['person_id']) && $op['person_id'] !== null && $op['person_id'] !== '') ? (int)$op['person_id'] : 0;
+            if ($duelId <= 0 || $pid <= 0) { $results[] = 'vote:bad'; continue; }
+            $vote = isset($op['vote']) ? $op['vote'] : null;
+            $ok = mysql_query('UPDATE duel_judges SET vote='
+                . ($vote === null || $vote === '' ? 'NULL' : "'" . mysql_real_escape_string((string)$vote, $link) . "'")
+                . ' WHERE duel_id=' . $duelId . ' AND person_id=' . $pid, $link);
+            if ($ok) { $applied++; } else { $results[] = 'vote:' . mysql_error($link); }
+            continue;
+        }
+
+        if ($kind === 'sort') {
+            $order = isset($op['order']) && is_array($op['order']) ? $op['order'] : array();
+            $n = 0;
+            foreach ($order as $i => $did) {
+                $did = (int)$did;
+                if ($did <= 0) { continue; }
+                if (mysql_query('UPDATE duels SET sort_order=' . ($i + 1) . ' WHERE id=' . $did, $link)) { $n++; }
+            }
+            $applied += $n;
+            continue;
+        }
+
+        $results[] = 'unknown_op:' . $kind;
+    }
+
+    dbj_out(array('ok' => true, 'applied' => $applied, 'results' => $results));
+}
+
+function dbj_has_column($link, $table, $col) {
+    static $cache = array();
+    $key = $table . '.' . $col;
+    if (array_key_exists($key, $cache)) {
+        return $cache[$key];
+    }
+    $r = mysql_query('SHOW COLUMNS FROM `' . $table . '` LIKE ' . "'" . mysql_real_escape_string($col, $link) . "'", $link);
+    $cache[$key] = ($r && mysql_num_rows($r) > 0);
+    return $cache[$key];
+}
+
 $cfg = dirname(__FILE__) . '/../db.inc.php';
 if (!is_file($cfg)) {
     dbj_err('no_db_config', 500);
@@ -318,5 +486,7 @@ if ($action === 'events') {
     dbj_events($link);
 } elseif ($action === 'event') {
     dbj_event($link);
+} elseif ($action === 'write') {
+    dbj_write($link);
 }
 dbj_err('unknown_action', 400);

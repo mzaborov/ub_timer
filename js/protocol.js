@@ -144,6 +144,8 @@ function buildSessionStatePayload() {
     payload.duelAssignments = da;
     payload.peopleNextId = peopleNextId;
     payload.revealedSituationIndices = getRevealedSituationIndicesForPayload();
+    payload.scheduleSource = scheduleSource || null;
+    payload.dbEventId = dbEventId || null;
     return payload;
 }
 

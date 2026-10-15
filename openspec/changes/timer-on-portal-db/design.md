@@ -128,6 +128,20 @@
 
 Ярлык `experience_label` считается **на сервере** (SQL по воронке/кругам/орг-ролям): `судья ФУБ`(круг «Профессиональный судья») → `expert`, `орг`(роли мероприятия группы I/II) → `org`, воронка 3+ игр → `experienced`, иначе `novice`; приоритет ФУБ > орг > воронка. `situations` не имеет колонки имени — `SituationNum`/`SituationName` = `code`; при `situation_id IS NULL` — случайный слот (`Случайная ситуация`). Клиент собирает `duelsList` в форме `buildDuelsListFromGoogleMeeting_`, `duelAssignments` — с персональными `*Id` из БД.
 
+### 14. Контракт write-эндпоинта (шаг 3)
+**Решение (2026-10-15):** `db.php?action=write`, `POST` c JSON-телом `{"event_id":<int>,"ops":[...]}`. Same-origin, без ключа; PHP 5.2, ручное экранирование (`mysql_real_escape_string`). Ответ — `{"ok":true,"applied":<int>,"results":[...]}`; каждая операция — маленькая и независимая, частичные ошибки собираются в `results[]`, не роняя батч. Клиент (`js/db-write.js`) шлёт операции **только при `scheduleSource==="db"`** и через дебаунс-очередь с ретраями (при сбое операции возвращаются в очередь).
+
+Операции (`op`):
+- `event` — append в `protocol_events`: `{duel_id,type,payload?,moment_sec?}`; `seq_num` = `MAX+1` по `duel_id`; `moment_sec` по умолчанию `NULL`.
+- `duel` — upsert актуального состава `duels` по белому списку полей (`situation_id,player*_id,second*_id,referee_qty,duel_type,prep_mode,round_minutes,sort_order,notes`): `{duel_id,fields:{...}}`.
+- `log` — append в `duel_change_log`: `{duel_id,field,old,new,author_id?}`; `changed_at` = серверное время.
+- `judges` — материализация списка судей поединка: `{duel_id,judges:[{person_id,college?,vote?,agreed?}]}`; DELETE по `duel_id` + INSERT (пустой слот формы без `person_id` не пишется — инвариант `unknown-judge-placeholder`).
+- `vote` — upsert голоса: `{duel_id,person_id,vote}` → `duel_judges.vote`.
+- `agree` — upsert согласия: `{duel_id,person_id,agreed}` → `duel_judges.agreed` (требует миграции §4a).
+- `sort` — порядок поединков: `{order:[duel_id,...]}` → `duels.sort_order` = позиция+1.
+
+Точки вызова в клиенте: `началоПоединка`/`стартРаунда`/`сменаХода`/`завершение` (`core.js`), `пауза` (вход+выход), `протест`, `жеребьёвка` (`finishDice`), `выборРоли`, `корректировкаВремени` (`applyTimerValue`), `раскрытиеСитуации` + upsert `situation_id` (`duelChoosed`), `согласиеСудьи` + `agree` (`setConfirmedSlot`), `голос` + `vote` (`refereeVote`), `решениеСудей` (`finishDuelAndClose`), состав/судьи (`dbPersistComposition_` из `setAssignmentSlot`/`setDuelRefereeQty`).
+
 ## Risks / Trade-offs
 
 - **Два писателя состава** — орги уже INSERT/UPDATE `duels`; во время онлайна актуальной сеткой владеют часы. Не затирать лог; при конфликте приоритет — последняя запись из часов.

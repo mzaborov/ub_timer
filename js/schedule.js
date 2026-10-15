@@ -314,6 +314,8 @@ function restoreProtocolStateFromLocalStorage() {
         if (!data.duelsList || !Array.isArray(data.duelsList) || data.duelsList.length === 0) return false;
         scheduleFileName = data.scheduleFileName || "";
         duelsList = data.duelsList;
+        if (data.scheduleSource) scheduleSource = data.scheduleSource;
+        if (data.dbEventId) dbEventId = data.dbEventId;
         normalizeDuelsListHiddenFlags(duelsList);
         ensureRandomSlotFlagsOnDuels_(duelsList);
         restoreRevealedSituationIndicesFromPayload(data);
@@ -649,6 +651,7 @@ function setDuelRefereeQty(duelIdx, qty) {
     }
     renderJudgesLayoutTab();
     saveProtocolStateToLocalStorage();
+    if (typeof dbPersistComposition_ === "function") dbPersistComposition_(duelIdx);
 }
 
 var JUDGES_LAYOUT_BASE_ROWS = [
@@ -888,6 +891,7 @@ function setAssignmentSlot(duelIdx, slotKey, personId) {
     }
     saveProtocolStateToLocalStorage();
     if (typeof notifyLiveProtocolComposition_ === "function") notifyLiveProtocolComposition_(duelIdx);
+    if (typeof dbPersistComposition_ === "function") dbPersistComposition_(duelIdx);
 }
 
 function getConfirmedSlot(duelIdx, slotKey) {
@@ -901,6 +905,13 @@ function setConfirmedSlot(duelIdx, slotKey, value) {
     if (value) duelAssignments[duelIdx].confirmed[slotKey] = true;
     else delete duelAssignments[duelIdx].confirmed[slotKey];
     saveProtocolStateToLocalStorage();
+    if (typeof dbWriteActive_ === "function" && dbWriteActive_()) {
+        var pid = (typeof getAssignmentSlot === "function") ? getAssignmentSlot(duelIdx, slotKey) : null;
+        if (slotKey && slotKey.indexOf("j") === 0 && pid) {
+            dbSetAgreed_(duelIdx, pid, !!value);
+            dbLogEvent_("согласиеСудьи", { slot: slotKey, person_id: Number(pid), agreed: !!value }, duelIdx);
+        }
+    }
 }
 
 function getBusyInDuel(duelIdx) {
@@ -2810,7 +2821,20 @@ function duelChoosed(currentDuelRef) {
         }
     } finally {
         updateRandomSituationDiceButton();
-        if (!isRestoringProtocol) saveProtocolStateToLocalStorage();
+        if (!isRestoringProtocol) {
+            saveProtocolStateToLocalStorage();
+            if (typeof dbWriteActive_ === "function" && dbWriteActive_() && currentDuel != "-1") {
+                var dbIdx = typeof currentDuelRef === "string" ? parseInt(currentDuelRef, 10) : currentDuelRef;
+                var dbDuel = (duelsList && duelsList[dbIdx]) ? duelsList[dbIdx] : null;
+                if (dbDuel && dbDuel.DuelId) {
+                    dbWriteNotify_({ op: "duel", duel_id: Number(dbDuel.DuelId),
+                        fields: { situation_id: (dbDuel.SituationId != null ? Number(dbDuel.SituationId) : null) } }, true);
+                    dbLogEvent_("раскрытиеСитуации", { situation_num: dbDuel.SituationNum || null,
+                        situation_id: (dbDuel.SituationId != null ? Number(dbDuel.SituationId) : null),
+                        situation_name: dbDuel.SituationName || null }, dbIdx);
+                }
+            }
+        }
     }
 }
 function roleChoosed(player) {
@@ -2841,6 +2865,7 @@ function roleChoosed(player) {
         roundRoles[idx].player2Role = r2;
     }
     saveProtocolStateToLocalStorage();
+    if (typeof dbLogEvent_ === "function") dbLogEvent_("выборРоли", { player: player, role: role });
 }
 
 

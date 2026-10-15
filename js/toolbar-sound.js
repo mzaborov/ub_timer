@@ -84,6 +84,9 @@ function finishDuelAndClose(ev) {
         duelsList[currentDuel].RoundRoles = roundRoles.slice();
         duelsList[currentDuel].PauseProtestEvents = pauseProtestEvents.slice();
     }
+    if (typeof dbLogEvent_ === "function") {
+        dbLogEvent_("решениеСудей", { winner: winner, score: { player1: score[1], player2: score[2] }, votes: judgeVotes.slice() }, currentDuel);
+    }
     var justCompletedDuel = currentDuel;
     sessionPhase = "idle";
     duel_is_active = false;
