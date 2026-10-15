@@ -73,7 +73,12 @@ function org_pairs_strength(array $p): float
         return (float)($p['elo'] ?? 1500.0);
     }
     // Фолбэк: чем больше игр, тем чуть выше; новичок — нейтрально.
-    return 1500.0 + (int)($p['games'] ?? 0) * 5.0;
+    $strength = 1500.0 + (int)($p['games'] ?? 0) * 5.0;
+    // Кто ещё ни играл, ни судил — технологии не знает: считаем слабее тех, кто уже судил.
+    if ((int)($p['games'] ?? 0) === 0 && empty($p['judged'])) {
+        $strength -= 10.0;
+    }
+    return $strength;
 }
 
 /** Стоимость кандидата $c в пару к $a для слота типа $type (меньше — лучше). */
@@ -86,6 +91,12 @@ function org_pairs_cost(array $a, array $c, string $type, array $opts, string $t
     $window = (int)($opts['pair_window_days'] ?? 540);
 
     $cost = $wElo * abs(org_pairs_strength($a) - org_pairs_strength($c));
+
+    // Организатор как соперник — только чтобы занять оставшийся свободный слот,
+    // когда обычных кандидатов уже нет. Штраф больше любого разброса по Elo.
+    if (!empty($a['is_org']) || !empty($c['is_org'])) {
+        $cost += 1000.0;
+    }
 
     $last = (string)($a['recent'][(int)$c['pid']] ?? '');
     if ($last !== '') {
