@@ -71,6 +71,7 @@ function buildDuelsListFromDatabase_(payload) {
             Second2Id: src.second2 ? src.second2.id : null,
             SituationNum: sit ? String(sit.code || "") : "",
             SituationName: sit ? String(sit.code || "") : "",
+            SituationId: sit ? sit.id : null,
             SituationDescription: (sit && sit.description) ? String(sit.description) : "",
             SituationRoles: roles || [],
             Type: defaults.typeLabel,
