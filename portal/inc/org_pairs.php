@@ -15,6 +15,9 @@ function org_pairs_priority_key(array $p, string $today): float
     $games = (int)($p['games'] ?? 0);
     $judged = !empty($p['judged']);
     $wantsJudge = !empty($p['wants_judge']);
+    // «Играть» не просил — мягкий фактор: уходит в конец СВОЕЙ группы (A или B),
+    // но не после другой группы. Смещение меньше разрыва между группами (1000).
+    $notPlay = array_key_exists('wants_play', $p) && empty($p['wants_play']);
 
     if ($games < 3) {
         // Группа A: по ступени воронки; несудившие — последними; желающие судить — чуть позже.
@@ -25,6 +28,9 @@ function org_pairs_priority_key(array $p, string $today): float
         if ($wantsJudge) {
             $key += 0.25;
         }
+        if ($notPlay) {
+            $key += 100.0;
+        }
         return $key;
     }
 
@@ -34,6 +40,9 @@ function org_pairs_priority_key(array $p, string $today): float
     $key = 1000.0 - ($days === null ? 0 : min($days, 5000));
     if ($wantsJudge) {
         $key += 0.25;
+    }
+    if ($notPlay) {
+        $key += 100.0;
     }
     return $key;
 }
@@ -416,7 +425,9 @@ function org_gen_pairs(mysqli $db): array
 
     $players = [];
     foreach ($regs as $r) {
-        if (empty($r['play']) || !empty($r['org_no_play'])) {
+        // Жёстко — только пометка орга «не играть»; желание играть судить/секундировать
+        // мягкое (см. docs/планы/07_пары_из_заявок.md), учитывается в приоритете.
+        if (!empty($r['org_no_play'])) {
             continue;
         }
         $pid = (int)($r['id'] ?? 0);
@@ -433,6 +444,7 @@ function org_gen_pairs(mysqli $db): array
             'elo' => (float)($e['elo'] ?? 1500.0),
             'elo_games' => (int)($e['games'] ?? 0),
             'pref' => (string)($r['duel_type_pref'] ?? ''),
+            'wants_play' => !empty($r['play']),
             'wants_judge' => !empty($r['judge']),
             'banned' => org_pairs_parse_banned((string)($r['org_banned_types'] ?? '')),
             'last_played' => (string)($c['last_played'] ?? ''),
