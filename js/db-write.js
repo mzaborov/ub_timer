@@ -146,6 +146,23 @@ function dbConfirmedSlot_(idx, key) {
     return !!(duelAssignments[idx] && duelAssignments[idx].confirmed && duelAssignments[idx].confirmed[key]);
 }
 
+/** true — подавить запись журнала изменений состава (массовые пересчёты/автозаполнение). */
+var dbSlotLogSuppressed_ = false;
+
+var DB_SLOT_LABELS_ = { player1: "игрок1", player2: "игрок2", second1: "секундант1", second2: "секундант2" };
+
+/** Запись изменения слота состава в ЖурналИзмененияПоединка. */
+function dbLogSlotChange_(duelIdx, slotKey, oldId, newId) {
+    if (!dbWriteActive_() || dbSlotLogSuppressed_) return;
+    if (typeof isRestoringProtocol !== "undefined" && isRestoringProtocol) return;
+    var duelId = dbWriteDuelId_(duelIdx);
+    if (!duelId || !slotKey) return;
+    var field = DB_SLOT_LABELS_[slotKey] || slotKey;
+    var oldName = oldId ? (getPersonName(oldId) || String(oldId)) : null;
+    var newName = newId ? (getPersonName(newId) || String(newId)) : null;
+    dbWriteNotify_({ op: "log", duel_id: duelId, field: field, old: oldName, new: newName, author_id: null }, false);
+}
+
 /** Полная материализация состава поединка (duels + duel_judges) из клиентской раскладки. */
 function dbPersistComposition_(idx) {
     var duelId = dbWriteDuelId_(idx);
