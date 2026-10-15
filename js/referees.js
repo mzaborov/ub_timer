@@ -246,6 +246,14 @@ function refereeVote(vt)
     highlightReferee();
     saveProtocolStateToLocalStorage();
     if (typeof notifyLiveProtocolVotes_ === "function") notifyLiveProtocolVotes_(currentDuel);
+    if (typeof dbWriteActive_ === "function" && dbWriteActive_()) {
+        var dbPid = dbJudgePersonForRefereeIndex_(activeReferee);
+        if (dbPid) {
+            var dbV = refereeList[activeReferee].vote;
+            dbSetVote_(currentDuel, dbPid, dbV === 1 ? "1" : dbV === 2 ? "2" : null);
+            dbLogEvent_("голос", { person_id: Number(dbPid), vote: dbV }, currentDuel);
+        }
+    }
 }
 
 function calcAndShowScore()
