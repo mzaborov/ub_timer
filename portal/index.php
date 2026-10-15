@@ -92,11 +92,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $meId = current_person_id();
 $me = $meId ? load_person($db, $meId) : null;
-if ($meId && !$me) {
+if ($meId && (!$me || (int)$me['is_active'] !== 1)) {
     unset($_SESSION['person_id']);
     clear_org_mode();
     clear_person_cookie();
     $meId = 0;
+    $me = null;
 }
 if ($me) {
     set_person_cookie($meId);
@@ -297,7 +298,7 @@ if ($page !== 'org') {
         <form method="post">
             <input type="hidden" name="action" value="reset_me">
             <input type="hidden" name="p" value="org">
-            <button type="submit" class="btn-ghost">Это не я</button>
+            <button type="submit" class="btn-ghost">Это не я (выйти)</button>
         </form>
     </div>
     <?php } ?>
@@ -365,7 +366,7 @@ if ($page !== 'org') {
             <form method="post">
                 <input type="hidden" name="action" value="reset_me">
                 <input type="hidden" name="p" value="<?php echo h($page); ?>">
-                <button type="submit" class="btn-ghost">Это не я</button>
+                <button type="submit" class="btn-ghost">Это не я (выйти)</button>
             </form>
         </div>
     </div>
