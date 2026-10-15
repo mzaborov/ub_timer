@@ -67,6 +67,11 @@ var lastCompletedDuelIndex = null; // индекс поединка, тольк�
 /** Контекст листа состава Google: { meetingName, columnsSheet1Based } или null (план 3). */
 var googleCompositionContext = null;
 
+/** Источник загруженного состава: "google" | "db" | "file" | null (план 06, маршрутизация записи). */
+var scheduleSource = null;
+/** id мероприятия в БД при загрузке из базы (для записи канона). */
+var dbEventId = null;
+
 // Участники и раскладка судей (план форма судей)
 var people = {}; // id -> { id, fullName, isActive, experience, notes? }; experience: "novice" | "experienced" | "expert" | "org" | "none"
 var duelAssignments = []; // по duelIndex: { player1Id, player2Id, second1Id?, second2Id?, judges: [ { personId, category }, ... ] (max 9), confirmed: {} (slotKey -> true для зелёного) }

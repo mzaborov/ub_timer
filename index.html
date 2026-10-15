@@ -112,10 +112,13 @@
                                             onclick="return toggleLoadScheduleSubmenu_(event);">
                                             <i class="fa-solid fa-arrow-up-from-bracket me-2"></i>Загрузить расписание
                                         </a>
-                                        <ul class="dropdown-menu" id="load-schedule-submenu-menu"><!-- latest, file, picker -->
+                                        <ul class="dropdown-menu" id="load-schedule-submenu-menu"><!-- latest, file, picker, db -->
                                             <li><a class="dropdown-item" href="#" onclick="return onLoadScheduleSubmenuItem_(event, 'latest');"><i class="fa-brands fa-google me-2"></i>из Google последний</a></li>
                                             <li><a class="dropdown-item" href="#" onclick="return onLoadScheduleSubmenuItem_(event, 'file');"><i class="fa-solid fa-floppy-disk me-2"></i>из файла</a></li>
                                             <li><a class="dropdown-item" href="#" onclick="return onLoadScheduleSubmenuItem_(event, 'picker');"><i class="fa-brands fa-google me-2"></i>из Google выбрать</a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item" href="#" onclick="return onLoadScheduleSubmenuItem_(event, 'db');"><i class="fa-solid fa-database me-2"></i>из базы</a></li>
+                                            <li><a class="dropdown-item" href="#" onclick="return onLoadScheduleSubmenuItem_(event, 'db-latest');"><i class="fa-solid fa-database me-2"></i>из базы последнее</a></li>
                                         </ul>
                                     </li>
                                     <li><hr class="dropdown-divider"></li>
@@ -525,6 +528,27 @@
         </div>
     </div>
 
+    <!-- Выбор мероприятия из БД (канон портала) -->
+    <div class="modal fade" id="dbSchedulePickerModal" tabindex="-1" aria-labelledby="dbSchedulePickerModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="dbSchedulePickerModalLabel">Выбор мероприятия из базы</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted mb-2" id="db-schedule-picker-status">Загрузка списка…</p>
+                    <select class="form-select" id="db-schedule-event-list" size="12" aria-label="Список мероприятий"></select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="db-schedule-refresh-btn" onclick="refreshDbEventsList(); return false;">Обновить список</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" id="db-schedule-load-btn" onclick="loadScheduleFromDatabaseSelected(); return false;">Загрузить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Участники и судьи (вкладки: Участники, Расписание) -->
     <div class="modal fade" id="participantsJudgesModal" tabindex="-1" aria-labelledby="participantsJudgesModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
         <div class="modal-dialog modal-dialog-centered modal-xl">
@@ -582,6 +606,7 @@
     <script type="text/javascript" src="js/core.js?v=117"></script>
     <script type="text/javascript" src="js/referees.js?v=117"></script>
     <script type="text/javascript" src="js/schedule.js?v=117"></script>
+    <script type="text/javascript" src="js/db-schedule.js?v=117"></script>
     <script type="text/javascript" src="js/toolbar-sound.js?v=117"></script>
     <script type="text/javascript" src="js/protocol.js?v=117"></script>
     <script type="text/javascript" src="js/live-protocol.js?v=117"></script>

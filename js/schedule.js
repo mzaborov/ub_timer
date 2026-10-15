@@ -517,15 +517,20 @@ function renderParticipantsTab() {
         tr.style.cursor = "pointer";
         tr.addEventListener("click", function () { var t = document.getElementById("participants-tbody"); if (t) { var rows = t.querySelectorAll("tr"); for (var r = 0; r < rows.length; r++) rows[r].classList.remove("table-active"); } tr.classList.add("table-active"); });
         var expName = "exp-" + p.id.replace(/"/g, "");
-        tr.innerHTML = "<td class=\"text-nowrap\">" + (index + 1) + "</td><td>" + (p.fullName || "") + "</td>" +
-            "<td><button type=\"button\" class=\"btn btn-sm btn-outline-secondary\" onclick=\"setPersonActive('" + p.id + "', " + (p.isActive === false ? "true" : "false") + "); renderParticipantsTab();\">" + statusLabel + "</button></td>" +
-            "<td onclick=\"event.stopPropagation();\"><div class=\"d-flex flex-nowrap gap-1\">" +
-            "<div class=\"form-check form-check-inline mb-0\"><input class=\"form-check-input\" type=\"radio\" name=\"" + expName + "\" value=\"none\"" + (expVal === "none" ? " checked" : "") + " onchange=\"setPersonExperience('" + p.id.replace(/'/g, "\\'") + "', this.value);\"><label class=\"form-check-label small\">—</label></div>" +
+        var expCell;
+        if (typeof scheduleSource !== "undefined" && scheduleSource === "db") {
+            var expLabels = { none: "—", novice: "новичок", experienced: "опытный", expert: "судья ФУБ", org: "орг" };
+            expCell = "<span class=\"badge text-bg-secondary\">" + (expLabels[expVal] || "—") + "</span>";
+        } else {
+            expCell = "<div class=\"form-check form-check-inline mb-0\"><input class=\"form-check-input\" type=\"radio\" name=\"" + expName + "\" value=\"none\"" + (expVal === "none" ? " checked" : "") + " onchange=\"setPersonExperience('" + p.id.replace(/'/g, "\\'") + "', this.value);\"><label class=\"form-check-label small\">—</label></div>" +
             "<div class=\"form-check form-check-inline mb-0\"><input class=\"form-check-input\" type=\"radio\" name=\"" + expName + "\" value=\"novice\"" + (expVal === "novice" ? " checked" : "") + " onchange=\"setPersonExperience('" + p.id.replace(/'/g, "\\'") + "', this.value);\"><label class=\"form-check-label small\">новичок</label></div>" +
             "<div class=\"form-check form-check-inline mb-0\"><input class=\"form-check-input\" type=\"radio\" name=\"" + expName + "\" value=\"experienced\"" + (expVal === "experienced" ? " checked" : "") + " onchange=\"setPersonExperience('" + p.id.replace(/'/g, "\\'") + "', this.value);\"><label class=\"form-check-label small\">опытный</label></div>" +
             "<div class=\"form-check form-check-inline mb-0\"><input class=\"form-check-input\" type=\"radio\" name=\"" + expName + "\" value=\"expert\"" + (expVal === "expert" ? " checked" : "") + " onchange=\"setPersonExperience('" + p.id.replace(/'/g, "\\'") + "', this.value);\"><label class=\"form-check-label small\">судья ФУБ</label></div>" +
-            "<div class=\"form-check form-check-inline mb-0\"><input class=\"form-check-input\" type=\"radio\" name=\"" + expName + "\" value=\"org\"" + (expVal === "org" ? " checked" : "") + " onchange=\"setPersonExperience('" + p.id.replace(/'/g, "\\'") + "', this.value);\"><label class=\"form-check-label small\">орг</label></div>" +
-            "</div></td>" +
+            "<div class=\"form-check form-check-inline mb-0\"><input class=\"form-check-input\" type=\"radio\" name=\"" + expName + "\" value=\"org\"" + (expVal === "org" ? " checked" : "") + " onchange=\"setPersonExperience('" + p.id.replace(/'/g, "\\'") + "', this.value);\"><label class=\"form-check-label small\">орг</label></div>";
+        }
+        tr.innerHTML = "<td class=\"text-nowrap\">" + (index + 1) + "</td><td>" + (p.fullName || "") + "</td>" +
+            "<td><button type=\"button\" class=\"btn btn-sm btn-outline-secondary\" onclick=\"setPersonActive('" + p.id + "', " + (p.isActive === false ? "true" : "false") + "); renderParticipantsTab();\">" + statusLabel + "</button></td>" +
+            "<td onclick=\"event.stopPropagation();\">" + expCell + "</td>" +
             "<td>" + judged + "</td><td>" + played + "</td><td>" + seconded + "</td>";
         tbody.appendChild(tr);
     });
@@ -2118,6 +2123,7 @@ function applyGoogleScheduleMeeting_(meeting, bankMap) {
         throw new Error("После разбора встречи «" + meeting.name + "» не осталось поединков");
     }
     if (typeof setGoogleCompositionContext_ === "function") setGoogleCompositionContext_(meeting);
+    if (typeof scheduleSource !== "undefined") { scheduleSource = "google"; dbEventId = null; }
     processDuelsJson({ name: fakeName });
     // Live по умолчанию при загрузке из Google
     if (typeof setLiveProtocolEnabled === "function") {
@@ -2203,6 +2209,10 @@ function onLoadScheduleSubmenuItem_(event, action) {
         loadScheduleFromGoogleLatest();
     } else if (action === "picker") {
         openGoogleSchedulePicker();
+    } else if (action === "db") {
+        if (typeof openDatabaseSchedulePicker === "function") openDatabaseSchedulePicker();
+    } else if (action === "db-latest") {
+        if (typeof loadScheduleFromDatabaseLatest_ === "function") loadScheduleFromDatabaseLatest_();
     }
     return false;
 }
@@ -2332,6 +2342,7 @@ function loadFile(event) {
     if (file) {
         var reader = new FileReader();
         duelsList = [];
+        if (typeof scheduleSource !== "undefined") { scheduleSource = "file"; dbEventId = null; }
         var fileExtension = file.name.split('.').pop();
         if (fileExtension === 'xlsx') {
             reader.onload = function handleFileLoad() {
