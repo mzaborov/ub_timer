@@ -2007,12 +2007,9 @@ function portal_echo_org_events(mysqli $db, string $flash, string $error): void
     } else {
         echo '<p class="muted">Выберите день в календаре или создайте мероприятие.</p>';
     }
-    if ($selected && org_event_is_planned($selected) && $metrics && !$isTraining) {
-        org_echo_metrics($metrics);
-    }
     echo '</div>';
     if ($showRecs) {
-        org_echo_plan_side($selected, $regs, $career);
+        org_echo_plan_side($selected, $regs, $career, $metrics);
     }
     echo '</div>';
     if ($selected && !org_event_is_planned($selected)) {
@@ -2487,28 +2484,6 @@ function org_gg_review_cell(array $d, array $ev): string
         . $attrs . '>+ Добавить</button>';
 }
 
-function org_echo_metrics(array $metrics): void
-{
-    echo '<section class="card org-metrics">';
-    echo '<h2>Оценка <span class="org-metrics-note" '
-        . 'title="ЧС и тип A в базе нет — считаем по всем на сетке.">по воронке</span></h2>';
-    echo '<div class="org-funnel">';
-    echo '<span class="org-funnel-i" title="1-я игра"><b>' . (int)$metrics['first'] . '</b> 1-я</span>';
-    echo '<span class="org-funnel-i" title="2-я игра"><b>' . (int)$metrics['second'] . '</b> 2-я</span>';
-    echo '<span class="org-funnel-i" title="3-я игра"><b>' . (int)$metrics['third'] . '</b> 3-я</span>';
-    echo '<span class="org-funnel-i" title="После встречи без цели стрима"><b>'
-        . (int)$metrics['still_short'] . '</b> без цели</span>';
-    echo '</div>';
-    if ($metrics['shift']) {
-        echo '<ul class="org-shift">';
-        foreach ($metrics['shift'] as $lab => $n) {
-            echo '<li>' . h($lab) . ' — ' . (int)$n . '</li>';
-        }
-        echo '</ul>';
-    }
-    echo '</section>';
-}
-
 function org_echo_slots_card(
     array $ev,
     array $duels,
@@ -2632,18 +2607,27 @@ function org_echo_slots_card(
     echo '</section>';
 }
 
-function org_echo_plan_side(array $ev, array $regs, array $career = []): void
+function org_echo_plan_side(array $ev, array $regs, array $career = [], ?array $metrics = null): void
 {
     $eid = (int)$ev['id'];
     echo '<aside class="org-plan-side" id="regs">';
     echo '<section class="card org-regs-card">';
     $regTotal = count($regs);
-    $nPlay = 0;
+    $nClassic = 0;
+    $nExpress = 0;
+    $nAny = 0;
     $nJudge = 0;
     $nSecond = 0;
     foreach ($regs as $r) {
         if (!empty($r['play'])) {
-            $nPlay++;
+            $pref = trim((string)($r['duel_type_pref'] ?? ''));
+            if ($pref === 'классика') {
+                $nClassic++;
+            } elseif ($pref === 'экспресс') {
+                $nExpress++;
+            } else {
+                $nAny++;
+            }
         }
         if (!empty($r['judge'])) {
             $nJudge++;
@@ -2655,11 +2639,33 @@ function org_echo_plan_side(array $ev, array $regs, array $career = []): void
     echo '<h2>Заявки <span class="org-regs-total">всего ' . $regTotal . '</span></h2>';
     if ($regs) {
         echo '<div class="org-reg-roles">';
-        echo '<div class="org-reg-role" title="Хотят играть"><b>' . $nPlay . '</b><span>играть</span></div>';
+        echo '<div class="org-reg-role" title="Хотят играть классику"><b>' . $nClassic
+            . '</b><span>клас.</span></div>';
+        echo '<div class="org-reg-role" title="Хотят играть экспресс"><b>' . $nExpress
+            . '</b><span>экспр.</span></div>';
+        echo '<div class="org-reg-role" title="Хотят играть, тип не указан"><b>' . $nAny
+            . '</b><span>не указано</span></div>';
         echo '<div class="org-reg-role" title="Хотят судить"><b>' . $nJudge . '</b><span>судить</span></div>';
         echo '<div class="org-reg-role" title="Хотят секундировать"><b>' . $nSecond
             . '</b><span>секунд.</span></div>';
         echo '</div>';
+        if ($metrics) {
+            echo '<div class="org-funnel-line"><span class="org-metrics-note" '
+                . 'title="ЧС и тип A в базе нет — считаем по всем на сетке.">Оценка по воронке:</span>';
+            echo '<span class="org-funnel-i" title="1-я игра"><b>' . (int)$metrics['first'] . '</b> 1-я</span>';
+            echo '<span class="org-funnel-i" title="2-я игра"><b>' . (int)$metrics['second'] . '</b> 2-я</span>';
+            echo '<span class="org-funnel-i" title="3-я игра"><b>' . (int)$metrics['third'] . '</b> 3-я</span>';
+            echo '<span class="org-funnel-i" title="После встречи без цели стрима"><b>'
+                . (int)$metrics['still_short'] . '</b> без цели</span>';
+            echo '</div>';
+            if (!empty($metrics['shift'])) {
+                echo '<ul class="org-shift">';
+                foreach ($metrics['shift'] as $lab => $n) {
+                    echo '<li>' . h($lab) . ' — ' . (int)$n . '</li>';
+                }
+                echo '</ul>';
+            }
+        }
     }
     if (!$regs) {
         echo '<p class="muted">Пока никого. Это не слоты сетки — сюда собираем желающих.</p>';
