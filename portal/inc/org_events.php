@@ -1991,7 +1991,7 @@ function portal_echo_org_events(mysqli $db, string $flash, string $error): void
     org_echo_year($year, $events, $selected, $isNew ? $preDate : portal_event_date_start($selected ?? []));
     echo '</div>';
     if ($showRecs) {
-        org_echo_slots_card($selected, $duels, $regs, $people, $db);
+        org_echo_slots_card($selected, $duels, $regs, $people, $db, $metrics);
     }
     echo '</div>';
     echo '<div class="org-ev-col org-ev-col-side">';
@@ -2009,7 +2009,7 @@ function portal_echo_org_events(mysqli $db, string $flash, string $error): void
     }
     echo '</div>';
     if ($showRecs) {
-        org_echo_plan_side($selected, $regs, $career, $metrics);
+        org_echo_plan_side($selected, $regs, $career);
     }
     echo '</div>';
     if ($selected && !org_event_is_planned($selected)) {
@@ -2489,7 +2489,8 @@ function org_echo_slots_card(
     array $duels,
     array $regs,
     array $people,
-    ?mysqli $db = null
+    ?mysqli $db = null,
+    ?array $metrics = null
 ): void {
     $eid = (int)$ev['id'];
     $applied = [];
@@ -2518,6 +2519,24 @@ function org_echo_slots_card(
 
     echo '<section class="card org-slots-card" id="slots">';
     echo '<h2>Слоты</h2>';
+    if ($metrics) {
+        echo '<div class="org-funnel-line"><span class="org-funnel-cap" '
+            . 'title="Сколько участников сетки сыграют на этом мероприятии свою 1-ю/2-ю/3-ю игру (цель стрима — 3 игры). Считаем по всем на сетке; круг «A (Ядро)».">'
+            . 'Воронка стрима:</span>';
+        echo '<span class="org-funnel-i" title="1-я игра"><b>' . (int)$metrics['first'] . '</b> 1-я</span>';
+        echo '<span class="org-funnel-i" title="2-я игра"><b>' . (int)$metrics['second'] . '</b> 2-я</span>';
+        echo '<span class="org-funnel-i" title="3-я игра"><b>' . (int)$metrics['third'] . '</b> 3-я</span>';
+        echo '<span class="org-funnel-i" title="После встречи без цели стрима"><b>'
+            . (int)$metrics['still_short'] . '</b> без цели</span>';
+        echo '</div>';
+        if (!empty($metrics['shift'])) {
+            echo '<ul class="org-shift">';
+            foreach ($metrics['shift'] as $lab => $n) {
+                echo '<li>' . h($lab) . ' — ' . (int)$n . '</li>';
+            }
+            echo '</ul>';
+        }
+    }
     echo '<form method="post" id="org-slots-form">';
     portal_csrf_field();
     echo '<input type="hidden" name="action" value="org_slots_save">';
@@ -2607,7 +2626,7 @@ function org_echo_slots_card(
     echo '</section>';
 }
 
-function org_echo_plan_side(array $ev, array $regs, array $career = [], ?array $metrics = null): void
+function org_echo_plan_side(array $ev, array $regs, array $career = []): void
 {
     $eid = (int)$ev['id'];
     echo '<aside class="org-plan-side" id="regs">';
@@ -2649,23 +2668,6 @@ function org_echo_plan_side(array $ev, array $regs, array $career = [], ?array $
         echo '<div class="org-reg-role" title="Хотят секундировать"><b>' . $nSecond
             . '</b><span>секунд.</span></div>';
         echo '</div>';
-        if ($metrics) {
-            echo '<div class="org-funnel-line"><span class="org-metrics-note" '
-                . 'title="ЧС и тип A в базе нет — считаем по всем на сетке.">Оценка по воронке:</span>';
-            echo '<span class="org-funnel-i" title="1-я игра"><b>' . (int)$metrics['first'] . '</b> 1-я</span>';
-            echo '<span class="org-funnel-i" title="2-я игра"><b>' . (int)$metrics['second'] . '</b> 2-я</span>';
-            echo '<span class="org-funnel-i" title="3-я игра"><b>' . (int)$metrics['third'] . '</b> 3-я</span>';
-            echo '<span class="org-funnel-i" title="После встречи без цели стрима"><b>'
-                . (int)$metrics['still_short'] . '</b> без цели</span>';
-            echo '</div>';
-            if (!empty($metrics['shift'])) {
-                echo '<ul class="org-shift">';
-                foreach ($metrics['shift'] as $lab => $n) {
-                    echo '<li>' . h($lab) . ' — ' . (int)$n . '</li>';
-                }
-                echo '</ul>';
-            }
-        }
     }
     if (!$regs) {
         echo '<p class="muted">Пока никого. Это не слоты сетки — сюда собираем желающих.</p>';
