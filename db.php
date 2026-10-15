@@ -28,6 +28,87 @@ function dbj_err($msg, $code) {
     dbj_out(array('ok' => false, 'error' => $msg));
 }
 
+/*---- Режим организатора ----------------------------------------------------
+  События в статусе «Подготовка» видны и редактируемы только организаторам.
+  Авторизация — пароль орга (тот же, что в портале: $portal_org_password из
+  секретного ../db.inc.php). В cookie кладём HMAC от пароля, не сам пароль. */
+
+/** Статус «только для организаторов» (событие ещё не публикуется участникам). */
+function dbj_org_only_status() {
+    return 'Подготовка';
+}
+
+function dbj_org_cookie_name() {
+    return 'ub_org_t';
+}
+
+/** HMAC-токен орга (без пароля в cookie). */
+function dbj_org_token($password) {
+    return hash_hmac('sha256', 'ub_timer_org_v1', $password);
+}
+
+function dbj_org_password() {
+    return isset($GLOBALS['dbj_org_password']) ? (string)$GLOBALS['dbj_org_password'] : '';
+}
+
+function dbj_org_configured() {
+    return dbj_org_password() !== '';
+}
+
+/** Постоянное по времени сравнение строк (PHP 5.2, без hash_equals). */
+function dbj_const_eq($a, $b) {
+    if (strlen($a) !== strlen($b)) {
+        return false;
+    }
+    $diff = 0;
+    for ($i = 0; $i < strlen($a); $i++) {
+        $diff |= ord($a[$i]) ^ ord($b[$i]);
+    }
+    return $diff === 0;
+}
+
+/** Авторизован ли текущий браузер как организатор. */
+function dbj_is_org() {
+    $pw = dbj_org_password();
+    if ($pw === '') {
+        return false;
+    }
+    $name = dbj_org_cookie_name();
+    if (!isset($_COOKIE[$name])) {
+        return false;
+    }
+    return dbj_const_eq(dbj_org_token($pw), (string)$_COOKIE[$name]);
+}
+
+function dbj_org_status($link) {
+    dbj_out(array('ok' => true, 'org' => dbj_is_org(), 'can_login' => dbj_org_configured()));
+}
+
+function dbj_org_login($link) {
+    if (!dbj_org_configured()) {
+        dbj_err('org_disabled', 403);
+    }
+    $in = json_decode(file_get_contents('php://input'), true);
+    $pw = '';
+    if (is_array($in) && isset($in['password'])) {
+        $pw = (string)$in['password'];
+    } elseif (isset($_POST['password'])) {
+        $pw = (string)$_POST['password'];
+    }
+    $expected = dbj_org_password();
+    if ($pw === '' || !dbj_const_eq($expected, $pw)) {
+        dbj_err('bad_password', 401);
+    }
+    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+    setcookie(dbj_org_cookie_name(), dbj_org_token($expected), time() + 86400 * 400, '/', '', $secure, true);
+    dbj_out(array('ok' => true, 'org' => true));
+}
+
+function dbj_org_out() {
+    setcookie(dbj_org_cookie_name(), '', time() - 3600, '/');
+    dbj_out(array('ok' => true, 'org' => false));
+}
+
 /** Ступень воронки (план 05) по статистике человека. */
 function dbj_funnel_stage($games, $judged, $seconded) {
     if ($games >= 3 && $seconded > 0) {
@@ -153,7 +234,9 @@ function dbj_events($link) {
     $where = ($scope === 'today')
         ? 'e.starts_on = CURDATE()'
         : "e.status NOT IN ('Проведено', 'Отменено')";
+    $isOrg = dbj_is_org();
     $events = array();
+    $hidden = 0;
     $r = mysql_query(
         'SELECT e.id, e.title, e.event_type, e.starts_on, e.starts_at, e.status ' .
         'FROM events e WHERE ' . $where . ' ORDER BY e.starts_on DESC, e.id DESC',
@@ -161,17 +244,31 @@ function dbj_events($link) {
     );
     if ($r) {
         while ($row = mysql_fetch_assoc($r)) {
+            $status = (string)$row['status'];
+            $orgOnly = ($status === dbj_org_only_status());
+            if ($orgOnly && !$isOrg) {
+                $hidden++;
+                continue;
+            }
             $events[] = array(
                 'id' => (int)$row['id'],
                 'title' => (string)$row['title'],
                 'event_type' => (string)$row['event_type'],
                 'starts_on' => ($row['starts_on'] === null ? null : (string)$row['starts_on']),
                 'starts_at' => ($row['starts_at'] === null ? null : (string)$row['starts_at']),
-                'status' => (string)$row['status']
+                'status' => $status,
+                'org_only' => $orgOnly
             );
         }
     }
-    dbj_out(array('ok' => true, 'scope' => $scope, 'events' => $events));
+    dbj_out(array(
+        'ok' => true,
+        'scope' => $scope,
+        'org' => $isOrg,
+        'can_login' => dbj_org_configured(),
+        'hidden_org' => $hidden,
+        'events' => $events
+    ));
 }
 
 function dbj_event($link) {
@@ -187,6 +284,9 @@ function dbj_event($link) {
     $ev = $r ? mysql_fetch_assoc($r) : null;
     if (!$ev) {
         dbj_err('event_not_found', 404);
+    }
+    if ((string)$ev['status'] === dbj_org_only_status() && !dbj_is_org()) {
+        dbj_err('org_only', 403);
     }
 
     $career = dbj_career($link);
@@ -303,6 +403,9 @@ function dbj_event($link) {
 
 /** Запись: POST JSON {event_id, ops:[...]}. Каждая операция — маленькая идемпотентная. */
 function dbj_write($link) {
+    if (dbj_org_configured() && !dbj_is_org()) {
+        dbj_err('org_required', 403);
+    }
     $raw = file_get_contents('php://input');
     $in = json_decode($raw, true);
     if (!is_array($in)) {
@@ -475,6 +578,8 @@ if (!is_file($cfg)) {
 }
 require $cfg;
 
+$GLOBALS['dbj_org_password'] = isset($portal_org_password) ? (string)$portal_org_password : '';
+
 $link = @mysql_connect($mysql_host, $mysql_user, $mysql_password);
 if (!$link || !mysql_select_db($mysql_database, $link)) {
     dbj_err('no_db', 500);
@@ -488,5 +593,11 @@ if ($action === 'events') {
     dbj_event($link);
 } elseif ($action === 'write') {
     dbj_write($link);
+} elseif ($action === 'org_status') {
+    dbj_org_status($link);
+} elseif ($action === 'org_login') {
+    dbj_org_login($link);
+} elseif ($action === 'org_logout') {
+    dbj_org_out();
 }
 dbj_err('unknown_action', 400);

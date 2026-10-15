@@ -7,6 +7,7 @@ var dbWriteQueue_ = [];
 var dbWriteTimer_ = null;
 var dbWriteInFlight_ = false;
 var dbWriteFailCount_ = 0;
+var dbWriteOrgWarned_ = false;
 
 /** Запись активна: состав из БД и известно мероприятие. */
 function dbWriteActive_() {
@@ -56,6 +57,17 @@ function dbWriteFlush_() {
                 }
             } catch (e) { /* ignore */ }
         } else {
+            var errCode = "";
+            try { var er = JSON.parse(xhr.responseText); errCode = (er && er.error) ? String(er.error) : ""; } catch (e2) {}
+            if (xhr.status === 403 || errCode === "org_required") {
+                dbWriteQueue_ = [];
+                if (!dbWriteOrgWarned_) {
+                    dbWriteOrgWarned_ = true;
+                    console.warn("db-write: запись отклонена — нужен режим организатора");
+                    alert("Запись в базу доступна только в режиме организатора.\nВойдите: меню «Выберите файл» → «Режим организатора».");
+                }
+                return;
+            }
             dbWriteFailCount_++;
             for (var i = ops.length - 1; i >= 0; i--) dbWriteQueue_.unshift(ops[i]);
             setTimeout(dbWriteFlush_, Math.min(8000, 500 * dbWriteFailCount_));

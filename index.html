@@ -139,6 +139,8 @@
                                             <li><a class="dropdown-item" href="#" id="protocol-live-toggle-item" onclick="return onProtocolSubmenuItem_(event, 'live-toggle');"><i class="fa-solid fa-circle-pause me-2"></i>Live-запись: выкл</a></li>
                                         </ul>
                                     </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item" href="#" id="org-mode-menu-item" onclick="return onOrgModeMenuItem_(event);"><i class="fa-solid fa-lock me-2"></i><span id="org-mode-label">Режим организатора</span></a></li>
                                 </ul>
                             </div>
                             <div class="d-inline-flex align-items-center gap-1 flex-wrap" id="duel-chooser-row">
@@ -544,6 +546,26 @@
                     <button type="button" class="btn btn-outline-secondary btn-sm" id="db-schedule-refresh-btn" onclick="refreshDbEventsList(); return false;">Обновить список</button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
                     <button type="button" class="btn btn-primary" id="db-schedule-load-btn" onclick="loadScheduleFromDatabaseSelected(); return false;">Загрузить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="dbOrgLoginModal" tabindex="-1" aria-labelledby="dbOrgLoginModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="dbOrgLoginModalLabel"><i class="fa-solid fa-lock me-2"></i>Режим организатора</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted mb-2">Открывает мероприятия в статусе «Подготовка» и запись в базу.</p>
+                    <input type="password" class="form-control" id="db-org-password" placeholder="Пароль организатора" autocomplete="current-password" onkeydown="if (event.key === 'Enter') { submitDbOrgLogin_(); return false; }">
+                    <div class="small text-danger mt-2" id="db-org-error"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="submitDbOrgLogin_(); return false;">Войти</button>
                 </div>
             </div>
         </div>

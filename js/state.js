@@ -71,6 +71,8 @@ var googleCompositionContext = null;
 var scheduleSource = null;
 /** id мероприятия в БД при загрузке из базы (для записи канона). */
 var dbEventId = null;
+/** Режим организатора на часах: true — видит и правит события «Подготовка» и пишет канон. */
+var dbOrgMode = false;
 
 // Участники и раскладка судей (план форма судей)
 var people = {}; // id -> { id, fullName, isActive, experience, notes? }; experience: "novice" | "experienced" | "expert" | "org" | "none"
