@@ -2520,22 +2520,26 @@ function org_echo_slots_card(
     echo '<section class="card org-slots-card" id="slots">';
     echo '<h2>Слоты</h2>';
     if ($metrics) {
-        echo '<div class="org-funnel-line"><span class="org-funnel-cap" '
-            . 'title="Сколько участников сетки сыграют на этом мероприятии свою 1-ю/2-ю/3-ю игру (цель стрима — 3 игры). Считаем по всем на сетке; круг «A (Ядро)».">'
-            . 'Воронка стрима:</span>';
-        echo '<span class="org-funnel-i" title="1-я игра"><b>' . (int)$metrics['first'] . '</b> 1-я</span>';
-        echo '<span class="org-funnel-i" title="2-я игра"><b>' . (int)$metrics['second'] . '</b> 2-я</span>';
-        echo '<span class="org-funnel-i" title="3-я игра"><b>' . (int)$metrics['third'] . '</b> 3-я</span>';
-        echo '<span class="org-funnel-i" title="После встречи без цели стрима"><b>'
-            . (int)$metrics['still_short'] . '</b> без цели</span>';
-        echo '</div>';
+        echo '<div class="org-funnel">';
+        echo '<div class="org-funnel-head">Воронка стрима '
+            . '<span class="org-funnel-hint" title="Считаем по сетке: кто из круга «A (Ядро)» стоит в слотах и какую по счёту игру сыграет на этом мероприятии. Цель стрима — 3 игры.">'
+            . '— как этот онлайн двигает людей</span></div>';
+        echo '<ul class="org-funnel-list">';
+        echo '<li>1-ю игру сыграют <b>' . (int)$metrics['first'] . '</b></li>';
+        echo '<li>2-ю игру сыграют <b>' . (int)$metrics['second'] . '</b></li>';
+        echo '<li>3-ю игру сыграют <b>' . (int)$metrics['third'] . '</b></li>';
+        echo '<li>не дойдут до цели стрима (3 игры) <b>' . (int)$metrics['still_short'] . '</b></li>';
+        echo '</ul>';
         if (!empty($metrics['shift'])) {
-            echo '<ul class="org-shift">';
+            echo '<div class="org-funnel-shift"><span class="org-funnel-shift-cap">Переходы по воронке:</span> ';
+            $parts = [];
             foreach ($metrics['shift'] as $lab => $n) {
-                echo '<li>' . h($lab) . ' — ' . (int)$n . '</li>';
+                $parts[] = h((string)$lab) . ' — ' . (int)$n;
             }
-            echo '</ul>';
+            echo implode('; ', $parts);
+            echo '</div>';
         }
+        echo '</div>';
     }
     echo '<form method="post" id="org-slots-form">';
     portal_csrf_field();
