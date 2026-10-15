@@ -166,9 +166,40 @@ echo "MIGRATE_OK\\n";
 """
 
 
+def _verify_php(token: str, event_id: int) -> str:
+    return _php_preamble(token) + f"""
+$eid = {event_id};
+echo "mode=verify event=$eid\\n";
+$r = q("SELECT COUNT(*) FROM duels WHERE event_id=" . $eid); $n = mysql_fetch_row($r);
+echo "duels=" . $n[0] . "\\n";
+$r = q("SELECT COUNT(*) FROM protocol_events pe JOIN duels d ON d.id=pe.duel_id WHERE d.event_id=" . $eid); $n = mysql_fetch_row($r);
+echo "protocol_events_total=" . $n[0] . "\\n";
+$r = q("SELECT pe.event_type, COUNT(*) c FROM protocol_events pe JOIN duels d ON d.id=pe.duel_id WHERE d.event_id=" . $eid . " GROUP BY pe.event_type ORDER BY c DESC");
+if ($r) while ($row = mysql_fetch_assoc($r)) {{ echo "  type\\t" . $row['event_type'] . "\\t" . $row['c'] . "\\n"; }}
+$r = q("SELECT COUNT(*) FROM duel_change_log cl JOIN duels d ON d.id=cl.duel_id WHERE d.event_id=" . $eid); $n = mysql_fetch_row($r);
+echo "change_log_total=" . $n[0] . "\\n";
+$r = q("SELECT dj.vote, COUNT(*) c FROM duel_judges dj JOIN duels d ON d.id=dj.duel_id WHERE d.event_id=" . $eid . " GROUP BY dj.vote ORDER BY dj.vote");
+if ($r) while ($row = mysql_fetch_assoc($r)) {{ echo "  judge_vote\\t" . ($row['vote'] === null ? 'NULL' : $row['vote']) . "\\t" . $row['c'] . "\\n"; }}
+$r = q("SELECT agreed, COUNT(*) c FROM duel_judges dj JOIN duels d ON d.id=dj.duel_id WHERE d.event_id=" . $eid . " GROUP BY agreed ORDER BY agreed");
+if ($r) while ($row = mysql_fetch_assoc($r)) {{ echo "  judge_agreed\\t" . $row['agreed'] . "\\t" . $row['c'] . "\\n"; }}
+$r = q("SELECT d.sort_order, d.id, d.situation_id, d.player1_id, d.player2_id, d.second1_id, d.second2_id, d.referee_qty FROM duels d WHERE d.event_id=" . $eid . " ORDER BY d.sort_order");
+if ($r) while ($row = mysql_fetch_assoc($r)) {{
+    $jc = q("SELECT COUNT(*) FROM duel_judges WHERE duel_id=" . (int)$row['id']); $jn = mysql_fetch_row($jc);
+    $ec = q("SELECT COUNT(*) FROM protocol_events WHERE duel_id=" . (int)$row['id']); $en = mysql_fetch_row($ec);
+    echo "  duel\\t#" . $row['sort_order'] . "\\tid=" . $row['id'] . "\\tsit=" . $row['situation_id']
+        . "\\tp1=" . $row['player1_id'] . "\\tp2=" . $row['player2_id']
+        . "\\ts1=" . $row['second1_id'] . "\\ts2=" . $row['second2_id']
+        . "\\tq=" . $row['referee_qty'] . "\\tjudges=" . $jn[0] . "\\tevents=" . $en[0] . "\\n";
+}}
+$r = q("SELECT pe.duel_id, pe.seq_num, pe.event_type FROM protocol_events pe JOIN duels d ON d.id=pe.duel_id WHERE d.event_id=" . $eid . " ORDER BY pe.duel_id, pe.seq_num LIMIT 80");
+if ($r) while ($row = mysql_fetch_assoc($r)) {{ echo "  ev\\tduel=" . $row['duel_id'] . "\\t#" . $row['seq_num'] . "\\t" . $row['event_type'] . "\\n"; }}
+echo "VERIFY_OK\\n";
+"""
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Тестовое мероприятие в прод-БД (kwargs happy path).")
-    ap.add_argument("cmd", choices=["probe", "create", "list", "drop", "migrate"])
+    ap.add_argument("cmd", choices=["probe", "create", "list", "drop", "migrate", "verify"])
     ap.add_argument("--source", type=int, default=0)
     ap.add_argument("--id", type=int, default=0)
     ap.add_argument("--title", default="")
@@ -199,6 +230,12 @@ def main() -> int:
     if args.cmd == "migrate":
         body = run_remote_php(env, _migrate_php(token), token)
         return 0 if "MIGRATE_OK" in body else 1
+    if args.cmd == "verify":
+        if not args.id:
+            print("нужен --id ID (см. list)")
+            return 2
+        body = run_remote_php(env, _verify_php(token, args.id), token)
+        return 0 if "VERIFY_OK" in body else 1
     return 2
 
 
