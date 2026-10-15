@@ -1,0 +1,219 @@
+<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8">
+<meta http-equiv="cache-control" content="no-store">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Happy-path часов в режиме БД — ub-timer</title>
+<style>
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;margin:0;padding:24px;color:#1f2937;background:#f9fafb;line-height:1.55}
+.container{max-width:1080px;margin:0 auto}
+h1{font-size:1.9rem;margin:0 0 .25rem}
+h2{font-size:1.4rem;margin-top:36px;border-bottom:2px solid #e5e7eb;padding-bottom:8px}
+h3{font-size:1.1rem;margin:0 0 8px}
+.meta{color:#4b5563;font-size:.95rem;margin-bottom:20px}
+.card{background:#fff;padding:18px 20px;border:1px solid #e5e7eb;border-radius:10px;margin-bottom:18px}
+code{background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:.9em}
+table{border-collapse:collapse;width:100%;margin:12px 0}
+td,th{border:1px solid #e5e7eb;padding:6px 10px;text-align:left}
+.pass{color:#047857;font-weight:600}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-top:12px}
+.shot img{max-width:100%;border:1px solid #e5e7eb;border-radius:8px;cursor:zoom-in;display:block;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.shot-caption{font-size:12px;color:#6b7280;margin-top:4px}
+.toc{list-style:none;padding:0;margin:12px 0 4px;max-width:780px}
+.toc a{display:block;padding:7px 2px;border-bottom:1px dashed #e5e7eb;text-decoration:none;color:#1d4ed8}
+.toc a:hover{color:#1e40af;background:#f8fafc}
+.modal{display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,.88);align-items:center;justify-content:center;flex-direction:column;padding:24px;box-sizing:border-box}
+.modal-content{max-width:100%;max-height:85vh;object-fit:contain;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.modal-close{position:absolute;top:16px;right:24px;color:#fff;font-size:2rem;line-height:1;cursor:pointer;z-index:2}
+.modal-caption{color:#e5e7eb;margin-top:12px;font-size:.95rem;text-align:center;max-width:90%}
+.modal-nav{position:absolute;top:50%;transform:translateY(-50%);color:#fff;font-size:2.5rem;line-height:1;cursor:pointer;padding:12px;user-select:none;opacity:.7;z-index:2}
+.modal-nav:hover{opacity:1}
+.modal-prev{left:8px}.modal-next{right:8px}
+</style></head><body>
+<div class="container">
+<h1>Happy-path часов в режиме БД — ub-timer</h1>
+<p>Статус: <strong class="pass">PASSED</strong>, версия выкладки <code>v 121</code></p>
+<div class="meta">
+<strong>Дата:</strong> 2026-10-15<br>
+<strong>Среда:</strong> прод <code>https://timer.zaborov.ru/</code><br>
+<strong>Браузер:</strong> Yandex Browser 26.8 (Chrome 150), Playwright MCP<br>
+<strong>Мероприятие:</strong> <code>id 67</code> «ТЕСТ БД 2026-10-15» (копия онлайна id 31, статус «Подготовка», 8 поединков)<br>
+<strong>Состав:</strong> классика №1,2,4–7; экспресс №3 (5 судей); парный №8; 38 человек; 59 судей; 4 организатора
+</div>
+
+<ul class="toc">
+<li><a href="#s1">1. Меню «Загрузить расписание» → «из базы»</a></li>
+<li><a href="#s2">2. Выбор мероприятия из базы</a></li>
+<li><a href="#s3">3. Состав из БД загружен</a></li>
+<li><a href="#s4">4. Список поединков — ситуации из БД</a></li>
+<li><a href="#s5">5. Выбран поединок — ситуация и участники из БД</a></li>
+<li><a href="#s6">6. Участники и судьи — ярлыки опыта</a></li>
+<li><a href="#s7">7. Раскладка судей из duel_judges</a></li>
+<li><a href="#s8">8. Классика №1: начало поединка, раунд 1</a></li>
+<li><a href="#s9">9. Жеребьёвка и выбор ролей</a></li>
+<li><a href="#s10">10. Смена хода → раунд 2</a></li>
+<li><a href="#s11">11. Пауза (вход/выход)</a></li>
+<li><a href="#s12">12. Протест</a></li>
+<li><a href="#s13">13. Корректировка часов</a></li>
+<li><a href="#s14">14. Завершение поединка</a></li>
+<li><a href="#s15">15. Голоса судей</a></li>
+<li><a href="#s16">16. Согласие судьи (зелёные ячейки)</a></li>
+<li><a href="#s17">17. Решение судей</a></li>
+<li><a href="#s18">18. Экспресс №3 — 5 судейских слотов</a></li>
+<li><a href="#s19">19. Парный №8</a></li>
+<li><a href="#s20">20. Правка состава → журнал изменений</a></li>
+<li><a href="#s21">21. F5 — баннер восстановления</a></li>
+<li><a href="#s22">22. Восстановлено из БД</a></li>
+<li><a href="#db">Итог в БД и замечания</a></li>
+</ul>
+
+<div class="card" id="s1"><h3>1. Меню «Загрузить расписание» → «из базы»</h3>
+<p>В подменю загрузки расписания рядом с «из Google» и «из файла» появился пункт <b>«из базы»</b> — канон из общей БД портала.</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/01-menu-iz-bazy.png"><img src="db-happy-path-2026-10-15/01-menu-iz-bazy.png" loading="lazy" alt="Меню из базы"></a><div class="shot-caption">1. Пункт «из базы» в меню расписания</div></div></div></div>
+
+<div class="card" id="s2"><h3>2. Выбор мероприятия из базы</h3>
+<p>Открывается модалка со списком мероприятий. В прод-режиме (<code>timer.zaborov.ru</code>) показываются сегодняшние; здесь — тестовое «ТЕСТ БД 2026-10-15».</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/02-picker-event.png"><img src="db-happy-path-2026-10-15/02-picker-event.png" loading="lazy" alt="Выбор мероприятия"></a><div class="shot-caption">2. Выбор мероприятия из базы</div></div></div></div>
+
+<div class="card" id="s3"><h3>3. Состав из БД загружен</h3>
+<p>Часы собрали <code>duelsList</code> из базы: 8 поединков, ФИО из справочника людей (локальных записей нет), ярлыки опыта считает сервер.</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/03-schedule-loaded.png"><img src="db-happy-path-2026-10-15/03-schedule-loaded.png" loading="lazy" alt="Состав загружен"></a><div class="shot-caption">3. Состав из БД загружен</div></div></div></div>
+
+<div class="card" id="s4"><h3>4. Список поединков — ситуации из БД</h3>
+<p>В выпадающем списке поединков — реальные ситуации из общей БД (№12 «Увидеть лес за деревьями», №69 «Переход на новую бухгалтерскую систему» и т.д.).</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/04-duel-list.png"><img src="db-happy-path-2026-10-15/04-duel-list.png" loading="lazy" alt="Список поединков"></a><div class="shot-caption">4. Список поединков с ситуациями из БД</div></div></div></div>
+
+<div class="card" id="s5"><h3>5. Выбран поединок — ситуация и участники из БД</h3>
+<p>При выборе поединка на часы подставляются ситуация, игроки и секунданты из БД; пишется событие <code>раскрытиеСитуации</code>.</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/05-duel1-selected.png"><img src="db-happy-path-2026-10-15/05-duel1-selected.png" loading="lazy" alt="Поединок выбран"></a><div class="shot-caption">5. Поединок №1 выбран — ситуация из БД</div></div></div></div>
+
+<div class="card" id="s6"><h3>6. «Участники и судьи» — ярлыки опыта</h3>
+<p>Справочник людей с вычисляемыми ярлыками: <b>опытный / новичок / орг / судья ФУБ</b>; ручные радио опыта в режиме БД скрыты (заменены бейджами).</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/06-participants-labels.png"><img src="db-happy-path-2026-10-15/06-participants-labels.png" loading="lazy" alt="Ярлыки участников"></a><div class="shot-caption">6. Участники — вычисляемые ярлыки опыта</div></div></div></div>
+
+<div class="card" id="s7"><h3>7. Раскладка судей из duel_judges</h3>
+<p>Таблица «Расписание» — судьи по коллегиям (нанимающиеся / отправляющие / доверяющие) из базы; пустые слоты формы в БД не пишутся.</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/07-judges-layout.png"><img src="db-happy-path-2026-10-15/07-judges-layout.png" loading="lazy" alt="Раскладка судей"></a><div class="shot-caption">7. Раскладка судей из duel_judges</div></div></div></div>
+
+<div class="card" id="s8"><h3>8. Классика №1: начало поединка, раунд 1</h3>
+<p>Оператор нажал «Начать поединок» — пишутся <code>началоПоединка</code> и <code>стартРаунда</code>, идёт отсчёт.</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/08-start-duel-round1.png"><img src="db-happy-path-2026-10-15/08-start-duel-round1.png" loading="lazy" alt="Начало поединка"></a><div class="shot-caption">8. Классика №1 — начало поединка, раунд 1</div></div></div></div>
+
+<div class="card" id="s9"><h3>9. Жеребьёвка и выбор ролей</h3>
+<p>Кубик определил начинающего (<code>жеребьёвка</code>), выбраны управленческие роли обоих игроков (<code>выборРоли</code>).</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/09-dice-roles.png"><img src="db-happy-path-2026-10-15/09-dice-roles.png" loading="lazy" alt="Жеребьёвка и роли"></a><div class="shot-caption">9. Жеребьёвка и выбор ролей</div></div></div></div>
+
+<div class="card" id="s10"><h3>10. Смена хода → раунд 2</h3>
+<p>«Переход хода» — фиксируются <code>сменаХода</code> и новый <code>стартРаунда</code>.</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/10-change-player-round2.png"><img src="db-happy-path-2026-10-15/10-change-player-round2.png" loading="lazy" alt="Смена хода"></a><div class="shot-caption">10. Смена хода — раунд 2</div></div></div></div>
+
+<div class="card" id="s11"><h3>11. Пауза (вход/выход)</h3>
+<p>Вход в паузу и выход из неё — две записи события <code>пауза</code>.</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/11-pause.png"><img src="db-happy-path-2026-10-15/11-pause.png" loading="lazy" alt="Пауза"></a><div class="shot-caption">11. Пауза (вход/выход)</div></div></div></div>
+
+<div class="card" id="s12"><h3>12. Протест</h3>
+<p>Протест секунданта — событие <code>протест</code> (вход и снятие).</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/12-protest.png"><img src="db-happy-path-2026-10-15/12-protest.png" loading="lazy" alt="Протест"></a><div class="shot-caption">12. Протест</div></div></div></div>
+
+<div class="card" id="s13"><h3>13. Корректировка часов</h3>
+<p>Двойной клик по цифрам → ввод <code>3:30</code> → событие <code>корректировкаВремени</code> с прежним и новым значением.</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/13-clock-correction.png"><img src="db-happy-path-2026-10-15/13-clock-correction.png" loading="lazy" alt="Корректировка часов"></a><div class="shot-caption">13. Корректировка часов (3:30)</div></div></div></div>
+
+<div class="card" id="s14"><h3>14. Завершение поединка</h3>
+<p>«Завершить поединок» — событие <code>завершение</code> и форма судей с текущим составом коллегий.</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/14-finish-judges-form.png"><img src="db-happy-path-2026-10-15/14-finish-judges-form.png" loading="lazy" alt="Завершение поединка"></a><div class="shot-caption">14. Завершение — форма судей</div></div></div></div>
+
+<div class="card" id="s15"><h3>15. Голоса судей</h3>
+<p>На каждое изменение голоса — событие <code>голос</code> и upsert значения в <code>duel_judges.vote</code>.</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/15-judge-votes.png"><img src="db-happy-path-2026-10-15/15-judge-votes.png" loading="lazy" alt="Голоса судей"></a><div class="shot-caption">15. Голоса судей</div></div></div></div>
+
+<div class="card" id="s16"><h3>16. Согласие судьи (зелёные ячейки)</h3>
+<p>Подтверждение ячейки судьи — событие <code>согласиеСудьи</code> и флаг <code>duel_judges.agreed</code>; зелёная подсветка читается из базы.</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/16-judges-agreed-green.png"><img src="db-happy-path-2026-10-15/16-judges-agreed-green.png" loading="lazy" alt="Согласие судей"></a><div class="shot-caption">16. Согласие судьи — зелёные ячейки</div></div></div></div>
+
+<div class="card" id="s17"><h3>17. Решение судей</h3>
+<p>Финальное подтверждение — событие <code>решениеСудей</code>; победитель определён по большинству голосов.</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/17-decision-winner.png"><img src="db-happy-path-2026-10-15/17-decision-winner.png" loading="lazy" alt="Решение судей"></a><div class="shot-caption">17. Решение судей — победитель</div></div></div></div>
+
+<div class="card" id="s18"><h3>18. Экспресс №3 — 5 судейских слотов</h3>
+<p>Экспресс: вместимость 5 судейских мест, коллегия только «Отправляющие на переговоры», без секундантов.</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/18-express-5-judges.png"><img src="db-happy-path-2026-10-15/18-express-5-judges.png" loading="lazy" alt="Экспресс"></a><div class="shot-caption">18. Экспресс — 5 судейских слотов</div></div></div></div>
+
+<div class="card" id="s19"><h3>19. Парный №8</h3>
+<p>Парный поединок: игроки — пары, подписи формируются как «Игрок + Секундант».</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/19-pair-duel8.png"><img src="db-happy-path-2026-10-15/19-pair-duel8.png" loading="lazy" alt="Парный"></a><div class="shot-caption">19. Парный поединок №8</div></div></div></div>
+
+<div class="card" id="s20"><h3>20. Правка состава → журнал изменений</h3>
+<p>Замена судьи в слоте — обновление <code>duels</code>/<code>duel_judges</code> и строка в <code>duel_change_log</code>.</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/20-composition-edit.png"><img src="db-happy-path-2026-10-15/20-composition-edit.png" loading="lazy" alt="Правка состава"></a><div class="shot-caption">20. Правка состава — журнал изменений</div></div></div></div>
+
+<div class="card" id="s21"><h3>21. F5 — баннер восстановления</h3>
+<p>После перезагрузки сверху появляется предложение восстановить последний онлайн.</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/21-restore-banner.png"><img src="db-happy-path-2026-10-15/21-restore-banner.png" loading="lazy" alt="Баннер восстановления"></a><div class="shot-caption">21. F5 — баннер восстановления</div></div></div></div>
+
+<div class="card" id="s22"><h3>22. Восстановлено из БД</h3>
+<p>По «Да» канон берётся из БД (8 поединков, 38 человек), источник расписания и id мероприятия восстанавливаются из LS-снимка; <code>situation_id</code> цел.</p>
+<div class="gallery"><div class="shot"><a href="db-happy-path-2026-10-15/22-restored-from-db.png"><img src="db-happy-path-2026-10-15/22-restored-from-db.png" loading="lazy" alt="Восстановлено из БД"></a><div class="shot-caption">22. Восстановлено из БД</div></div></div></div>
+
+<h2 id="db">Итог в БД (проверка SQL)</h2>
+<div class="card">
+<p>Один чистый прогон по мероприятию <code>id 67</code>.</p>
+<table>
+<thead><tr><th>Показатель</th><th>Значение</th></tr></thead>
+<tbody>
+<tr><td>duels</td><td>8</td></tr>
+<tr><td>duel_judges.agreed = 1</td><td>3</td></tr>
+<tr><td>protocol_events, всего</td><td><b>69</b></td></tr>
+<tr><td>duel_change_log</td><td>1</td></tr>
+</tbody></table>
+<p><b>Разбивка protocol_events по типам:</b> голос 23, раскрытиеСитуации 8, стартРаунда 7, выборРоли 6, началоПоединка 4, завершение 4, решениеСудей 4, сменаХода 3, согласиеСудьи 3, жеребьёвка 2, пауза 2, протест 2, корректировкаВремени 1.</p>
+<p><b>По поединкам:</b> №1 классика — 26 событий, №2 классика — 20, №3 экспресс — 12, №4 — 2, №8 парный — 9.</p>
+<p>Все типы соответствуют справочнику <code>ТипСобытияПротокола</code>: пауза — двумя событиями (вход/выход), <code>началоПоединка</code> и <code>стартРаунда</code> раздельно, <code>раскрытиеСитуации</code> — при выборе поединка.</p>
+</div>
+
+<h2>Замечания и ограничения</h2>
+<div class="card">
+<ul>
+<li>У поединка №8 в базе не было судей (<code>duel_judges = 0</code>), поэтому голоса по нему не материализовались — ожидаемо для поединка без назначенных судей.</li>
+<li><b>Не проверялись:</b> офлайн-очередь при недоступной БД, отдельный таймер судей на 1 минуту, перестановка поединков кнопками (UI в часах пока нет), просмотр лога оргом на втором устройстве.</li>
+<li>Тестовые данные удаляются командой: <code>python scripts/make_test_event.py drop --id 67</code>.</li>
+</ul>
+</div>
+</div>
+
+<div id="imgModal" class="modal">
+  <span class="modal-close">&times;</span>
+  <span class="modal-nav modal-prev" title="Предыдущий">&#8249;</span>
+  <span class="modal-nav modal-next" title="Следующий">&#8250;</span>
+  <img class="modal-content" id="modalImg" alt="увеличенный скриншот">
+  <div class="modal-caption" id="modalCaption"></div>
+</div>
+<script>
+(function(){
+  const modal=document.getElementById('imgModal');
+  const modalImg=document.getElementById('modalImg');
+  const modalCaption=document.getElementById('modalCaption');
+  const links=Array.from(document.querySelectorAll('.shot a'));
+  const items=links.map(a=>({src:a.getAttribute('href'),caption:(a.parentNode.querySelector('.shot-caption')||{}).textContent||''}));
+  let currentIndex=0;
+  const closeModal=()=>{modal.style.display='none';};
+  const showItem=(idx)=>{
+    if(idx<0)idx=items.length-1;
+    if(idx>=items.length)idx=0;
+    currentIndex=idx;
+    modalImg.src=items[currentIndex].src;
+    modalCaption.textContent=items[currentIndex].caption;
+  };
+  links.forEach(function(a,idx){a.addEventListener('click',function(e){e.preventDefault();showItem(idx);modal.style.display='flex';});});
+  document.querySelector('.modal-prev').addEventListener('click',function(e){e.stopPropagation();showItem(currentIndex-1);});
+  document.querySelector('.modal-next').addEventListener('click',function(e){e.stopPropagation();showItem(currentIndex+1);});
+  document.querySelector('.modal-close').addEventListener('click',closeModal);
+  modal.addEventListener('click',function(e){if(e.target===modal)closeModal();});
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape')closeModal();
+    if(modal.style.display==='flex'){
+      if(e.key==='ArrowLeft')showItem(currentIndex-1);
+      if(e.key==='ArrowRight')showItem(currentIndex+1);
+    }
+  });
+})();
+</script>
+</body></html>
