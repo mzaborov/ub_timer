@@ -33,6 +33,117 @@ function fetchDatabaseJson_(query, what) {
         });
 }
 
+/** POST JSON на тот же эндпоинт (для входа орга). */
+function postDatabaseJson_(query, body, what) {
+    if (location.protocol === "file:") {
+        return Promise.reject(new Error("База доступна только на сервере (не через file://)"));
+    }
+    return fetch(DB_API_URL + query, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify(body || {})
+    }).then(function (resp) {
+        return resp.text().then(function (txt) {
+            var data = null;
+            try { data = JSON.parse(txt); } catch (e) { throw new Error(what + ": ответ БД не JSON"); }
+            if (!data || data.ok !== true) {
+                throw new Error((data && data.error) ? data.error : (what + ": ошибка БД"));
+            }
+            return data;
+        });
+    });
+}
+
+/** Обновить надпись пункта «Режим организатора». */
+function updateDbOrgUi_() {
+    var label = document.getElementById("org-mode-label");
+    var item = document.getElementById("org-mode-menu-item");
+    if (label) label.textContent = dbOrgMode ? "Организатор: вкл (выйти)" : "Режим организатора";
+    if (item) {
+        var ico = item.querySelector("i");
+        if (ico) ico.className = dbOrgMode ? "fa-solid fa-lock-open me-2" : "fa-solid fa-lock me-2";
+    }
+    var badge = document.getElementById("org-mode-badge");
+    if (badge) badge.style.display = dbOrgMode ? "" : "none";
+}
+
+/** Узнать статус орга на сервере (по cookie). */
+function refreshDbOrgStatus_() {
+    if (location.protocol === "file:") return Promise.resolve();
+    return fetch(DB_API_URL + "?action=org_status", { credentials: "same-origin" })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            if (d && d.ok) {
+                dbOrgMode = !!d.org;
+                updateDbOrgUi_();
+            }
+        })
+        .catch(function () { /* без БД — не мешаем */ });
+}
+
+function dbOrgLogin_(password) {
+    return postDatabaseJson_("?action=org_login", { password: password }, "Вход орга")
+        .then(function () {
+            dbOrgMode = true;
+            updateDbOrgUi_();
+            return true;
+        });
+}
+
+function dbOrgLogout_() {
+    return postDatabaseJson_("?action=org_logout", {}, "Выход орга")
+        .then(function () {
+            dbOrgMode = false;
+            updateDbOrgUi_();
+        })
+        .catch(function () { dbOrgMode = false; updateDbOrgUi_(); });
+}
+
+/** Пункт меню «Режим организатора»: войти или выйти. */
+function onOrgModeMenuItem_(ev) {
+    if (ev && ev.preventDefault) ev.preventDefault();
+    closeFileMenuDropdown_();
+    if (dbOrgMode) {
+        dbOrgLogout_().then(function () {
+            showLoadDiagnostics("Орг", [], [], "Режим организатора выключен.");
+        });
+        return false;
+    }
+    var modalEl = document.getElementById("dbOrgLoginModal");
+    if (modalEl && typeof bootstrap !== "undefined") {
+        var inp = document.getElementById("db-org-password");
+        if (inp) inp.value = "";
+        var errEl = document.getElementById("db-org-error");
+        if (errEl) errEl.textContent = "";
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        setTimeout(function () { if (inp) inp.focus(); }, 300);
+    } else {
+        var pw = prompt("Пароль организатора:");
+        if (pw) dbOrgLogin_(pw).then(function () { showLoadDiagnostics("Орг", [], [], "Режим организатора включён."); })
+            .catch(function (e) { alert("Не удалось войти: " + (e && e.message ? e.message : e)); });
+    }
+    return false;
+}
+
+function submitDbOrgLogin_() {
+    var inp = document.getElementById("db-org-password");
+    var errEl = document.getElementById("db-org-error");
+    var pw = inp ? inp.value : "";
+    if (!pw) { if (errEl) errEl.textContent = "Введите пароль"; return; }
+    dbOrgLogin_(pw).then(function () {
+        var modalEl = document.getElementById("dbOrgLoginModal");
+        if (modalEl && typeof bootstrap !== "undefined") {
+            var m = bootstrap.Modal.getInstance(modalEl);
+            if (m) m.hide();
+        }
+        showLoadDiagnostics("Орг", [], [], "Режим организатора включён. События «Подготовка» доступны.");
+        refreshDbEventsList();
+    }).catch(function (e) {
+        if (errEl) errEl.textContent = (e && e.message === "bad_password") ? "Неверный пароль" : ("Ошибка: " + (e && e.message ? e.message : e));
+    });
+}
+
 /** Ярлык сервера → значение experience в часах. */
 function dbScheduleExperience_(person) {
     var lbl = person && person.experience_label ? String(person.experience_label) : "";
@@ -220,8 +331,11 @@ function openDatabaseSchedulePicker() {
     fetchDatabaseJson_("?action=events&scope=" + encodeURIComponent(dbScheduleScope_()), "список мероприятий")
         .then(function (data) {
             var events = data.events || [];
+            if (typeof data.org !== "undefined") { dbOrgMode = !!data.org; updateDbOrgUi_(); }
             fillDbEventsSelect_(events, true);
-            setDbPickerStatus_("Мероприятий: " + events.length + " (" + dbScheduleScope_() + ").", false);
+            var note = "Мероприятий: " + events.length + " (" + dbScheduleScope_() + ").";
+            if (data.hidden_org) note += " Скрыто для оргов: " + data.hidden_org + ".";
+            setDbPickerStatus_(note, false);
         })
         .catch(function (err) {
             setDbPickerStatus_((err && err.message) || String(err), true);
@@ -233,8 +347,11 @@ function refreshDbEventsList() {
     fetchDatabaseJson_("?action=events&scope=" + encodeURIComponent(dbScheduleScope_()), "список мероприятий")
         .then(function (data) {
             var events = data.events || [];
+            if (typeof data.org !== "undefined") { dbOrgMode = !!data.org; updateDbOrgUi_(); }
             fillDbEventsSelect_(events, true);
-            setDbPickerStatus_("Обновлено. Мероприятий: " + events.length + " (" + dbScheduleScope_() + ").", false);
+            var note = "Обновлено. Мероприятий: " + events.length + " (" + dbScheduleScope_() + ").";
+            if (data.hidden_org) note += " Скрыто для оргов: " + data.hidden_org + ".";
+            setDbPickerStatus_(note, false);
         })
         .catch(function (err) {
             setDbPickerStatus_((err && err.message) || String(err), true);
@@ -255,3 +372,9 @@ function loadScheduleFromDatabaseSelected() {
     }
     return loadScheduleFromDatabaseEvent_(id, sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : null);
 }
+
+/* Инициализация орг-режима при загрузке страницы. */
+document.addEventListener('DOMContentLoaded', function () {
+    updateDbOrgUi_();
+    refreshDbOrgStatus_();
+});
