@@ -396,7 +396,7 @@ body.page-org-events .card {
   margin: 0 0 0.18rem;
   font-size: 0.92rem;
 }
-.org-metrics-note { font-weight: 400; font-size: 0.78rem; color: var(--muted); }
+.org-funnel-cap { font-weight: 600; color: #1a1a1a; }
 .org-funnel-line {
   display: flex;
   flex-wrap: wrap;
