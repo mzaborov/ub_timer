@@ -497,6 +497,7 @@ function org_event_metrics(mysqli $db, array $duels, array $career): array
     $players = [];
     $seconds = [];
     $judges = [];
+    $judgeNames = [];
     foreach ($duels as $d) {
         foreach (['p1_id', 'p2_id'] as $k) {
             $pid = (int)($d[$k] ?? 0);
@@ -516,30 +517,41 @@ function org_event_metrics(mysqli $db, array $duels, array $career): array
             $pid = (int)($j['id'] ?? 0);
             if ($pid > 0) {
                 $judges[$pid] = true;
+                if (!isset($judgeNames[$pid])) {
+                    $judgeNames[$pid] = trim((string)($j['name'] ?? ''));
+                }
             }
         }
     }
 
-    $playFirst = 0;
-    $reachGoal = 0;
+    $nameOf = static function (int $pid) use ($career, $judgeNames): string {
+        $n = trim((string)($career[$pid]['name'] ?? ''));
+        if ($n === '') {
+            $n = (string)($judgeNames[$pid] ?? '');
+        }
+        return $n;
+    };
+
+    $playFirst = [];
+    $reachGoal = [];
     foreach (array_keys($players) as $pid) {
         $g = (int)($career[$pid]['games'] ?? 0);
         if ($g === 0) {
-            $playFirst++;
+            $playFirst[$pid] = $nameOf($pid);
         }
         if ($g === 2) {
-            $reachGoal++;
+            $reachGoal[$pid] = $nameOf($pid);
         }
     }
 
-    $judgeFirst = 0;
+    $judgeFirst = [];
     foreach (array_keys($judges) as $pid) {
         if ((int)($career[$pid]['judged'] ?? 0) === 0) {
-            $judgeFirst++;
+            $judgeFirst[$pid] = $nameOf($pid);
         }
     }
 
-    $becomeMentor = 0;
+    $becomeMentor = [];
     $staff = $players + $seconds;
     foreach (array_keys($staff) as $pid) {
         $c = $career[$pid] ?? ['games' => 0, 'judged' => 0, 'seconded' => 0];
@@ -550,16 +562,20 @@ function org_event_metrics(mysqli $db, array $duels, array $career): array
         $secAfter = $sec + (isset($seconds[$pid]) ? 1 : 0);
         $after = $gAfter >= 3 && $secAfter > 0;
         if (!$before && $after) {
-            $becomeMentor++;
+            $becomeMentor[$pid] = $nameOf($pid);
         }
     }
 
     return [
         'on_grid' => count($players + $seconds + $judges),
-        'judge_first' => $judgeFirst,
-        'play_first' => $playFirst,
-        'reach_goal' => $reachGoal,
-        'become_mentor' => $becomeMentor,
+        'judge_first' => count($judgeFirst),
+        'play_first' => count($playFirst),
+        'reach_goal' => count($reachGoal),
+        'become_mentor' => count($becomeMentor),
+        'judge_first_names' => array_values(array_filter($judgeFirst)),
+        'play_first_names' => array_values(array_filter($playFirst)),
+        'reach_goal_names' => array_values(array_filter($reachGoal)),
+        'become_mentor_names' => array_values(array_filter($becomeMentor)),
     ];
 }
 
@@ -2540,18 +2556,21 @@ function org_echo_slots_card(
     echo '<section class="card org-slots-card" id="slots">';
     echo '<h2>Слоты</h2>';
     if ($metrics) {
+        $namesTip = static function (array $names): string {
+            return $names !== [] ? implode(', ', $names) : 'никого';
+        };
         echo '<div class="org-funnel">';
         echo '<div class="org-funnel-head">Воронка стрима '
             . '<span class="org-funnel-hint" title="Кого это мероприятие двигает по воронке. Считаем по всем участникам сетки: игроки, секунданты (парный) и судьи.">'
             . '— кого двигает этот онлайн</span></div>';
         echo '<ul class="org-funnel-list">';
-        echo '<li title="Судьи события, у кого ещё нет ни одного судейства">1-й раз посудит <b>'
+        echo '<li title="1-й раз посудят: ' . h($namesTip($metrics['judge_first_names'])) . '">1-й раз посудит <b>'
             . (int)$metrics['judge_first'] . '</b></li>';
-        echo '<li title="Игроки события, у кого ещё нет ни одной игры">1-й раз сыграет <b>'
+        echo '<li title="1-й раз сыграют: ' . h($namesTip($metrics['play_first_names'])) . '">1-й раз сыграет <b>'
             . (int)$metrics['play_first'] . '</b></li>';
-        echo '<li title="Игроки с 2 играми: после этой игры станет 3 — цель стрима">достигнет целей стрима <b>'
+        echo '<li title="Достигнут целей стрима: ' . h($namesTip($metrics['reach_goal_names'])) . '">достигнет целей стрима <b>'
             . (int)$metrics['reach_goal'] . '</b></li>';
-        echo '<li title="Участники, у кого после события станет 3+ игр и хотя бы раз секундирование">станет наставником <b>'
+        echo '<li title="Станет наставником: ' . h($namesTip($metrics['become_mentor_names'])) . '">станет наставником <b>'
             . (int)$metrics['become_mentor'] . '</b></li>';
         echo '</ul>';
         echo '</div>';
