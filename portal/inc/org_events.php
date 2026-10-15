@@ -2636,7 +2636,23 @@ function org_echo_plan_side(array $ev, array $regs, array $career = []): void
     $eid = (int)$ev['id'];
     echo '<aside class="org-plan-side" id="regs">';
     echo '<section class="card org-regs-card">';
-    echo '<h2>Заявки</h2>';
+    $regTotal = count($regs);
+    $nPlay = 0;
+    $nJudge = 0;
+    $nSecond = 0;
+    foreach ($regs as $r) {
+        if (!empty($r['play'])) {
+            $nPlay++;
+        }
+        if (!empty($r['judge'])) {
+            $nJudge++;
+        }
+        if (!empty($r['second'])) {
+            $nSecond++;
+        }
+    }
+    echo '<h2 title="игра: ' . $nPlay . ', судья: ' . $nJudge . ', секунд: ' . $nSecond . '">Заявки · '
+        . $regTotal . '</h2>';
     if (!$regs) {
         echo '<p class="muted">Пока никого. Это не слоты сетки — сюда собираем желающих.</p>';
     } else {
