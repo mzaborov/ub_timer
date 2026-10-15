@@ -261,7 +261,7 @@ if ($page !== 'org') {
     <link rel="stylesheet" href="css/portal.css?v=85">
     <link rel="stylesheet" href="css/org.css?v=7">
     <?php if ($page === 'org' && $orgSection === 'events') { ?>
-    <link rel="stylesheet" href="css/org-events.css?v=42">
+    <link rel="stylesheet" href="css/org-events.css?v=43">
     <?php } ?>
     <?php if ($page === 'org' && $orgSection === 'people') { ?>
     <link rel="stylesheet" href="css/org-people.css?v=22">

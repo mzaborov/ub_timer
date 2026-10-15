@@ -2661,15 +2661,15 @@ function org_echo_plan_side(array $ev, array $regs, array $career = []): void
     }
     echo '<h2>Заявки <span class="org-regs-total">всего ' . $regTotal . '</span></h2>';
     if ($regs) {
-        echo '<div class="org-reg-roles">';
-        echo '<div class="org-reg-role" title="Хотят играть классику"><b>' . $nClassic
+        echo '<div class="org-reg-tiles">';
+        echo '<div class="org-reg-tile" title="Хотят играть классику"><b>' . $nClassic
             . '</b><span>клас.</span></div>';
-        echo '<div class="org-reg-role" title="Хотят играть экспресс"><b>' . $nExpress
+        echo '<div class="org-reg-tile" title="Хотят играть экспресс"><b>' . $nExpress
             . '</b><span>экспр.</span></div>';
-        echo '<div class="org-reg-role" title="Хотят играть, тип не указан"><b>' . $nAny
+        echo '<div class="org-reg-tile" title="Хотят играть, тип не указан"><b>' . $nAny
             . '</b><span>не указано</span></div>';
-        echo '<div class="org-reg-role" title="Хотят судить"><b>' . $nJudge . '</b><span>судить</span></div>';
-        echo '<div class="org-reg-role" title="Хотят секундировать"><b>' . $nSecond
+        echo '<div class="org-reg-tile" title="Хотят судить"><b>' . $nJudge . '</b><span>судить</span></div>';
+        echo '<div class="org-reg-tile" title="Хотят секундировать"><b>' . $nSecond
             . '</b><span>секунд.</span></div>';
         echo '</div>';
     }
