@@ -875,6 +875,7 @@ function getAssignmentSlot(duelIdx, slotKey) {
 function setAssignmentSlot(duelIdx, slotKey, personId) {
     while (duelAssignments.length <= duelIdx) duelAssignments.push({ player1Id: null, player2Id: null, second1Id: null, second2Id: null, judges: [], confirmed: {} });
     var a = duelAssignments[duelIdx];
+    var oldId = (typeof getAssignmentSlot === "function") ? getAssignmentSlot(duelIdx, slotKey) : null;
     if (!a.judges) a.judges = [];
     while (a.judges.length < 9) a.judges.push({ personId: null, category: a.judges.length < 3 ? "hiring" : a.judges.length < 7 ? "negotiators" : "owners" });
     if (slotKey === "player1") { a.player1Id = personId; if (duelsList && duelsList[duelIdx]) duelsList[duelIdx].Player1 = getPersonName(personId); }
@@ -888,6 +889,9 @@ function setAssignmentSlot(duelIdx, slotKey, personId) {
     var cd = (currentDuel != null && currentDuel !== "-1") ? (typeof currentDuel === "string" ? parseInt(currentDuel, 10) : currentDuel) : -1;
     if (duelIdx === cd && duelsList && duelsList[duelIdx] && (slotKey === "player1" || slotKey === "player2" || slotKey === "second1" || slotKey === "second2")) {
         applyPlayerNameFieldsFromDuel(duelsList[duelIdx]);
+    }
+    if (String(oldId || "") !== String(personId || "") && typeof dbLogSlotChange_ === "function") {
+        dbLogSlotChange_(duelIdx, slotKey, oldId, personId);
     }
     saveProtocolStateToLocalStorage();
     if (typeof notifyLiveProtocolComposition_ === "function") notifyLiveProtocolComposition_(duelIdx);
