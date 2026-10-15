@@ -1124,7 +1124,7 @@ function org_star_rec(array $c, array $reg): array
         return ['text' => '2 игры — сыграть третью', 'kind' => 'next'];
     }
     if ($g === 0 && !empty($reg['judge'])) {
-        return ['text' => 'хочет судить, игр нет — после суда звать в пару', 'kind' => 'next'];
+        return ['text' => 'хочет судить, игр нет — сначала судейство, потом в пару', 'kind' => 'next'];
     }
     return ['text' => '', 'kind' => ''];
 }
