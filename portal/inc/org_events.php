@@ -302,8 +302,9 @@ function org_funnel_goal_text(): string
 }
 
 /** pid => games / judged / seconded / name */
-function org_people_career(mysqli $db): array
+function org_people_career(mysqli $db, int $excludeEventId = 0): array
 {
+    $ex = $excludeEventId > 0 ? (int)$excludeEventId : 0;
     $out = [];
     $r = $db->query('SELECT id, full_name FROM people');
     while ($row = $r->fetch_assoc()) {
@@ -319,6 +320,7 @@ function org_people_career(mysqli $db): array
     }
     $r = $db->query(
         'SELECT duel_type, player1_id, player2_id, second1_id, second2_id FROM duels'
+        . ($ex > 0 ? ' WHERE event_id <> ' . $ex : '')
     );
     while ($row = $r->fetch_assoc()) {
         $paired = ($row['duel_type'] ?? '') === 'парный';
@@ -357,6 +359,7 @@ function org_people_career(mysqli $db): array
          JOIN duels d ON d.id = dj.duel_id
          JOIN events e ON e.id = d.event_id
          WHERE dj.person_id IS NOT NULL
+         ' . ($ex > 0 ? ' AND d.event_id <> ' . $ex : '') . '
          GROUP BY dj.person_id'
     );
     while ($row = $r->fetch_assoc()) {
@@ -381,7 +384,7 @@ function org_people_career(mysqli $db): array
                    END AS play_on
             FROM duels d
             JOIN events e ON e.id = d.event_id
-            WHERE d.player1_id IS NOT NULL
+            WHERE d.player1_id IS NOT NULL' . ($ex > 0 ? ' AND d.event_id <> ' . $ex : '') . '
             UNION ALL
             SELECT d.player2_id AS pid,
                    CASE
@@ -390,7 +393,7 @@ function org_people_career(mysqli $db): array
                    END AS play_on
             FROM duels d
             JOIN events e ON e.id = d.event_id
-            WHERE d.player2_id IS NOT NULL
+            WHERE d.player2_id IS NOT NULL' . ($ex > 0 ? ' AND d.event_id <> ' . $ex : '') . '
          ) t
          WHERE pid IS NOT NULL
          GROUP BY pid'
@@ -416,7 +419,7 @@ function org_people_career(mysqli $db): array
                    END AS sec_on
             FROM duels d
             JOIN events e ON e.id = d.event_id
-            WHERE d.second1_id IS NOT NULL
+            WHERE d.second1_id IS NOT NULL' . ($ex > 0 ? ' AND d.event_id <> ' . $ex : '') . '
             UNION ALL
             SELECT d.second2_id AS pid,
                    CASE
@@ -425,7 +428,7 @@ function org_people_career(mysqli $db): array
                    END AS sec_on
             FROM duels d
             JOIN events e ON e.id = d.event_id
-            WHERE d.second2_id IS NOT NULL
+            WHERE d.second2_id IS NOT NULL' . ($ex > 0 ? ' AND d.event_id <> ' . $ex : '') . '
          ) t
          WHERE pid IS NOT NULL
          GROUP BY pid'
@@ -2002,7 +2005,7 @@ function portal_echo_org_events(mysqli $db, string $flash, string $error): void
     $people = org_people_map($db);
     $duels = $selected ? org_event_duels($db, (int)$selected['id']) : [];
     $regs = ($selected && org_event_is_planned($selected)) ? org_event_regs($db, (int)$selected['id']) : [];
-    $career = ($selected && org_event_is_planned($selected)) ? org_people_career($db) : [];
+    $career = ($selected && org_event_is_planned($selected)) ? org_people_career($db, (int)$selected['id']) : [];
     $metrics = $career ? org_event_metrics($db, $duels, $career) : null;
     $onlinePlan = $selected && ($selected['event_type'] ?? '') === 'онлайн';
     $attract = ($career && !$onlinePlan) ? org_attract($db, $career, $duels, $regs) : [];
