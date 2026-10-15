@@ -41,7 +41,7 @@ $loginNext = $regSelf !== '' ? $regSelf : ($eventId > 0 ? 'register.php?event=' 
 
 $meId = current_person_id();
 $me = $meId ? load_person($db, $meId) : null;
-if ($meId && !$me) {
+if ($meId && (!$me || (int)$me['is_active'] !== 1)) {
     unset($_SESSION['person_id']);
     clear_org_mode();
     clear_person_cookie();
