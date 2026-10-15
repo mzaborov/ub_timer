@@ -396,22 +396,32 @@ body.page-org-events .card {
   margin: 0 0 0.18rem;
   font-size: 0.92rem;
 }
-.org-badges {
+.org-metrics-note { font-weight: 400; font-size: 0.78rem; color: var(--muted); }
+.org-funnel {
   display: flex;
-  flex-wrap: nowrap;
-  gap: 0.22rem;
+  flex-wrap: wrap;
+  gap: 0.1rem 0.6rem;
+  font-size: 0.8rem;
+  color: var(--muted);
 }
-.org-metric {
+.org-funnel-i { white-space: nowrap; }
+.org-funnel-i b { color: var(--orange); font-size: 0.98rem; }
+.org-regs-total { font-weight: 400; font-size: 0.82rem; color: var(--muted); }
+.org-reg-roles {
+  display: flex;
+  gap: 0.35rem;
+  margin: 0.25rem 0 0.5rem;
+}
+.org-reg-role {
   flex: 1 1 0;
   min-width: 0;
   background: var(--org-soft, #e0f2f1);
-  border-radius: 6px;
-  padding: 0.12rem 0.2rem;
-  font-size: 0.68rem;
-  line-height: 1.2;
+  border-radius: 8px;
+  padding: 0.3rem 0.2rem;
   text-align: center;
 }
-.org-metric b { display: block; font-size: 0.95rem; color: var(--orange); }
+.org-reg-role b { display: block; font-size: 1.5rem; line-height: 1.05; color: var(--orange); }
+.org-reg-role span { font-size: 0.7rem; color: var(--muted); }
 .org-shift { margin: 0.28rem 0 0; padding-left: 1rem; font-size: 0.76rem; }
 .org-regs-scroll {
   max-width: 100%;

@@ -2490,12 +2490,13 @@ function org_gg_review_cell(array $d, array $ev): string
 function org_echo_metrics(array $metrics): void
 {
     echo '<section class="card org-metrics">';
-    echo '<h2 title="ЧС и тип A в базе нет — считаем по всем на сетке.">Оценка</h2>';
-    echo '<div class="org-badges">';
-    echo '<span class="org-metric" title="1-я игра"><b>' . (int)$metrics['first'] . '</b> 1-я</span>';
-    echo '<span class="org-metric" title="2-я игра"><b>' . (int)$metrics['second'] . '</b> 2-я</span>';
-    echo '<span class="org-metric" title="3-я игра"><b>' . (int)$metrics['third'] . '</b> 3-я</span>';
-    echo '<span class="org-metric" title="После встречи без цели стрима"><b>'
+    echo '<h2>Оценка <span class="org-metrics-note" '
+        . 'title="ЧС и тип A в базе нет — считаем по всем на сетке.">по воронке</span></h2>';
+    echo '<div class="org-funnel">';
+    echo '<span class="org-funnel-i" title="1-я игра"><b>' . (int)$metrics['first'] . '</b> 1-я</span>';
+    echo '<span class="org-funnel-i" title="2-я игра"><b>' . (int)$metrics['second'] . '</b> 2-я</span>';
+    echo '<span class="org-funnel-i" title="3-я игра"><b>' . (int)$metrics['third'] . '</b> 3-я</span>';
+    echo '<span class="org-funnel-i" title="После встречи без цели стрима"><b>'
         . (int)$metrics['still_short'] . '</b> без цели</span>';
     echo '</div>';
     if ($metrics['shift']) {
@@ -2651,8 +2652,15 @@ function org_echo_plan_side(array $ev, array $regs, array $career = []): void
             $nSecond++;
         }
     }
-    echo '<h2 title="игра: ' . $nPlay . ', судья: ' . $nJudge . ', секунд: ' . $nSecond . '">Заявки · '
-        . $regTotal . '</h2>';
+    echo '<h2>Заявки <span class="org-regs-total">всего ' . $regTotal . '</span></h2>';
+    if ($regs) {
+        echo '<div class="org-reg-roles">';
+        echo '<div class="org-reg-role" title="Хотят играть"><b>' . $nPlay . '</b><span>играть</span></div>';
+        echo '<div class="org-reg-role" title="Хотят судить"><b>' . $nJudge . '</b><span>судить</span></div>';
+        echo '<div class="org-reg-role" title="Хотят секундировать"><b>' . $nSecond
+            . '</b><span>секунд.</span></div>';
+        echo '</div>';
+    }
     if (!$regs) {
         echo '<p class="muted">Пока никого. Это не слоты сетки — сюда собираем желающих.</p>';
     } else {
