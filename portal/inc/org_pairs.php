@@ -31,18 +31,22 @@ function org_pairs_priority_key(array $p, string $today): float
         if ($notPlay) {
             $key += 100.0;
         }
-        return $key;
+    } else {
+        // Группа B: давно не игравшие — раньше.
+        $last = (string)($p['last_played'] ?? '');
+        $days = org_pairs_days_between($last, $today);
+        $key = 1000.0 - ($days === null ? 0 : min($days, 5000));
+        if ($wantsJudge) {
+            $key += 0.25;
+        }
+        if ($notPlay) {
+            $key += 100.0;
+        }
     }
 
-    // Группа B: давно не игравшие — раньше.
-    $last = (string)($p['last_played'] ?? '');
-    $days = org_pairs_days_between($last, $today);
-    $key = 1000.0 - ($days === null ? 0 : min($days, 5000));
-    if ($wantsJudge) {
-        $key += 0.25;
-    }
-    if ($notPlay) {
-        $key += 100.0;
+    // Группа C: организаторы круга стрима — в самом конце, после A и B.
+    if (!empty($p['is_org'])) {
+        $key += 10000.0;
     }
     return $key;
 }
@@ -423,6 +427,11 @@ function org_gen_pairs(mysqli $db): array
     $recent = org_pairs_recent_opponents($db);
     $today = function_exists('portal_today_iso') ? portal_today_iso() : date('Y-m-d');
 
+    // Организаторы круга стрима — группа C: в сетку попадают в самом конце.
+    $orgIds = function_exists('org_stream_involvement_ids')
+        ? org_stream_involvement_ids($db, 'Организатор')
+        : [];
+
     $players = [];
     foreach ($regs as $r) {
         // Жёстко — только пометка орга «не играть»; желание играть судить/секундировать
@@ -446,6 +455,7 @@ function org_gen_pairs(mysqli $db): array
             'pref' => (string)($r['duel_type_pref'] ?? ''),
             'wants_play' => !empty($r['play']),
             'wants_judge' => !empty($r['judge']),
+            'is_org' => isset($orgIds[$pid]),
             'banned' => org_pairs_parse_banned((string)($r['org_banned_types'] ?? '')),
             'last_played' => (string)($c['last_played'] ?? ''),
             'recent' => $recent[$pid] ?? [],
