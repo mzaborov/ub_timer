@@ -495,7 +495,7 @@ function org_funnel_stage(array $c): string
  * впервые посудят / впервые сыграют / достигнут цели стрима (3 игры) / станут наставниками.
  * Считаем по всем участникам сетки: игроки, секунданты (парный) и судьи.
  */
-function org_event_metrics(mysqli $db, array $duels, array $career): array
+function org_event_metrics(mysqli $db, array $duels, array $career, array $regs = []): array
 {
     $players = [];
     $seconds = [];
@@ -527,10 +527,28 @@ function org_event_metrics(mysqli $db, array $duels, array $career): array
         }
     }
 
-    $nameOf = static function (int $pid) use ($career, $judgeNames): string {
+    $onGrid = count($players + $seconds + $judges);
+
+    // Кандидаты в судьи: назначенные на сетке + заявившиеся на событие (заявки).
+    $regNames = [];
+    foreach ($regs as $r) {
+        $pid = (int)($r['id'] ?? 0);
+        if ($pid <= 0) {
+            continue;
+        }
+        if (!empty($r['judge'])) {
+            $judges[$pid] = true;
+            $regNames[$pid] = trim((string)($r['name'] ?? ''));
+        }
+    }
+
+    $nameOf = static function (int $pid) use ($career, $judgeNames, $regNames): string {
         $n = trim((string)($career[$pid]['name'] ?? ''));
         if ($n === '') {
             $n = (string)($judgeNames[$pid] ?? '');
+        }
+        if ($n === '') {
+            $n = (string)($regNames[$pid] ?? '');
         }
         return $n;
     };
@@ -574,7 +592,7 @@ function org_event_metrics(mysqli $db, array $duels, array $career): array
     }
 
     return [
-        'on_grid' => count($players + $seconds + $judges),
+        'on_grid' => $onGrid,
         'judge_first' => count($judgeFirst),
         'play_first' => count($playFirst),
         'play_second' => count($playSecond),
@@ -2012,7 +2030,7 @@ function portal_echo_org_events(mysqli $db, string $flash, string $error): void
     $duels = $selected ? org_event_duels($db, (int)$selected['id']) : [];
     $regs = ($selected && org_event_is_planned($selected)) ? org_event_regs($db, (int)$selected['id']) : [];
     $career = ($selected && org_event_is_planned($selected)) ? org_people_career($db, (int)$selected['id']) : [];
-    $metrics = $career ? org_event_metrics($db, $duels, $career) : null;
+    $metrics = $career ? org_event_metrics($db, $duels, $career, $regs) : null;
     $onlinePlan = $selected && ($selected['event_type'] ?? '') === 'онлайн';
     $attract = ($career && !$onlinePlan) ? org_attract($db, $career, $duels, $regs) : [];
 
