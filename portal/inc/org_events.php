@@ -2073,6 +2073,8 @@ function portal_echo_org_events(mysqli $db, string $flash, string $error): void
     echo '</div>';
     if ($showRecs) {
         org_echo_plan_side($selected, $regs, $career);
+    } elseif ($isTraining && $selected && org_event_is_planned($selected)) {
+        org_echo_event_participants($selected, $regs);
     }
     echo '</div>';
     if ($selected && !org_event_is_planned($selected)) {
@@ -2844,6 +2846,63 @@ function org_echo_plan_side(array $ev, array $regs, array $career = []): void
     echo '</div></form>';
     echo '</section>';
     echo '</aside>';
+    foreach ($regs as $r) {
+        $rid = (int)($r['reg_id'] ?? 0);
+        if ($rid <= 0) {
+            continue;
+        }
+        echo '<form method="post" id="reg-del-' . $rid . '" class="org-hidden">';
+        portal_csrf_field();
+        echo '<input type="hidden" name="action" value="org_reg_remove">';
+        echo '<input type="hidden" name="event_id" value="' . $eid . '">';
+        echo '<input type="hidden" name="reg_id" value="' . $rid . '">';
+        echo '</form>';
+    }
+}
+
+/**
+ * Участники мероприятия типа «обучение». На обучении роли (играть/судить/
+ * секунд) и типы поединков не применяются — показываем только записавшихся,
+ * с возможностью добавить или убрать человека вручную.
+ */
+function org_echo_event_participants(array $ev, array $regs): void
+{
+    $eid = (int)$ev['id'];
+    echo '<section class="card org-regs-card" id="regs">';
+    echo '<h2>Участники <span class="org-regs-total">всего ' . count($regs) . '</span></h2>';
+    if (!$regs) {
+        echo '<p class="muted">Пока никто не записался.</p>';
+    } else {
+        echo '<div class="org-regs-scroll">';
+        echo '<table class="org-regs-table">';
+        echo '<thead><tr><th>Имя</th><th>Комм.</th><th></th></tr></thead>';
+        echo '<tbody>';
+        foreach ($regs as $r) {
+            $rid = (int)($r['reg_id'] ?? 0);
+            $comment = trim((string)($r['comment'] ?? ''));
+            echo '<tr>';
+            echo '<td class="org-reg-name"><strong>' . h($r['name']) . '</strong></td>';
+            echo '<td class="org-reg-comment"' . ($comment !== '' ? ' title="' . h($comment) . '"' : '') . '>'
+                . h($comment !== '' ? mb_strimwidth($comment, 0, 28, '…') : '—') . '</td>';
+            echo '<td class="org-reg-actions">';
+            if ($rid > 0) {
+                echo '<button type="submit" form="reg-del-' . $rid
+                    . '" class="btn-ghost org-reg-x" title="Убрать из списка">×</button>';
+            }
+            echo '</td>';
+            echo '</tr>';
+        }
+        echo '</tbody></table></div>';
+    }
+    echo '<form method="post" class="org-reg-add" id="org-reg-add-form">';
+    portal_csrf_field();
+    echo '<input type="hidden" name="action" value="org_reg_add">';
+    echo '<input type="hidden" name="event_id" value="' . $eid . '">';
+    echo '<div class="org-combo" data-combo="reg-add">';
+    echo '<input type="hidden" name="person_id" value="0">';
+    echo '<input type="text" class="org-cell-in" placeholder="добавить человека…" autocomplete="off">';
+    echo '</div></form>';
+    echo '</section>';
     foreach ($regs as $r) {
         $rid = (int)($r['reg_id'] ?? 0);
         if ($rid <= 0) {
