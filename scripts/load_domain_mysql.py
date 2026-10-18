@@ -321,7 +321,8 @@ ensure_table('outreach_campaigns', {php_str(OUTREACH_CAMPAIGNS_DDL)});
 ensure_table('outreach_items', {php_str(OUTREACH_ITEMS_DDL)});
 foreach (array(
     array('meeting_registrations', 'org_no_play', 'org_no_play TINYINT(1) NOT NULL DEFAULT 0'),
-    array('meeting_registrations', 'org_banned_types', 'org_banned_types VARCHAR(64) NULL')
+    array('meeting_registrations', 'org_banned_types', 'org_banned_types VARCHAR(64) NULL'),
+    array('duels', 'gen_locked', 'gen_locked TINYINT(1) NOT NULL DEFAULT 0')
 ) as $c) ensure_col($c[0], $c[1], $c[2]);
 ensure_table('person_elo', {php_str(PERSON_ELO_DDL)});
 echo "SCHEMA_OK\\n";
@@ -763,6 +764,7 @@ function run_additive_schema() {{
         array('duels', 'second2_id', 'second2_id INT NULL'),
         array('duels', 'referee_qty', 'referee_qty INT NULL'),
         array('duels', 'notes', 'notes TEXT NULL'),
+        array('duels', 'gen_locked', 'gen_locked TINYINT(1) NOT NULL DEFAULT 0'),
         array('duel_judges', 'person_id', 'person_id INT NULL'),
         array('duel_judges', 'college', 'college VARCHAR(64) NULL'),
         array('duel_judges', 'vote', 'vote VARCHAR(64) NULL'),

@@ -854,3 +854,11 @@ body.page-org-events .card {
   white-space: nowrap;
   cursor: help;
 }
+
+/* Зафиксированные орг-ом слоты: генерация их не меняет */
+.org-slots td.org-slot-lock { width: 3.4rem; text-align: center; }
+.org-slots td.org-slot-lock label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.org-slots td.org-slot-lock input { margin: 0; cursor: pointer; }
+.org-slots tr.org-slot-locked > td { background: rgba(34, 139, 34, 0.10); }
+.org-slots tr.org-slot-locked .org-slot-n { box-shadow: inset 3px 0 0 #2e8b57; }
+

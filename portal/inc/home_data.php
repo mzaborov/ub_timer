@@ -1214,6 +1214,7 @@ function portal_duels_by_event(mysqli $db, array $eventIds): array
     $r = $db->query(
         "SELECT d.id, d.event_id, d.sort_order, d.duel_date, d.duel_type, d.prep_mode,
                 d.situation_id, d.notes, d.player1_id, d.second1_id, d.player2_id, d.second2_id,
+                d.gen_locked,
                 s.code AS sit_code, s.num AS sit_num,
                 p1.full_name AS p1_name, s1.full_name AS s1_name,
                 p2.full_name AS p2_name, s2.full_name AS s2_name
@@ -1260,6 +1261,7 @@ function portal_duels_by_event(mysqli $db, array $eventIds): array
             's2' => $express ? '' : portal_name_or_empty($row['s2_name'] ?? null),
             'p2_id' => (int)($row['player2_id'] ?? 0),
             's2_id' => $express ? 0 : (int)($row['second2_id'] ?? 0),
+            'gen_locked' => (int)($row['gen_locked'] ?? 0) !== 0,
             'v1' => 0,
             'v2' => 0,
             'winner' => 0,
