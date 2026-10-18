@@ -1460,6 +1460,7 @@ function org_slots_save(mysqli $db): array
     $s1s = $_POST['s1'] ?? [];
     $p2s = $_POST['p2'] ?? [];
     $s2s = $_POST['s2'] ?? [];
+    $locks = $_POST['lock'] ?? [];
     if (!is_array($ids)) {
         return ['error' => 'Пустая сетка'];
     }
@@ -1471,7 +1472,7 @@ function org_slots_save(mysqli $db): array
         'UPDATE duels SET duel_date=?, duel_type=?, prep_mode=?, round_minutes=?,
                 situation_id=NULLIF(?, 0), notes=NULLIF(?, \'\'),
                 player1_id=NULLIF(?, 0), second1_id=NULLIF(?, 0),
-                player2_id=NULLIF(?, 0), second2_id=NULLIF(?, 0)
+                player2_id=NULLIF(?, 0), second2_id=NULLIF(?, 0), gen_locked=?
          WHERE id=? AND event_id=?'
     );
     $seconds = [];
@@ -1502,7 +1503,8 @@ function org_slots_save(mysqli $db): array
         if ($s2 > 0) {
             $seconds[$s2] = true;
         }
-        $st->bind_param('sssiisiiiiii', $date, $type, $prep, $mins, $sid, $notes, $p1, $s1, $p2, $s2, $did, $eid);
+        $lock = !empty($locks[$i]) ? 1 : 0;
+        $st->bind_param('sssiisiiiiiii', $date, $type, $prep, $mins, $sid, $notes, $p1, $s1, $p2, $s2, $lock, $did, $eid);
         $st->execute();
     }
     $st->close();
@@ -1535,17 +1537,26 @@ function org_slots_clear(mysqli $db): array
     if (!$ev || !org_event_is_planned($ev)) {
         return ['error' => 'Нельзя очистить сетку'];
     }
+    $locked = 0;
+    $lr = $db->prepare('SELECT COUNT(*) c FROM duels WHERE event_id=? AND gen_locked=1');
+    if ($lr) {
+        $lr->bind_param('i', $eid);
+        $lr->execute();
+        $locked = (int)(($lr->get_result()->fetch_assoc()['c'] ?? 0));
+        $lr->close();
+    }
     $st = $db->prepare(
         'UPDATE duels
          SET player1_id=NULL, player2_id=NULL, second1_id=NULL, second2_id=NULL
-         WHERE event_id=?'
+         WHERE event_id=? AND gen_locked=0'
     );
     $st->bind_param('i', $eid);
     $st->execute();
     $n = $st->affected_rows;
     $st->close();
 
-    $_SESSION['org_flash'] = 'Сетка очищена: ' . $n . ' слот(ов)';
+    $_SESSION['org_flash'] = 'Сетка очищена: ' . $n . ' слот(ов)'
+        . ($locked > 0 ? '. Зафиксировано (не тронуто): ' . $locked : '');
     return ['redirect' => org_event_url($eid) . '#slots'];
 }
 
@@ -2612,7 +2623,8 @@ function org_echo_slots_card(
     echo '<input type="hidden" name="event_id" value="' . $eid . '">';
     echo '<div class="org-slots-scroll"><table class="org-slots">';
     echo '<thead><tr><th>#</th><th>Дата</th><th>Тип</th><th>Ситуация</th>'
-        . '<th>Игрок 1</th><th>Секундант 1</th><th>Игрок 2</th><th>Секундант 2</th><th></th></tr></thead><tbody>';
+        . '<th>Игрок 1</th><th>Секундант 1</th><th>Игрок 2</th><th>Секундант 2</th>'
+        . '<th title="Зафиксировать слот: при генерации пар он не меняется">Фикс.</th><th></th></tr></thead><tbody>';
     foreach ($duels as $i => $d) {
         $did = (int)$d['id'];
         $rp1 = (int)($d['p1_id'] ?? 0);
@@ -2632,7 +2644,15 @@ function org_echo_slots_card(
             $repeatTip = 'Эта пара уже играла: ' . $n . ' ' . $word
                 . ($pairRec['last'] !== '' ? ', последний раз ' . $pairRec['last'] : '');
         }
-        echo '<tr' . ($pairRec ? ' class="org-slot-repeat"' : '') . '>';
+        $isLocked = !empty($d['gen_locked']);
+        $rowClass = [];
+        if ($pairRec) {
+            $rowClass[] = 'org-slot-repeat';
+        }
+        if ($isLocked) {
+            $rowClass[] = 'org-slot-locked';
+        }
+        echo '<tr' . ($rowClass ? ' class="' . implode(' ', $rowClass) . '"' : '') . '>';
         echo '<td class="org-slot-n">' . ($i + 1) . '<input type="hidden" name="duel_id[]" value="' . $did . '"></td>';
         echo '<td><input type="date" class="org-cell-in" name="duel_date[]" value="'
             . h((string)($d['date'] ?? $ev['starts_on'] ?? '')) . '"></td>';
@@ -2654,6 +2674,10 @@ function org_echo_slots_card(
         org_echo_combo('p2[]', (int)($d['p2_id'] ?? 0), (string)($d['p2'] ?? ''), 'person');
         echo '</td><td>';
         org_echo_combo('s2[]', (int)($d['s2_id'] ?? 0), (string)($d['s2'] ?? ''), 'person');
+        echo '</td><td class="org-slot-lock">';
+        echo '<label title="Зафиксировать пару: генерация не изменит этот слот">'
+            . '<input type="checkbox" name="lock[' . $i . ']" value="1"'
+            . ($isLocked ? ' checked' : '') . '></label>';
         echo '</td><td class="org-slot-x">';
         echo '<button type="submit" form="slot-del-' . $did . '" class="btn-ghost">×</button>';
         echo '</td></tr>';
@@ -2679,7 +2703,7 @@ function org_echo_slots_card(
     portal_csrf_field();
     echo '<input type="hidden" name="action" value="org_slots_clear">';
     echo '<input type="hidden" name="event_id" value="' . $eid . '">';
-    echo '<button type="submit" title="Снять всех игроков и секундантов со всех слотов (типы и судьи остаются)">'
+    echo '<button type="submit" title="Снять игроков и секундантов со всех незафиксированных слотов (типы, судьи и зафиксированные пары остаются)">'
         . 'Очистить сетку</button>';
     echo '</form>';
     echo '</div>';

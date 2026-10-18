@@ -164,6 +164,11 @@ function org_pairs_assign(array $slots, array $players, array $opts = []): array
 
     $assign = [];
     $gamesInGen = [];
+    // Предзанятость: игроки, уже закреплённые в зафиксированных орг-ом слотах,
+    // тратят свою квоту на игру, поэтому в других слотах идут только «сверх» неё.
+    foreach (($opts['preused'] ?? []) as $ppid => $pn) {
+        $gamesInGen[(int)$ppid] = (int)$pn;
+    }
 
     for ($limit = 1; $limit <= $maxGames; $limit++) {
         foreach ($slots as $slot) {
@@ -406,25 +411,44 @@ function org_gen_pairs(mysqli $db): array
     $judged = org_pairs_judged_duel_ids($db, $eid);
     $slots = [];
     $avoid = [];
+    $preused = [];
+    $locked = 0;
     foreach ($duels as $d) {
         $type = (string)($d['type'] ?? '');
         if ($type !== 'классика' && $type !== 'экспресс') {
             continue;
         }
         $did = (int)$d['id'];
+        $p1 = (int)($d['p1_id'] ?? 0);
+        $p2 = (int)($d['p2_id'] ?? 0);
+        // Зафиксированный орг-ом слот: пару не трогаем (даже без судей), но её
+        // состав учитываем как avoid, чтобы та же пара не всплыла в другом слоте.
+        if (!empty($d['gen_locked'])) {
+            $locked++;
+            foreach ([$p1, $p2] as $pp) {
+                if ($pp > 0) {
+                    $preused[$pp] = ($preused[$pp] ?? 0) + 1;
+                }
+            }
+            if ($p1 > 0 && $p2 > 0) {
+                $avoid[$p1 . '|' . $p2] = true;
+                $avoid[$p2 . '|' . $p1] = true;
+            }
+            continue;
+        }
         if (isset($judged[$did])) {
             continue;
         }
         $slots[] = ['id' => $did, 'type' => $type];
-        $p1 = (int)($d['p1_id'] ?? 0);
-        $p2 = (int)($d['p2_id'] ?? 0);
         if ($p1 > 0 && $p2 > 0) {
             $avoid[$p1 . '|' . $p2] = true;
             $avoid[$p2 . '|' . $p1] = true;
         }
     }
     if (!$slots) {
-        return ['error' => 'Нет слотов классика/экспресс без судей'];
+        return ['error' => $locked > 0
+            ? 'Нет свободных слотов классика/экспресс (все заняты судьями или зафиксированы)'
+            : 'Нет слотов классика/экспресс без судей'];
     }
 
     $regs = org_event_regs($db, $eid);
@@ -476,7 +500,11 @@ function org_gen_pairs(mysqli $db): array
         return ['error' => 'Нет заявок на игру'];
     }
 
-    $assign = org_pairs_assign($slots, $players, ['today' => $today, 'avoid_pairs' => $avoid]);
+    $assign = org_pairs_assign($slots, $players, [
+        'today' => $today,
+        'avoid_pairs' => $avoid,
+        'preused' => $preused,
+    ]);
     if (!$assign) {
         return ['error' => 'Не удалось собрать пары'];
     }
@@ -494,6 +522,7 @@ function org_gen_pairs(mysqli $db): array
     }
     $st->close();
 
-    $_SESSION['org_flash'] = 'Пары сгенерированы: ' . $n . ' слотов из ' . count($slots);
+    $_SESSION['org_flash'] = 'Пары сгенерированы: ' . $n . ' слотов из ' . count($slots)
+        . ($locked > 0 ? ' (зафиксировано пропущено: ' . $locked . ')' : '');
     return ['redirect' => org_event_url($eid) . '#slots'];
 }
