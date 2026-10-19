@@ -601,4 +601,22 @@
     });
   }
   bindSlotsClear();
+
+  function bindRegConfirms() {
+    var form = document.getElementById('org-reg-confirm-form');
+    if (!form) {
+      return;
+    }
+    var pidField = form.querySelector('input[name="person_id"]');
+    var valField = form.querySelector('input[name="confirmed"]');
+    var boxes = document.querySelectorAll('.org-confirm-box');
+    for (var i = 0; i < boxes.length; i++) {
+      boxes[i].addEventListener('change', function () {
+        pidField.value = this.getAttribute('data-pid');
+        valField.value = this.checked ? '1' : '0';
+        form.submit();
+      });
+    }
+  }
+  bindRegConfirms();
 })();

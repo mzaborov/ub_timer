@@ -241,7 +241,7 @@ function org_event_regs(mysqli $db, int $eventId): array
 {
     $st = $db->prepare(
         'SELECT id, person_id, full_name, telegram, wants_play, wants_judge, wants_second, duel_type_pref, comment,
-                org_no_play, org_banned_types
+                org_no_play, org_banned_types, org_confirmed
          FROM meeting_registrations
          WHERE event_id = ?
          ORDER BY full_name, id'
@@ -263,6 +263,7 @@ function org_event_regs(mysqli $db, int $eventId): array
             'comment' => (string)($row['comment'] ?? ''),
             'org_no_play' => (int)($row['org_no_play'] ?? 0) === 1,
             'org_banned_types' => (string)($row['org_banned_types'] ?? ''),
+            'confirmed' => (int)($row['org_confirmed'] ?? 0) === 1,
         ];
     }
     $st->close();
@@ -1208,6 +1209,9 @@ function org_events_handle_post(mysqli $db): array
     if ($action === 'org_reg_update') {
         return org_reg_update($db);
     }
+    if ($action === 'org_reg_confirm') {
+        return org_reg_confirm($db);
+    }
     if ($action === 'org_gen_pairs') {
         return org_gen_pairs($db);
     }
@@ -1793,6 +1797,39 @@ function org_reg_update(mysqli $db): array
     }
     $_SESSION['org_flash'] = 'Заявка обновлена';
     return ['redirect' => org_event_url($eid) . '#regs'];
+}
+
+/** Отметить/снять у человека в заявке мероприятия «подтвердил участие». */
+function org_reg_confirm(mysqli $db): array
+{
+    $eid = (int)($_POST['event_id'] ?? 0);
+    $pid = (int)($_POST['person_id'] ?? 0);
+    $ev = org_event_load($db, $eid);
+    if (!$ev || !org_event_is_planned($ev) || $pid <= 0) {
+        return ['error' => 'Нельзя отметить подтверждение'];
+    }
+    $val = !empty($_POST['confirmed']) ? 1 : 0;
+    $st = $db->prepare(
+        'UPDATE meeting_registrations SET org_confirmed=? WHERE event_id=? AND person_id=?'
+    );
+    $st->bind_param('iii', $val, $eid, $pid);
+    $st->execute();
+    $n = $st->affected_rows;
+    $st->close();
+    if ($n < 0) {
+        return ['error' => 'Заявка не найдена'];
+    }
+    $name = '';
+    $ns = $db->prepare('SELECT full_name FROM people WHERE id = ?');
+    if ($ns) {
+        $ns->bind_param('i', $pid);
+        $ns->execute();
+        $name = (string)(($ns->get_result()->fetch_assoc()['full_name'] ?? ''));
+        $ns->close();
+    }
+    $_SESSION['org_flash'] = ($val ? 'Подтвердил участие: ' : 'Снята отметка подтверждения: ')
+        . ($name !== '' ? $name : ('#' . $pid));
+    return ['redirect' => org_event_url($eid) . '#slots'];
 }
 
 /** Добавить заявку мероприятия человеку (напр. выбранному секунданту не из заявок). */
@@ -2578,6 +2615,36 @@ function org_echo_slots_card(
     }
     $sits = $db ? org_situations_list($db) : [];
     $pairHist = $db ? org_pairs_pair_history($db, $eid) : [];
+    // «Подтвердил участие»: карта по person_id + сводка по игрокам сетки.
+    $confirmed = [];
+    foreach ($regs as $r) {
+        $cpid = (int)($r['id'] ?? 0);
+        if ($cpid > 0 && !empty($r['confirmed'])) {
+            $confirmed[$cpid] = true;
+        }
+    }
+    $gridPids = [];
+    foreach ($duels as $d) {
+        foreach ([(int)($d['p1_id'] ?? 0), (int)($d['p2_id'] ?? 0)] as $gpid) {
+            if ($gpid > 0) {
+                $gridPids[$gpid] = true;
+            }
+        }
+    }
+    $gridTotal = count($gridPids);
+    $gridOk = 0;
+    foreach (array_keys($gridPids) as $gpid) {
+        if (isset($confirmed[$gpid])) {
+            $gridOk++;
+        }
+    }
+    $confirmBox = static function (int $pid) use ($confirmed): string {
+        if ($pid <= 0) {
+            return '';
+        }
+        return '<label class="org-confirm" title="Отметить, что человек подтвердил участие"><input type="checkbox" class="org-confirm-box" data-pid="'
+            . $pid . '"' . (isset($confirmed[$pid]) ? ' checked' : '') . '>подтв.</label>';
+    };
     $peopleJs = [];
     foreach ($people as $pid => $fio) {
         $peopleJs[] = [
@@ -2594,7 +2661,12 @@ function org_echo_slots_card(
         . '</script>';
 
     echo '<section class="card org-slots-card" id="slots">';
-    echo '<h2>Слоты</h2>';
+    echo '<h2>Слоты'
+        . ($gridTotal > 0
+            ? ' <span class="org-slots-confirm-sum" title="Сколько игроков из сетки подтвердили участие">подтвердили '
+                . $gridOk . ' из ' . $gridTotal . '</span>'
+            : '')
+        . '</h2>';
     if ($metrics) {
         $namesTip = static function (array $names): string {
             return $names !== [] ? implode(', ', $names) : 'никого';
@@ -2668,10 +2740,12 @@ function org_echo_slots_card(
         if ($pairRec) {
             echo '<span class="org-repeat-badge" title="' . h($repeatTip) . '">повтор</span>';
         }
+        echo $confirmBox((int)($d['p1_id'] ?? 0));
         echo '</td><td>';
         org_echo_combo('s1[]', (int)($d['s1_id'] ?? 0), (string)($d['s1'] ?? ''), 'person');
         echo '</td><td>';
         org_echo_combo('p2[]', (int)($d['p2_id'] ?? 0), (string)($d['p2'] ?? ''), 'person');
+        echo $confirmBox((int)($d['p2_id'] ?? 0));
         echo '</td><td>';
         org_echo_combo('s2[]', (int)($d['s2_id'] ?? 0), (string)($d['s2'] ?? ''), 'person');
         echo '</td><td class="org-slot-lock">';
@@ -2707,6 +2781,13 @@ function org_echo_slots_card(
         . 'Очистить сетку</button>';
     echo '</form>';
     echo '</div>';
+    echo '<form method="post" id="org-reg-confirm-form" class="org-hidden">';
+    portal_csrf_field();
+    echo '<input type="hidden" name="action" value="org_reg_confirm">';
+    echo '<input type="hidden" name="event_id" value="' . $eid . '">';
+    echo '<input type="hidden" name="person_id" value="">';
+    echo '<input type="hidden" name="confirmed" value="">';
+    echo '</form>';
     foreach ($duels as $d) {
         $did = (int)$d['id'];
         echo '<form method="post" id="slot-del-' . $did . '" class="org-hidden">';

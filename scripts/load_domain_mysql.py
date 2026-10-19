@@ -322,6 +322,7 @@ ensure_table('outreach_items', {php_str(OUTREACH_ITEMS_DDL)});
 foreach (array(
     array('meeting_registrations', 'org_no_play', 'org_no_play TINYINT(1) NOT NULL DEFAULT 0'),
     array('meeting_registrations', 'org_banned_types', 'org_banned_types VARCHAR(64) NULL'),
+    array('meeting_registrations', 'org_confirmed', 'org_confirmed TINYINT(1) NOT NULL DEFAULT 0'),
     array('duels', 'gen_locked', 'gen_locked TINYINT(1) NOT NULL DEFAULT 0')
 ) as $c) ensure_col($c[0], $c[1], $c[2]);
 ensure_table('person_elo', {php_str(PERSON_ELO_DDL)});
@@ -756,6 +757,7 @@ function run_additive_schema() {{
         array('meeting_registrations', 'source', 'source VARCHAR(64) NULL'),
         array('meeting_registrations', 'org_no_play', 'org_no_play TINYINT(1) NOT NULL DEFAULT 0'),
         array('meeting_registrations', 'org_banned_types', 'org_banned_types VARCHAR(64) NULL'),
+        array('meeting_registrations', 'org_confirmed', 'org_confirmed TINYINT(1) NOT NULL DEFAULT 0'),
         array('duels', 'duel_date', 'duel_date DATE NULL'),
         array('duels', 'situation_id', 'situation_id INT NULL'),
         array('duels', 'player1_id', 'player1_id INT NULL'),
