@@ -862,3 +862,28 @@ body.page-org-events .card {
 .org-slots tr.org-slot-locked > td { background: rgba(34, 139, 34, 0.10); }
 .org-slots tr.org-slot-locked .org-slot-n { box-shadow: inset 3px 0 0 #2e8b57; }
 
+/* Подтверждение участия: галочка у игрока + сводка в заголовке карточки */
+.org-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  font-size: 11px;
+  color: #2e8b57;
+  white-space: nowrap;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.org-confirm input { margin: 0; cursor: pointer; accent-color: #2e8b57; }
+.org-confirm input:checked + * { font-weight: 600; }
+.org-slots-confirm-sum {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: #2e8b57;
+  background: rgba(46, 139, 87, 0.12);
+  border-radius: 10px;
+  padding: 0.1rem 0.5rem;
+  margin-left: 0.5rem;
+  cursor: help;
+}
+
