@@ -2886,6 +2886,9 @@ function org_echo_plan_side(array $ev, array $regs, array $career = []): void
             if (!empty($r['org_no_play'])) {
                 echo ' <span class="org-reg-flag" title="Пометка орга: не играть">не играть</span>';
             }
+            if (!empty($r['confirmed'])) {
+                echo ' <span class="org-reg-flag org-reg-flag-ok" title="Подтвердил участие">подтв.</span>';
+            }
             $bannedView = org_pairs_parse_banned((string)($r['org_banned_types'] ?? ''));
             if ($bannedView) {
                 echo ' <span class="org-reg-flag" title="Пометка орга: запрещённые типы">⊘ ' . h(implode(', ', array_keys($bannedView))) . '</span>';
