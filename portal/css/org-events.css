@@ -835,6 +835,7 @@ body.page-org-events .card {
 }
 
 .org-reg-flag { display:inline-block; margin-left:6px; padding:0 6px; border-radius:8px; background:#f3e8ff; color:#6b21a8; font-size:11px; vertical-align:middle; }
+.org-reg-flag-ok { background: rgba(46, 139, 87, 0.15); color: #2e8b57; }
 .org-reg-edit-org { margin-top:4px; border-top:1px dashed #e5e7eb; padding-top:4px; }
 .org-reg-edit-org-label { color:#6b7280; font-size:12px; margin-right:6px; }
 
