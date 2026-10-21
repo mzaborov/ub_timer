@@ -60,6 +60,7 @@ function portal_dated_events(mysqli $db): array
             'end_time' => $row['ends_at'] ?? null,
             'status' => $row['status'],
             'zoom_url' => $row['zoom_url'] ?? null,
+            'is_test' => portal_event_is_test($row),
         ];
     }
     return $out;
@@ -91,6 +92,7 @@ function portal_next_events(mysqli $db, int $limit = 3): array
         if (portal_event_hidden_for_guest($row)) {
             continue;
         }
+        $row['is_test'] = portal_event_is_test($row);
         $out[] = portal_hydrate_event_times($row);
     }
     $st->close();
@@ -145,7 +147,7 @@ function portal_event_is_test(array $event): bool
 /** Орг-режим портала (сессия или cookie) — тестовые мероприятия видит только орг. */
 function portal_org_mode(): bool
 {
-    if (!empty($_SESSION['org'])) {
+    if (!empty($_SESSION['org']) || !empty($_SESSION['org_can'])) {
         return true;
     }
     return defined('COOKIE_ORG') && !empty($_COOKIE[COOKIE_ORG]);

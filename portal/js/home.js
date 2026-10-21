@@ -98,6 +98,7 @@
                         if (evs.some(function (e) { return isTournament(e.type); })) cls.push("tournament");
                         if (evs.some(function (e) { return e.type === "онлайн"; })) cls.push("online");
                         if (evs.some(function (e) { return isTraining(e.type); })) cls.push("training");
+                        if (evs.some(function (e) { return e.is_test; })) cls.push("test");
                         if (evs.some(function (e) { return isPlanned(e.status); })) cls.push("planned");
                         if (evs.every(function (e) { return isCancelled(e.status); })) cls.push("cancelled");
                         if (iso === selectedIso) cls.push("sel");
@@ -205,6 +206,7 @@
         var t = (ev.title || "").trim();
         var times = eventTimeRange(ev);
         if (times) t = t ? t + ", " + times : times;
+        if (ev.is_test) t = (t ? t + " " : "") + "[тест]";
         return t;
     }
 

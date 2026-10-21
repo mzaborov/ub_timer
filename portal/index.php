@@ -109,6 +109,7 @@ if (!$me && ($page === 'stats' || $page === 'rating')) {
 
 $roles = $meId ? stream_roles($db, $meId) : [];
 $canOrg = $me && can_enter_org($roles);
+$_SESSION['org_can'] = $canOrg ? 1 : 0;
 $orgOn = restore_org_session((bool)$canOrg);
 $roleLabel = org_role_label($roles);
 
@@ -406,7 +407,7 @@ if ($page !== 'org') {
             <li<?php echo $isReg ? ' class="next-item--reg"' : ''; ?>>
                 <div class="next-row">
                     <div class="next-info">
-                        <p class="next-title"><?php echo h(portal_event_title_with_time($ev)); ?></p>
+                        <p class="next-title"><?php echo h(portal_event_title_with_time($ev)); ?><?php if (!empty($ev['is_test'])) { ?> <span class="badge-test">тест</span><?php } ?></p>
                         <?php if ($meta !== '') { ?>
                         <p class="muted next-meta"><?php echo h($meta); ?></p>
                         <?php } ?>
