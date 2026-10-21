@@ -1,0 +1,5 @@
+# PHP2Shell mitigation (2026-10-21): CVE-2026-109618/109619
+# Временные меры до обновления PHP до 8.3.36+
+php_value session.upload_progress.enabled 0
+php_value max_input_vars 1000
+php_value max_input_nesting_level 50
