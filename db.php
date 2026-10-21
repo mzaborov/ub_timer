@@ -1,6 +1,6 @@
 <?php
 /**
- * Часы → БД: тонкий same-origin JSON-эндпоинт (PHP 5.2).
+ * Часы → БД: тонкий same-origin JSON-эндпоинт (PHP 5.2–8.x).
  *
  * Читает канон мероприятия из общей БД портала (u10190_ubtimer).
  * Без CORS и без ключа: часы и портал — соседние папки одного аккаунта Masterhost.
@@ -15,6 +15,17 @@ error_reporting(E_ALL);
 ini_set('display_errors', '0');
 header('Content-Type: application/json; charset=utf-8');
 header('X-Robots-Tag: noindex, nofollow');
+
+// PHP 8.x: mysql_* удалены — совместимость через mysqli (legacy-режим ошибок)
+mysqli_report(MYSQLI_REPORT_OFF);
+function mysql_connect($host, $user, $pass) { return mysqli_connect($host, $user, $pass); }
+function mysql_select_db($db, $link) { return mysqli_select_db($link, $db); }
+function mysql_query($sql, $link) { return mysqli_query($link, $sql); }
+function mysql_fetch_assoc($res) { return mysqli_fetch_assoc($res); }
+function mysql_fetch_row($res) { return mysqli_fetch_row($res); }
+function mysql_num_rows($res) { return mysqli_num_rows($res); }
+function mysql_real_escape_string($str, $link) { return mysqli_real_escape_string($link, $str); }
+function mysql_error($link) { return mysqli_error($link); }
 
 function dbj_out($arr) {
     echo json_encode($arr);
