@@ -18,6 +18,37 @@ function player_h(?string $s): string
     return htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+/** Формат файла по первым байтам: mkv (EBML), mp4 (ftyp), avi (RIFF). */
+function player_probe_ext(string $driveId): string
+{
+    $ch = curl_init('https://drive.usercontent.google.com/download?id=' . rawurlencode($driveId) . '&export=download&confirm=t');
+    curl_setopt_array($ch, [
+        CURLOPT_RANGE => '0-4095',
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS => 5,
+        CURLOPT_TIMEOUT => 10,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124 Safari/537.36',
+        CURLOPT_HTTPHEADER => ['Accept-Encoding: identity'],
+    ]);
+    $data = curl_exec($ch);
+    curl_close($ch);
+    if (!is_string($data) || strlen($data) < 12) {
+        return '';
+    }
+    if (strncmp($data, "\x1A\x45\xDF\xA3", 4) === 0) {
+        return 'mkv';
+    }
+    if (substr($data, 4, 4) === 'ftyp') {
+        return 'mp4';
+    }
+    if (substr($data, 0, 4) === 'RIFF') {
+        return 'avi';
+    }
+    return '';
+}
+
 try {
     $db = mysqli_connect($mysql_host, $mysql_user, $mysql_password, $mysql_database);
 } catch (Throwable $e) {
@@ -65,29 +96,7 @@ if ($ext === '') {
         $driveId = $m[1];
     }
     if ($driveId !== '') {
-        $ch = curl_init('https://drive.usercontent.google.com/download?id=' . rawurlencode($driveId) . '&export=download&confirm=t');
-        curl_setopt_array($ch, [
-            CURLOPT_NOBODY => true,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_TIMEOUT => 8,
-            CURLOPT_CONNECTTIMEOUT => 5,
-            CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124 Safari/537.36',
-            CURLOPT_HEADERFUNCTION => static function ($ch, string $line) use (&$ext): int {
-                if (stripos($line, 'content-type:') === 0) {
-                    $type = strtolower(trim(substr($line, 13)));
-                    if (strpos($type, 'matroska') !== false) {
-                        $ext = 'mkv';
-                    } elseif (strpos($type, 'mp4') !== false) {
-                        $ext = 'mp4';
-                    } elseif (strpos($type, 'webm') !== false) {
-                        $ext = 'webm';
-                    }
-                }
-                return strlen($line);
-            },
-        ]);
-        curl_exec($ch);
-        curl_close($ch);
+        $ext = player_probe_ext($driveId);
     }
 }
 $isMkv = $ext === 'mkv';
