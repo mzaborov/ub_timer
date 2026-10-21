@@ -45,6 +45,9 @@ function portal_dated_events(mysqli $db): array
     );
     $out = [];
     while ($row = $r->fetch_assoc()) {
+        if (portal_event_hidden_for_guest($row)) {
+            continue;
+        }
         $row = portal_hydrate_event_times($row);
         $out[] = [
             'id' => (int)$row['id'],
@@ -85,6 +88,9 @@ function portal_next_events(mysqli $db, int $limit = 3): array
     $res = $st->get_result();
     $out = [];
     while ($row = $res->fetch_assoc()) {
+        if (portal_event_hidden_for_guest($row)) {
+            continue;
+        }
         $out[] = portal_hydrate_event_times($row);
     }
     $st->close();
@@ -104,6 +110,9 @@ function portal_event_by_id(mysqli $db, int $id): ?array
     $st->execute();
     $row = $st->get_result()->fetch_assoc();
     $st->close();
+    if ($row && portal_event_hidden_for_guest($row)) {
+        return null;
+    }
     return $row ? portal_hydrate_event_times($row) : null;
 }
 
@@ -124,6 +133,28 @@ function portal_event_is_template(?array $event): bool
     }
     $slug = (string)($event['slug'] ?? '');
     return $slug !== '' && in_array($slug, portal_template_online10_slugs(), true);
+}
+
+/** Тестовое мероприятие («ТЕСТ БД …») — в публичных списках не показываем. */
+function portal_event_is_test(array $event): bool
+{
+    $title = ltrim((string)($event['title'] ?? ''));
+    return strncmp($title, 'ТЕСТ БД', 7) === 0;
+}
+
+/** Орг-режим портала (сессия или cookie) — тестовые мероприятия видит только орг. */
+function portal_org_mode(): bool
+{
+    if (!empty($_SESSION['org'])) {
+        return true;
+    }
+    return defined('COOKIE_ORG') && !empty($_COOKIE[COOKIE_ORG]);
+}
+
+/** Скрыть тестовое мероприятие от гостя. */
+function portal_event_hidden_for_guest(array $event): bool
+{
+    return portal_event_is_test($event) && !portal_org_mode();
 }
 
 function portal_today_iso(): string
