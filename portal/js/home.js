@@ -300,14 +300,69 @@
         return name.split(/\s+/)[0];
     }
 
+    function driveFileId(url) {
+        var m = String(url || "").match(/\/file\/d\/([A-Za-z0-9_-]{10,})/);
+        if (m) return m[1];
+        m = String(url || "").match(/[?&]id=([A-Za-z0-9_-]{10,})/);
+        return m ? m[1] : "";
+    }
+
+    function videoHref(url) {
+        var fid = driveFileId(url);
+        return fid ? "player.php?f=" + encodeURIComponent(fid) : url;
+    }
+
     function videoLink(url, extraClass, label) {
         url = String(url || "").trim();
         if (!/^https?:\/\//i.test(url)) return "";
         var cls = "video-link vid-pill" + (extraClass ? " " + extraClass : "");
         var text = label || "видео";
-        return '<a class="' + cls + '" href="' + esc(url) + '" target="_blank" rel="noopener">' +
+        return '<a class="' + cls + '" href="' + esc(videoHref(url)) + '" target="_blank" rel="noopener">' +
             '<svg class="ico" aria-hidden="true"><use href="#i-video"></use></svg> ' + esc(text) + "</a>";
     }
+
+    function closePlayerOverlay() {
+        var ov = document.getElementById("video-overlay");
+        if (!ov) return;
+        ov.classList.remove("open");
+        var frame = ov.querySelector("iframe");
+        if (frame) frame.src = "about:blank";
+        document.body.classList.remove("video-overlay-open");
+    }
+
+    function openPlayerOverlay(href) {
+        var ov = document.getElementById("video-overlay");
+        if (!ov) {
+            ov = document.createElement("div");
+            ov.id = "video-overlay";
+            ov.className = "video-overlay";
+            ov.innerHTML = '<div class="video-overlay-box">' +
+                '<button class="video-overlay-close" type="button" aria-label="Закрыть">&times;</button>' +
+                '<iframe class="video-overlay-frame" title="Видео" allow="autoplay; fullscreen" allowfullscreen></iframe>' +
+                "</div>";
+            document.body.appendChild(ov);
+            ov.addEventListener("click", function (e) {
+                if (e.target === ov || (e.target.classList && e.target.classList.contains("video-overlay-close"))) {
+                    closePlayerOverlay();
+                }
+            });
+            document.addEventListener("keydown", function (e) {
+                if (e.key === "Escape") closePlayerOverlay();
+            });
+        }
+        var frame = ov.querySelector("iframe");
+        if (frame) frame.src = href;
+        ov.classList.add("open");
+        document.body.classList.add("video-overlay-open");
+    }
+
+    document.addEventListener("click", function (e) {
+        var a = e.target && e.target.closest ? e.target.closest('a[href^="player.php"]') : null;
+        if (!a) return;
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        openPlayerOverlay(a.getAttribute("href"));
+    });
 
     function dayVideoUrl(ev) {
         var url = String((ev && ev.video) || "").trim();

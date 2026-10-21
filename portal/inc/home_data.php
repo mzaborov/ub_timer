@@ -813,8 +813,30 @@ function portal_video_link_html(?string $url, string $extraClass = '', string $l
         $cls .= ' ' . $extraClass;
     }
     $text = $label !== '' ? $label : 'видео';
-    return '<a class="' . $cls . '" href="' . h($url) . '" target="_blank" rel="noopener">'
+    return '<a class="' . $cls . '" href="' . h(portal_video_href($url)) . '" target="_blank" rel="noopener">'
         . '<svg class="ico" aria-hidden="true"><use href="#i-video"></use></svg> ' . h($text) . '</a>';
+}
+
+/** id файла на Google Drive из ссылки вида /file/d/<id>/… или ?id=<id>. */
+function portal_drive_file_id(string $url): string
+{
+    if (preg_match('#/file/d/([A-Za-z0-9_-]{10,})#', $url, $m)) {
+        return $m[1];
+    }
+    if (preg_match('#[?&]id=([A-Za-z0-9_-]{10,})#', $url, $m)) {
+        return $m[1];
+    }
+    return '';
+}
+
+/** Ссылка для клика: Drive-файлы открываются в плеере портала, остальные — как есть. */
+function portal_video_href(string $url): string
+{
+    $fid = portal_drive_file_id($url);
+    if ($fid !== '') {
+        return 'player.php?f=' . rawurlencode($fid);
+    }
+    return $url;
 }
 
 /** URL дня целиком, если он не совпадает ни с одним клипом поединка. */
