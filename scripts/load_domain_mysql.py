@@ -106,6 +106,7 @@ function mysql_fetch_row($res) {{ return mysqli_fetch_row($res); }}
 function mysql_num_rows($res) {{ return mysqli_num_rows($res); }}
 function mysql_real_escape_string($str, $link) {{ return mysqli_real_escape_string($link, $str); }}
 function mysql_error($link) {{ return mysqli_error($link); }}
+function mysql_insert_id() {{ return mysqli_insert_id($GLOBALS['link']); }}
 $link = mysql_connect($mysql_host, $mysql_user, $mysql_password);
 if (!$link) {{
     echo 'CONNECT ' . mysql_error() . "\\n";
