@@ -165,6 +165,14 @@ $download = $media . '&dl=1';
     }
     .note { max-width: 32rem; text-align: center; color: #b9c5cf; }
     .note p { margin: 0 0 1rem; }
+    .mkv-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.6rem;
+        max-width: 100%;
+    }
+    .note-line { margin: 0; color: #b9c5cf; font-size: 0.85rem; text-align: center; }
 </style>
 </head>
 <body>
@@ -176,9 +184,9 @@ $download = $media . '&dl=1';
 <?php if ($playable) { ?>
     <video controls playsinline preload="metadata" src="<?php echo player_h($media); ?>"></video>
 <?php } else { ?>
-    <div class="note">
-        <p>Браузер не воспроизводит этот формат (<?php echo player_h($ext !== '' ? $ext : 'файл'); ?>).</p>
-        <p>Скачайте файл и откройте в VLC или другом плеере.</p>
+    <div class="mkv-wrap">
+        <video controls playsinline preload="metadata" src="<?php echo player_h($media); ?>"></video>
+        <p class="note-line">Формат <?php echo player_h(strtoupper($ext)); ?>: если видео не запускается — нажмите «Скачать» и откройте файл в VLC.</p>
     </div>
 <?php } ?>
 </main>
