@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 set_time_limit(0);
 
-$cfg = dirname(__DIR__) . '/../db.inc.php';
+$cfg = __DIR__ . '/../db.inc.php';
 if (!is_file($cfg)) {
     http_response_code(500);
     header('Content-Type: text/plain; charset=utf-8');
