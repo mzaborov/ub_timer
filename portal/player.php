@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /** Страница просмотра видео: плеер через media.php + кнопка «Скачать». */
 
-$cfg = dirname(__DIR__) . '/../db.inc.php';
+$cfg = __DIR__ . '/../db.inc.php';
 if (!is_file($cfg)) {
     http_response_code(500);
     echo 'Нет конфигурации БД.';
