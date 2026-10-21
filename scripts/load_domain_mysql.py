@@ -96,6 +96,16 @@ if (!is_file($cfg)) {{
     exit;
 }}
 require $cfg;
+// PHP 8.x: mysql_* удалены — совместимость через mysqli (legacy-режим ошибок)
+mysqli_report(MYSQLI_REPORT_OFF);
+function mysql_connect($host, $user, $pass) {{ return mysqli_connect($host, $user, $pass); }}
+function mysql_select_db($db, $link) {{ return mysqli_select_db($link, $db); }}
+function mysql_query($sql, $link) {{ return mysqli_query($link, $sql); }}
+function mysql_fetch_assoc($res) {{ return mysqli_fetch_assoc($res); }}
+function mysql_fetch_row($res) {{ return mysqli_fetch_row($res); }}
+function mysql_num_rows($res) {{ return mysqli_num_rows($res); }}
+function mysql_real_escape_string($str, $link) {{ return mysqli_real_escape_string($link, $str); }}
+function mysql_error($link) {{ return mysqli_error($link); }}
 $link = mysql_connect($mysql_host, $mysql_user, $mysql_password);
 if (!$link) {{
     echo 'CONNECT ' . mysql_error() . "\\n";
