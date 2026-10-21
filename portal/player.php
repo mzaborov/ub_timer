@@ -56,6 +56,40 @@ if (!$row) {
 $videoId = (int)$row['id'];
 $title = trim((string)($row['title'] ?? '')) ?: 'Видео';
 $ext = strtolower(pathinfo($title, PATHINFO_EXTENSION));
+if ($ext === '') {
+    $url = (string)($row['url'] ?? '');
+    $driveId = '';
+    if (preg_match('#/file/d/([A-Za-z0-9_-]{10,})#', $url, $m)) {
+        $driveId = $m[1];
+    } elseif (preg_match('#[?&]id=([A-Za-z0-9_-]{10,})#', $url, $m)) {
+        $driveId = $m[1];
+    }
+    if ($driveId !== '') {
+        $ch = curl_init('https://drive.usercontent.google.com/download?id=' . rawurlencode($driveId) . '&export=download&confirm=t');
+        curl_setopt_array($ch, [
+            CURLOPT_NOBODY => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT => 8,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124 Safari/537.36',
+            CURLOPT_HEADERFUNCTION => static function ($ch, string $line) use (&$ext): int {
+                if (stripos($line, 'content-type:') === 0) {
+                    $type = strtolower(trim(substr($line, 13)));
+                    if (strpos($type, 'matroska') !== false) {
+                        $ext = 'mkv';
+                    } elseif (strpos($type, 'mp4') !== false) {
+                        $ext = 'mp4';
+                    } elseif (strpos($type, 'webm') !== false) {
+                        $ext = 'webm';
+                    }
+                }
+                return strlen($line);
+            },
+        ]);
+        curl_exec($ch);
+        curl_close($ch);
+    }
+}
 $isMkv = $ext === 'mkv';
 $playable = !$isMkv;
 
