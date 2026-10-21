@@ -118,6 +118,18 @@ if ($headCode >= 400 || $total === null || $total <= 0) {
 if (stripos($ctype, 'text/html') !== false) {
     media_fail(502, 'Drive вернул страницу вместо файла.');
 }
+if ($ctype === '' || stripos($ctype, 'application/octet-stream') !== false) {
+    $byExt = [
+        'mp4' => 'video/mp4',
+        'm4v' => 'video/mp4',
+        'webm' => 'video/webm',
+        'mov' => 'video/quicktime',
+        'mkv' => 'video/x-matroska',
+        'avi' => 'video/x-msvideo',
+    ];
+    $ext = strtolower(pathinfo($title, PATHINFO_EXTENSION));
+    $ctype = $byExt[$ext] ?? 'video/mp4';
+}
 
 /** Разбираем Range клиента (bytes=start-end), поддержан одиночный диапазон. */
 $start = 0;
