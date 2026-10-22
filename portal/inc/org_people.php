@@ -441,6 +441,17 @@ function org_people_handle_post(mysqli $db): array
     if ($action === 'org_person_delete') {
         return org_person_delete($db);
     }
+    if ($action === 'org_person_stats') {
+        $pid = (int)($_POST['person_id'] ?? 0);
+        if ($pid < 1) {
+            return ['error' => 'Не выбран человек'];
+        }
+        require_once __DIR__ . '/home_data.php';
+        return [
+            'stats' => portal_person_stats($db, $pid),
+            'no_payload' => true,
+        ];
+    }
     return ['error' => 'Неизвестное действие'];
 }
 

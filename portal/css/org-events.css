@@ -879,6 +879,28 @@ body.page-org-events .card {
 .org-slots tr.org-slot-repeat > td { background: #fff3d6; }
 .org-slots tr.org-slot-repeat .org-slot-n { box-shadow: inset 3px 0 0 #f0a500; }
 .org-slots tr.org-slot-repeat .org-cell-in { background-color: #fffaf0; }
+.org-slots-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: -0.2rem 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.org-slots-legend-dot {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 3px;
+  background: #fff3d6;
+  box-shadow: inset 3px 0 0 #f0a500;
+  flex: none;
+}
+.org-person-link {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
+}
+.org-person-link:hover { color: var(--orange); }
 .org-repeat-badge {
   display: inline-block;
   margin-left: 6px;

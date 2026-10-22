@@ -236,9 +236,13 @@ body.page-org-people main {
   row-gap: 0.55rem;
   align-items: start;
 }
+.org-circles-scroll {
+  overflow-x: auto;
+}
 .org-circles-table {
   width: 100%;
-  table-layout: fixed;
+  min-width: max-content;
+  table-layout: auto;
   border-collapse: collapse;
 }
 .org-circles-table th {
@@ -252,6 +256,44 @@ body.page-org-people main {
 .org-circles-table td {
   vertical-align: top;
   padding: 0 0.7rem 0 0;
+}
+.org-person-mystats {
+  margin-top: 0.9rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--line, #e4e4e4);
+}
+.org-person-mystats h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+}
+.org-person-mystats h4 {
+  margin: 0 0 0.25rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.org-person-mystats-body {
+  display: grid;
+  grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr);
+  column-gap: 1.4rem;
+  row-gap: 0.6rem;
+  align-items: start;
+}
+.org-person-mystats .rival {
+  cursor: pointer;
+}
+.org-person-mystats .rival:hover {
+  text-decoration: underline;
+}
+.org-person-mystats-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+@media (max-width: 760px) {
+  .org-person-mystats-body {
+    grid-template-columns: 1fr;
+  }
 }
 .org-person-funnel {
   margin: 0.45rem 0 0.5rem;

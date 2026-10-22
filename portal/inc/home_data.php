@@ -1632,7 +1632,8 @@ function portal_person_stats(mysqli $db, int $personId): ?array
          LEFT JOIN situations s ON s.id = d.situation_id
          LEFT JOIN people p1 ON p1.id = d.player1_id
          LEFT JOIN people p2 ON p2.id = d.player2_id
-         WHERE d.player1_id = ? OR d.player2_id = ? OR d.second1_id = ? OR d.second2_id = ?'
+         WHERE (d.player1_id = ? OR d.player2_id = ? OR d.second1_id = ? OR d.second2_id = ?)
+           AND COALESCE(e.title, \'\') NOT LIKE \'ТЕСТ БД%\''
     );
     $st->bind_param('iiii', $personId, $personId, $personId, $personId);
     $st->execute();
@@ -1787,7 +1788,8 @@ function portal_person_stats(mysqli $db, int $personId): ?array
          FROM duel_judges dj
          INNER JOIN duels d ON d.id = dj.duel_id
          LEFT JOIN events e ON e.id = d.event_id
-         WHERE dj.person_id = ?'
+         WHERE dj.person_id = ?
+           AND COALESCE(e.title, \'\') NOT LIKE \'ТЕСТ БД%\''
     );
     $st->bind_param('i', $personId);
     $st->execute();
@@ -1828,6 +1830,7 @@ function portal_person_stats(mysqli $db, int $personId): ?array
         "SELECT DISTINCT e.id, e.title, e.starts_on
          FROM events e
          WHERE e.event_type = 'турнир'
+           AND LTRIM(e.title) NOT LIKE 'ТЕСТ БД%'
            AND (
              EXISTS (
                SELECT 1 FROM duels d
