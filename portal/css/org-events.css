@@ -355,7 +355,15 @@ body.page-org-events .card {
   border-radius: 0;
 }
 .org-slots select { min-width: 6.2rem; }
-.org-combo { position: relative; min-width: 7.5rem; }
+.org-combo {
+  position: relative;
+  min-width: 7.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+.org-combo.is-editing { display: block; }
+.org-combo > input[type="text"] { flex: 1 1 auto; min-width: 0; }
 .org-suggest {
   position: absolute;
   z-index: 20;
@@ -951,14 +959,18 @@ body.page-org-events .card {
 /* Комбо в слотах: имя — ссылка, правка по dblclick или стрелке */
 .org-combo { position: relative; }
 .org-combo-view {
-  display: inline-block;
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
   max-width: 100%;
   padding: 0.15rem 0;
   color: inherit;
   text-decoration: none;
   border-bottom: 1px dotted currentColor;
   cursor: pointer;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .org-combo-view:hover { color: var(--orange); }
 .org-combo-arrow {
