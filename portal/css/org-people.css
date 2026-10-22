@@ -605,3 +605,95 @@ body.page-org-people main {
 }
 .org-suggest li:hover,
 .org-suggest li.is-on { background: var(--orange-soft); }
+
+/* Отдельная страница карточки человека */
+.org-person-back { margin: 0 0 0.5rem; font-size: 0.88rem; }
+.org-person-page-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.8rem;
+}
+.org-person-page-head h1 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+.org-person-page-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+.org-person-about,
+.org-person-statcard,
+.org-person-circles { padding: 1rem; }
+.org-person-circles { grid-column: 1 / -1; }
+.org-person-statgrid {
+  display: grid;
+  grid-template-columns: minmax(11rem, 16rem) minmax(0, 1fr);
+  gap: 1.2rem;
+  align-items: start;
+}
+.org-kpis { display: grid; gap: 0.15rem; font-size: 0.9rem; }
+.org-kpi { display: flex; justify-content: space-between; gap: 0.7rem; }
+.org-kpi span { color: var(--muted); }
+.org-kpi b { font-variant-numeric: tabular-nums; }
+.org-rivals-col h3 {
+  margin: 0 0 0.25rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.org-rivals { margin: 0.2rem 0 0; font-size: 0.85rem; line-height: 1.5; }
+.org-rivals .rival { cursor: pointer; }
+.org-rivals .rival--win { color: #2e7d32; }
+.org-rivals .rival--lose { color: var(--orange); }
+.org-rivals .rival--even { color: var(--muted); }
+.org-rivals .rival .n { opacity: 0.75; font-variant-numeric: tabular-nums; }
+.org-circle-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr);
+  gap: 0.8rem;
+  align-items: start;
+  padding: 0.55rem 0;
+  border-top: 1px solid var(--line, #e4e4e4);
+}
+.org-circle-row:first-of-type { border-top: none; }
+.org-circle-row-head { display: flex; gap: 0.4rem; align-items: baseline; }
+.org-person-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+.org-chip-form { margin: 0; }
+.org-chip-add-form { display: flex; gap: 0.3rem; align-items: center; }
+.org-chip-add-form input[type="text"] {
+  width: 9rem;
+  padding: 0.15rem 0.4rem;
+  border: 1px dashed var(--line, #bbb);
+  border-radius: 6px;
+}
+.org-secret { display: inline-block; }
+.org-secret summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
+.org-secret-body { margin-top: 0.25rem; display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.org-tip-box {
+  position: fixed;
+  z-index: 80;
+  max-width: 24rem;
+  padding: 0.5rem 0.6rem;
+  background: #fff;
+  border: 1px solid var(--line, #ddd);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+.org-tip-box p { margin: 0.15rem 0; }
+@media (max-width: 900px) {
+  .org-person-page-grid,
+  .org-person-statgrid,
+  .org-circle-row { grid-template-columns: 1fr; }
+}
+.org-rivals .rival a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
+}
+.org-rivals .rival a:hover { color: var(--orange); }

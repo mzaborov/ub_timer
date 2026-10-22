@@ -410,6 +410,78 @@
     list.hidden = true;
     wrap.appendChild(list);
     var skipApplied = kind === 'reg-add';
+    var view = wrap.querySelector('.org-combo-view');
+    var arrow = wrap.querySelector('.org-combo-arrow');
+    var editOrig = null;
+    if (view) {
+      input.hidden = true;
+    }
+
+    function beginEdit() {
+      if (!view) {
+        return;
+      }
+      editOrig = { id: hidden.value, label: input.value };
+      wrap.classList.add('is-editing');
+      input.hidden = false;
+      input.focus();
+      input.select();
+      shown();
+    }
+
+    function endEdit() {
+      if (!view) {
+        return;
+      }
+      wrap.classList.remove('is-editing');
+      input.hidden = true;
+    }
+
+    function syncView() {
+      if (!view) {
+        return;
+      }
+      var id = parseInt(hidden.value, 10) || 0;
+      if (id > 0) {
+        var found = people.find(function (x) {
+          return x.id === id;
+        });
+        view.textContent = found ? found.name : input.value;
+        view.setAttribute('href', '?p=org&s=people&person=' + id);
+      } else {
+        view.textContent = '—';
+        view.removeAttribute('href');
+      }
+    }
+
+    if (view) {
+      var viewClickTimer = null;
+      view.addEventListener('click', function (e) {
+        var href = view.getAttribute('href') || '';
+        e.preventDefault();
+        if (!href || viewClickTimer) {
+          return;
+        }
+        viewClickTimer = setTimeout(function () {
+          viewClickTimer = null;
+          window.open(href, '_blank', 'noopener');
+        }, 250);
+      });
+      view.addEventListener('dblclick', function (e) {
+        e.preventDefault();
+        if (viewClickTimer) {
+          clearTimeout(viewClickTimer);
+          viewClickTimer = null;
+        }
+        beginEdit();
+      });
+    }
+    if (arrow) {
+      arrow.addEventListener('click', function (e) {
+        e.preventDefault();
+        beginEdit();
+      });
+    }
 
     function items() {
       if (kind === 'sit') {
@@ -429,6 +501,10 @@
       hidden.value = String(it.id || 0);
       input.value = it.label || '';
       close();
+      if (view) {
+        syncView();
+        endEdit();
+      }
       if (kind === 'reg-add' && it.id) {
         var form = wrap.closest('form');
         if (form) {
@@ -454,6 +530,10 @@
           hidden.value = '0';
           input.value = '';
           close();
+          if (view) {
+            syncView();
+            endEdit();
+          }
         });
         list.appendChild(clr);
       }
@@ -489,6 +569,14 @@
     input.addEventListener('focus', shown);
     input.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') {
+        if (view) {
+          if (editOrig) {
+            hidden.value = editOrig.id;
+            input.value = editOrig.label;
+          }
+          syncView();
+          endEdit();
+        }
         close();
         return;
       }
@@ -532,6 +620,10 @@
           return x.id === id;
         });
         input.value = found ? found.label || found.name || '' : '';
+        if (view) {
+          syncView();
+          endEdit();
+        }
       }, 120);
     });
   }
