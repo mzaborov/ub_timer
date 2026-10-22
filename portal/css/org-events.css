@@ -972,4 +972,4 @@ body.page-org-events .card {
 .org-combo-arrow:hover { color: var(--orange); }
 .org-combo.is-editing .org-combo-view,
 .org-combo.is-editing .org-combo-arrow { display: none; }
-.org-combo-input[hidden] { display: none; }
+.org-combo-input[hidden] { display: none !important; }
