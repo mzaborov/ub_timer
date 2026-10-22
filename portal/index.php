@@ -134,6 +134,10 @@ if ($page === 'org' && $orgSection === 'people') {
             echo json_encode($res, JSON_UNESCAPED_UNICODE);
             exit;
         }
+        if (!empty($res['redirect'])) {
+            header('Location: ' . $res['redirect']);
+            exit;
+        }
         $orgPeopleError = (string)($res['error'] ?? '');
     }
 }
@@ -262,10 +266,10 @@ if ($page !== 'org') {
     <link rel="stylesheet" href="css/portal.css?v=85">
     <link rel="stylesheet" href="css/org.css?v=7">
     <?php if ($page === 'org' && $orgSection === 'events') { ?>
-    <link rel="stylesheet" href="css/org-events.css?v=47">
+    <link rel="stylesheet" href="css/org-events.css?v=48">
     <?php } ?>
     <?php if ($page === 'org' && $orgSection === 'people') { ?>
-    <link rel="stylesheet" href="css/org-people.css?v=23">
+    <link rel="stylesheet" href="css/org-people.css?v=24">
     <?php } ?>
     <?php if ($page === 'org' && $orgSection === 'situations') {
         if (!function_exists('org_sb_asset_ver')) {
@@ -603,10 +607,10 @@ if ($page !== 'org') {
 <?php } ?>
 <script src="js/menu.js?v=3"></script>
 <?php if ($page === 'org' && $orgSection === 'people') { ?>
-<script src="js/org-people.js?v=26"></script>
+<script src="js/org-people.js?v=27"></script>
 <?php } ?>
 <?php if ($page === 'org' && $orgSection === 'events') { ?>
-<script src="js/org-events.js?v=12"></script>
+<script src="js/org-events.js?v=13"></script>
 <?php } ?>
 <?php if ($page === 'org' && $orgSection === 'situations') {
     $sbVer = function_exists('org_sb_asset_ver') ? org_sb_asset_ver() : '106';

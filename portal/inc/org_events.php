@@ -2163,7 +2163,17 @@ function org_echo_combo(string $name, int $selected, string $label, string $kind
     echo '<div class="org-combo" data-combo="' . h($kind) . '">';
     echo '<input type="hidden" name="' . h($name) . '" value="' . (int)$selected . '">';
     $tn = $textName !== '' ? ' name="' . h($textName) . '"' : '';
-    echo '<input type="text" class="org-cell-in"' . $tn . ' value="' . h($label) . '" placeholder="—" autocomplete="off">';
+    if ($kind === 'person' && $selected > 0) {
+        echo '<a class="org-combo-view" href="'
+            . h(portal_org_url('people') . '&person=' . $selected)
+            . '" target="_blank" rel="noopener" title="Открыть карточку (двойной клик — изменить)">'
+            . h($label) . '</a>';
+        echo '<input type="text" class="org-cell-in org-combo-input"' . $tn . ' value="' . h($label)
+            . '" placeholder="—" autocomplete="off" hidden>';
+        echo '<button type="button" class="org-combo-arrow" aria-label="Выбрать" title="Выбрать">▾</button>';
+    } else {
+        echo '<input type="text" class="org-cell-in"' . $tn . ' value="' . h($label) . '" placeholder="—" autocomplete="off">';
+    }
     echo '</div>';
 }
 
@@ -3106,7 +3116,7 @@ function org_echo_plan_side(array $ev, array $regs, array $career = []): void
             if ($regPid > 0) {
                 echo '<strong><a class="org-person-link" href="'
                     . h(portal_org_url('people') . '&person=' . $regPid)
-                    . '" title="Открыть карточку человека">' . $regName . '</a></strong>';
+                    . '" target="_blank" rel="noopener" title="Открыть карточку человека">' . $regName . '</a></strong>';
             } else {
                 echo '<strong>' . $regName . '</strong>';
             }

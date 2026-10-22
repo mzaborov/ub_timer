@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/home_data.php';
+
 function org_people_payload(mysqli $db): array
 {
     $people = [];
@@ -24,8 +26,12 @@ function org_people_payload(mysqli $db): array
             'memberships' => [],
         ];
     }
+    $playedCond = portal_duel_played_sql('d', 'e');
     $r = $db->query(
-        'SELECT player1_id, player2_id, duel_type, second1_id, second2_id FROM duels'
+        "SELECT d.player1_id, d.player2_id, d.duel_type, d.second1_id, d.second2_id
+         FROM duels d JOIN events e ON e.id = d.event_id
+         WHERE COALESCE(e.title, '') NOT LIKE 'ТЕСТ БД%'
+           AND $playedCond"
     );
     while ($row = $r->fetch_assoc()) {
         foreach (['player1_id', 'player2_id'] as $k) {
@@ -52,8 +58,14 @@ function org_people_payload(mysqli $db): array
         }
     }
     $r = $db->query(
-        'SELECT person_id, COUNT(*) AS n FROM duel_judges
-         WHERE person_id IS NOT NULL GROUP BY person_id'
+        "SELECT dj.person_id, COUNT(*) AS n
+         FROM duel_judges dj
+         JOIN duels d ON d.id = dj.duel_id
+         JOIN events e ON e.id = d.event_id
+         WHERE dj.person_id IS NOT NULL
+           AND COALESCE(e.title, '') NOT LIKE 'ТЕСТ БД%'
+           AND $playedCond
+         GROUP BY dj.person_id"
     );
     while ($row = $r->fetch_assoc()) {
         $pid = (int)$row['person_id'];
@@ -552,7 +564,7 @@ function org_mem_add(mysqli $db): array
         return ['error' => 'Человек не найден'];
     }
     if (org_mem_exists($db, $cid, $pid, $inv)) {
-        return [];
+        return org_person_mem_redirect($pid);
     }
     $st = $db->prepare(
         'INSERT INTO circle_memberships (circle_id, person_id, involvement) VALUES (?, ?, ?)'
@@ -560,7 +572,15 @@ function org_mem_add(mysqli $db): array
     $st->bind_param('iis', $cid, $pid, $inv);
     $st->execute();
     $st->close();
-    return [];
+    return org_person_mem_redirect($pid);
+}
+
+function org_person_mem_redirect(int $pid): array
+{
+    if (empty($_POST['return_person'])) {
+        return [];
+    }
+    return ['redirect' => portal_org_url('people') . '&person=' . $pid];
 }
 
 function org_mem_remove(mysqli $db): array
@@ -578,7 +598,7 @@ function org_mem_remove(mysqli $db): array
     $st->bind_param('iis', $cid, $pid, $inv);
     $st->execute();
     $st->close();
-    return [];
+    return org_person_mem_redirect($pid);
 }
 
 function org_circle_rename(mysqli $db): array
@@ -695,14 +715,223 @@ function org_inv_rename(mysqli $db): array
     return [];
 }
 
+function org_person_page_data(mysqli $db, int $pid): ?array
+{
+    $st = $db->prepare(
+        'SELECT id, full_name, email, telegram, telegram_id, is_active, notes
+         FROM people WHERE id = ? LIMIT 1'
+    );
+    $st->bind_param('i', $pid);
+    $st->execute();
+    $row = $st->get_result()->fetch_assoc();
+    $st->close();
+    if (!$row) {
+        return null;
+    }
+    $payload = org_people_payload($db);
+    $person = null;
+    foreach ($payload['people'] as $p) {
+        if ((int)$p['id'] === $pid) {
+            $person = $p;
+            break;
+        }
+    }
+    if ($person === null) {
+        $person = [
+            'id' => $pid,
+            'name' => (string)$row['full_name'],
+            'email' => (string)($row['email'] ?? ''),
+            'telegram' => (string)($row['telegram'] ?? ''),
+            'telegram_id' => (int)($row['telegram_id'] ?? 0),
+            'active' => (int)$row['is_active'] === 1,
+            'notes' => (string)($row['notes'] ?? ''),
+            'games' => 0,
+            'judged' => 0,
+            'memberships' => [],
+        ];
+    }
+    return [
+        'person' => $person,
+        'circles' => $payload['circles'],
+        'stats' => portal_person_stats($db, $pid),
+    ];
+}
+
+function org_person_kpi(string $label, int $value, string $tip): string
+{
+    $html = '<div class="org-kpi"><span>' . h($label)
+        . ' <span class="tip-ico has-tip" role="button" tabindex="0" data-tip="' . h($tip) . '" aria-label="подробнее">i</span>'
+        . '</span><b>' . $value . '</b></div>';
+    return $html;
+}
+
+function org_person_page(mysqli $db, int $pid): void
+{
+    $data = org_person_page_data($db, $pid);
+    $back = portal_org_url('people');
+    if (!$data) {
+        echo '<section class="card org-person-page"><p class="muted">Человек не найден.</p>';
+        echo '<p><a href="' . h($back) . '">← К списку людей</a></p></section>';
+        return;
+    }
+    $p = $data['person'];
+    $stats = $data['stats'];
+    $circles = $data['circles'];
+    $memberships = $p['memberships'] ?? [];
+    $tgRaw = trim((string)($p['telegram'] ?? ''));
+    $tg = ltrim($tgRaw, '@');
+    $tgId = (int)($p['telegram_id'] ?? 0);
+
+    echo '<div class="org-person-page">';
+    echo '<p class="org-person-back"><a href="' . h($back) . '">← К списку людей</a></p>';
+    echo '<header class="org-person-page-head">';
+    echo '<h1>' . h((string)$p['name']) . '</h1>';
+    if (empty($p['active'])) {
+        echo '<span class="org-person-off">не активен</span>';
+    }
+    if (($p['funnelNow'] ?? '') !== '') {
+        echo '<span class="org-chip org-funnel-pill">Сейчас: ' . h((string)$p['funnelNow']) . '</span>';
+    }
+    echo '</header>';
+
+    echo '<div class="org-person-page-grid">';
+
+    echo '<section class="card org-person-about">';
+    echo '<h2>О человеке</h2>';
+    echo '<dl class="org-person-dl">';
+    if ((string)($p['email'] ?? '') !== '') {
+        echo '<dt>Email</dt><dd><a href="mailto:' . h((string)$p['email']) . '">' . h((string)$p['email']) . '</a></dd>';
+    }
+    if ($tg !== '' || $tgId > 0) {
+        echo '<dt>Telegram</dt><dd>';
+        echo '<details class="org-secret"><summary>Показать Telegram</summary><div class="org-secret-body">';
+        if ($tg !== '') {
+            echo '<a href="https://t.me/' . h($tg) . '" target="_blank" rel="noopener">@' . h($tg) . '</a>';
+        }
+        if ($tgId > 0) {
+            echo ($tg !== '' ? ' · ' : '') . 'ID: <a href="tg://user?id=' . $tgId . '">' . $tgId . '</a>';
+        }
+        echo '</div></details>';
+        echo '</dd>';
+    }
+    if ((string)($p['notes'] ?? '') !== '') {
+        echo '<dt>Заметки</dt><dd>' . nl2br(h((string)$p['notes'])) . '</dd>';
+    }
+    echo '<dt>Игр / судейств</dt><dd>' . (int)$p['games'] . ' / ' . (int)$p['judged'] . '</dd>';
+    echo '</dl>';
+    if (($p['funnelNext'] ?? '') !== '') {
+        echo '<p class="org-funnel-next">Куда развивать дальше: ' . h((string)$p['funnelNext']) . '</p>';
+    }
+    echo '</section>';
+
+    echo '<section class="card org-person-statcard">';
+    echo '<h2>Статистика</h2>';
+    if (!$stats) {
+        echo '<p class="muted">Нет данных.</p>';
+    } else {
+        echo '<div class="org-person-statgrid">';
+        echo '<div class="org-kpis">';
+        echo org_person_kpi('Играл', (int)$stats['played'], 'played');
+        echo org_person_kpi('Секундировал', (int)$stats['seconded'], 'seconded');
+        echo org_person_kpi('Судил', (int)$stats['judged'], 'judged');
+        echo org_person_kpi('Участие в турнирах', (int)$stats['tournaments'], 'tournaments');
+        echo org_person_kpi('Выиграл', (int)$stats['won'], 'won');
+        echo org_person_kpi('Проиграл', (int)$stats['lost'], 'lost');
+        echo '</div>';
+        echo '<div class="org-rivals-col">';
+        echo '<h3>С кем играл</h3>';
+        if (empty($stats['rivals'])) {
+            echo '<p class="muted">Пока нет сыгранных поединков.</p>';
+        } else {
+            echo '<p class="org-rivals">';
+            $parts = [];
+            foreach ($stats['rivals'] as $rv) {
+                $tone = (string)($rv['tone'] ?? 'even');
+                if ($tone !== 'win' && $tone !== 'lose') {
+                    $tone = 'even';
+                }
+                $s = '<span class="rival rival--' . $tone . '">'
+                    . '<a href="' . h(portal_org_url('people') . '&person=' . (int)$rv['id'])
+                    . '" target="_blank" rel="noopener">' . h((string)$rv['name']) . '</a>';
+                if ((int)$rv['n'] > 0) {
+                    $s .= ' <span class="n">(' . (int)$rv['n'] . ')</span>';
+                }
+                $s .= ' <span class="tip-ico has-tip" role="button" tabindex="0" data-tip="rival" data-rid="'
+                    . (int)$rv['id'] . '" aria-label="подробнее">i</span>';
+                $s .= '</span>';
+                $parts[] = $s;
+            }
+            echo implode(', ', $parts);
+            echo '</p>';
+        }
+        echo '</div></div>';
+        echo '<script type="application/json" id="org-person-tips-json">'
+            . json_encode($stats['tips'], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP)
+            . '</script>';
+    }
+    echo '</section>';
+
+    echo '<section class="card org-person-circles">';
+    echo '<h2>Круги</h2>';
+    if (!$circles) {
+        echo '<p class="muted">Кругов пока нет.</p>';
+    }
+    foreach ($circles as $c) {
+        $cid = (int)$c['id'];
+        echo '<div class="org-circle-row">';
+        echo '<div class="org-circle-row-head"><strong>' . h((string)$c['title']) . '</strong>';
+        echo '<span class="muted">' . (int)($c['members'] ?? 0) . '</span></div>';
+        echo '<div class="org-person-chips">';
+        $mine = array_filter($memberships, static function ($m) use ($cid) {
+            return (int)($m['circleId'] ?? 0) === $cid;
+        });
+        foreach ($mine as $m) {
+            echo '<form method="post" class="org-chip-form">';
+            portal_csrf_field();
+            echo '<input type="hidden" name="action" value="org_mem_remove">';
+            echo '<input type="hidden" name="person_id" value="' . $pid . '">';
+            echo '<input type="hidden" name="circle_id" value="' . $cid . '">';
+            echo '<input type="hidden" name="involvement" value="' . h((string)$m['involvement']) . '">';
+            echo '<input type="hidden" name="return_person" value="1">';
+            echo '<span class="org-chip">' . h((string)$m['involvement'])
+                . '<button type="submit" class="org-chip-x" title="Убрать">×</button></span>';
+            echo '</form>';
+        }
+        echo '<form method="post" class="org-chip-add-form">';
+        portal_csrf_field();
+        echo '<input type="hidden" name="action" value="org_mem_add">';
+        echo '<input type="hidden" name="person_id" value="' . $pid . '">';
+        echo '<input type="hidden" name="circle_id" value="' . $cid . '">';
+        echo '<input type="hidden" name="return_person" value="1">';
+        echo '<input type="text" name="involvement" list="org-inv-' . $cid
+            . '" placeholder="+ участие" autocomplete="off">';
+        echo '<datalist id="org-inv-' . $cid . '">';
+        foreach (array_keys($c['involvements'] ?? []) as $invOpt) {
+            echo '<option value="' . h((string)$invOpt) . '"></option>';
+        }
+        echo '</datalist>';
+        echo '<button type="submit" class="btn-ghost">Добавить</button>';
+        echo '</form>';
+        echo '</div></div>';
+    }
+    echo '</section>';
+
+    echo '</div></div>';
+}
+
 function portal_echo_org_people(mysqli $db): void
 {
+    $personId = (int)($_GET['person'] ?? 0);
+    if ($personId > 0) {
+        org_person_page($db, $personId);
+        return;
+    }
     $data = org_people_payload($db);
     echo '<nav class="org-people-tabs" aria-label="Виды раздела Люди">';
     echo '<button type="button" class="org-people-tab is-on" data-people-tab="list">Работа со списком</button>';
     echo '<button type="button" class="org-people-tab" data-people-tab="funnel">Воронка и цели</button>';
     echo '</nav>';
-    echo '<p class="muted org-people-hint" id="org-people-hint">Клик по узлу фильтрует список. Ctrl+клик — несколько узлов. Карандаш — переименовать, крестик — убрать участие.</p>';
+    echo '<p class="muted org-people-hint" id="org-people-hint">Клик по узлу фильтрует список. Ctrl+клик — несколько узлов. Клик по человеку откроет карточку в новой вкладке.</p>';
     echo '<p class="org-people-err" id="org-people-err" hidden></p>';
     echo '<div class="org-people" id="org-people-list-pane">';
     echo '<aside class="org-people-tree card" id="org-people-tree"></aside>';

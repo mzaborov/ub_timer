@@ -1595,6 +1595,16 @@ function portal_stats_tips_json(array $tips): string
 }
 
 /**
+ * Условие «поединок фактически сыгран»: событие проведено или есть голоса судей,
+ * дата не в будущем. Тестовые события исключаются отдельным условием.
+ */
+function portal_duel_played_sql(string $d = 'd', string $e = 'e'): string
+{
+    return "($e.status = 'Проведено' OR EXISTS (SELECT 1 FROM duel_judges djv WHERE djv.duel_id = $d.id AND djv.vote IS NOT NULL))"
+        . " AND COALESCE(NULLIF($d.duel_date, '0000-00-00'), $e.starts_on, CURDATE()) <= CURDATE()";
+}
+
+/**
  * Статистика залогиненного: игры (игрок1/2), секундант/2-й игрок,
  * судейство, победы/поражения по голосам 1/2 (ничья не считается),
  * уникальные соперники с числом встреч,
@@ -1621,8 +1631,9 @@ function portal_person_stats(mysqli $db, int $personId): ?array
     $asPlayer = [];
     $secondedItems = [];
 
+    $playedCond = portal_duel_played_sql('d', 'e');
     $st = $db->prepare(
-        'SELECT d.id, d.player1_id, d.second1_id, d.player2_id, d.second2_id,
+        "SELECT d.id, d.player1_id, d.second1_id, d.player2_id, d.second2_id,
                 d.duel_date, d.prep_mode, d.duel_type, d.notes,
                 e.title AS event_title, e.starts_on,
                 s.code AS sit_code, s.num AS sit_num,
@@ -1633,7 +1644,8 @@ function portal_person_stats(mysqli $db, int $personId): ?array
          LEFT JOIN people p1 ON p1.id = d.player1_id
          LEFT JOIN people p2 ON p2.id = d.player2_id
          WHERE (d.player1_id = ? OR d.player2_id = ? OR d.second1_id = ? OR d.second2_id = ?)
-           AND COALESCE(e.title, \'\') NOT LIKE \'ТЕСТ БД%\''
+           AND COALESCE(e.title, '') NOT LIKE 'ТЕСТ БД%'
+           AND $playedCond"
     );
     $st->bind_param('iiii', $personId, $personId, $personId, $personId);
     $st->execute();
@@ -1783,13 +1795,15 @@ function portal_person_stats(mysqli $db, int $personId): ?array
 
     $judged = 0;
     $judgedByEvent = [];
+    $judgedCond = portal_duel_played_sql('d', 'e');
     $st = $db->prepare(
-        'SELECT d.id, d.event_id, d.duel_date, e.title AS event_title, e.starts_on
+        "SELECT d.id, d.event_id, d.duel_date, e.title AS event_title, e.starts_on
          FROM duel_judges dj
          INNER JOIN duels d ON d.id = dj.duel_id
          LEFT JOIN events e ON e.id = d.event_id
          WHERE dj.person_id = ?
-           AND COALESCE(e.title, \'\') NOT LIKE \'ТЕСТ БД%\''
+           AND COALESCE(e.title, '') NOT LIKE 'ТЕСТ БД%'
+           AND $judgedCond"
     );
     $st->bind_param('i', $personId);
     $st->execute();
@@ -1826,6 +1840,7 @@ function portal_person_stats(mysqli $db, int $personId): ?array
     }
 
     $tournamentItems = [];
+    $tourCond = portal_duel_played_sql('d', 'e');
     $st = $db->prepare(
         "SELECT DISTINCT e.id, e.title, e.starts_on
          FROM events e
@@ -1837,11 +1852,13 @@ function portal_person_stats(mysqli $db, int $personId): ?array
                WHERE d.event_id = e.id
                  AND (d.player1_id = ? OR d.player2_id = ?
                       OR d.second1_id = ? OR d.second2_id = ?)
+                 AND $tourCond
              )
              OR EXISTS (
                SELECT 1 FROM duels d
                INNER JOIN duel_judges dj ON dj.duel_id = d.id
                WHERE d.event_id = e.id AND dj.person_id = ?
+                 AND $tourCond
              )
            )"
     );

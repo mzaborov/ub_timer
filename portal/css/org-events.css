@@ -947,3 +947,29 @@ body.page-org-events .card {
   cursor: help;
 }
 
+
+/* Комбо в слотах: имя — ссылка, правка по dblclick или стрелке */
+.org-combo { position: relative; }
+.org-combo-view {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0.15rem 0;
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.org-combo-view:hover { color: var(--orange); }
+.org-combo-arrow {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0 0.15rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.org-combo-arrow:hover { color: var(--orange); }
+.org-combo.is-editing .org-combo-view,
+.org-combo.is-editing .org-combo-arrow { display: none; }
+.org-combo-input[hidden] { display: none; }

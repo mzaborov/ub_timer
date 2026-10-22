@@ -10,6 +10,7 @@
   var newBtn = document.getElementById('org-people-new-btn');
   var errEl = document.getElementById('org-people-err');
   var csrfEl = document.getElementById('org-people-csrf');
+  attachPersonTips();
   if (!raw || !tree || !ul || !card || !csrfEl) {
     return;
   }
@@ -19,9 +20,6 @@
   var funnel = data.funnel || { stages: [], goals: [], note: '' };
   var selected = { all: true };
   var personId = 0;
-  var statsCache = {};
-  var statsBusy = {};
-  var statsFailed = {};
   var query = '';
   var draftInv = null;
   var newOpen = false;
@@ -836,263 +834,92 @@
     dl.appendChild(dd);
   }
 
-  function loadStats(pid) {
-    if (statsCache[pid] || statsBusy[pid] || statsFailed[pid]) {
-      return;
-    }
-    statsBusy[pid] = true;
-    var body = new URLSearchParams();
-    body.set('csrf', csrfEl.value);
-    body.set('ajax', '1');
-    body.set('action', 'org_person_stats');
-    body.set('person_id', String(pid));
-    fetch(window.location.pathname + window.location.search, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body,
-      credentials: 'same-origin',
-    })
-      .then(function (r) {
-        return r.json();
-      })
-      .then(function (res) {
-        statsBusy[pid] = false;
-        if (res && res.stats) {
-          statsCache[pid] = res.stats;
-          if (personId === pid) {
-            renderCard();
-          }
-        }
-      })
-      .catch(function () {
-        statsBusy[pid] = false;
-        statsFailed[pid] = true;
-        if (personId === pid) {
-          renderCard();
-        }
-      });
+  function personCardUrl(id) {
+    var u = new URL(window.location.href);
+    u.search = '?p=org&s=people&person=' + encodeURIComponent(id);
+    return u.pathname + u.search;
   }
 
-  function statsLine(label, value) {
-    var li = el('li');
-    li.appendChild(el('span', '', label));
-    li.appendChild(el('b', '', String(parseInt(value, 10) || 0)));
-    return li;
-  }
-
-  function renderPersonStats(p) {
-    var box = el('div', 'org-person-mystats');
-    box.appendChild(el('h3', '', 'Статистика'));
-    var st = statsCache[p.id];
-    if (!st) {
-      box.appendChild(
-        el(
-          'p',
-          'org-person-mystats-empty',
-          statsFailed[p.id] ? 'Статистика недоступна' : 'Загрузка статистики…'
-        )
-      );
-      loadStats(p.id);
-      return box;
-    }
-    var body = el('div', 'org-person-mystats-body');
-    var kpis = el('ul', 'stats-kpis');
-    kpis.appendChild(statsLine('Играл', st.played));
-    kpis.appendChild(statsLine('Секундировал', st.seconded));
-    kpis.appendChild(statsLine('Судил', st.judged));
-    kpis.appendChild(statsLine('Участие в турнирах', st.tournaments));
-    kpis.appendChild(statsLine('Выиграл', st.won));
-    kpis.appendChild(statsLine('Проиграл', st.lost));
-    body.appendChild(kpis);
-    var rivalsCol = el('div', 'stats-rivals-col');
-    rivalsCol.appendChild(el('h4', '', 'С кем играл'));
-    var rivals = st.rivals || [];
-    if (!rivals.length) {
-      rivalsCol.appendChild(el('p', 'org-person-mystats-empty', 'Пока нет поединков игроком.'));
-    } else {
-      var line = el('p', 'stats-rivals');
-      rivals.forEach(function (rv, i) {
-        if (i) {
-          line.appendChild(document.createTextNode(', '));
-        }
-        var tone = rv.tone === 'win' || rv.tone === 'lose' ? rv.tone : 'even';
-        var span = el('span', 'rival rival--' + tone);
-        span.appendChild(document.createTextNode(rv.name));
-        var n = parseInt(rv.n, 10) || 0;
-        if (n > 0) {
-          span.appendChild(el('span', 'n', ' (' + n + ')'));
-        }
-        if (rv.id) {
-          span.title = 'Открыть карточку';
-          span.addEventListener('click', function () {
-            selectPerson(rv.id);
-          });
-        }
-        line.appendChild(span);
-      });
-      rivalsCol.appendChild(line);
-    }
-    body.appendChild(rivalsCol);
-    box.appendChild(body);
-    return box;
-  }
-
-  function selectPerson(id, scroll) {
-    personId = parseInt(id, 10) || 0;
-    if (personId) {
-      try {
-        var u = new URL(window.location.href);
-        u.searchParams.set('person', String(personId));
-        history.replaceState(null, '', u.pathname + u.search + u.hash);
-      } catch (e) {}
-    }
-    renderList();
-    renderCard();
-    if (scroll !== false && card && card.scrollIntoView) {
-      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+  function openPersonCard(id) {
+    window.open(personCardUrl(id), '_blank', 'noopener');
   }
 
   function renderCard() {
-    var p = people.find(function (x) {
-      return x.id === personId;
-    });
     card.replaceChildren();
-    if (!p) {
-      card.appendChild(el('p', 'muted', 'Выберите человека в списке.'));
+    card.appendChild(el('p', 'muted', 'Клик по человеку откроет карточку в новой вкладке.'));
+  }
+
+  function attachPersonTips() {
+    var tipsEl = document.getElementById('org-person-tips-json');
+    var page = document.querySelector('.org-person-page');
+    if (!tipsEl || !page) {
       return;
     }
-    var head = el('div', 'org-person-head');
-    head.appendChild(el('h2', '', p.name));
-    if (!p.active) {
-      head.appendChild(el('span', 'org-person-off', 'не активен'));
+    var tips = {};
+    try {
+      tips = JSON.parse(tipsEl.textContent || '{}');
+    } catch (e) {
+      tips = {};
     }
-    if (p.games === 0 && p.judged === 0) {
-      var delBtn = el('button', 'org-person-del', 'Удалить');
-      delBtn.type = 'button';
-      delBtn.title = 'Только если нет игр и судейств в протоколах';
-      delBtn.addEventListener('click', function () {
-        if (
-          !window.confirm(
-            'Удалить «' + p.name + '»?\nКарточка и членства исчезнут. Действие необратимо.'
-          )
-        ) {
-          return;
-        }
-        api('org_person_delete', { person_id: String(p.id) })
-          .then(function () {
-            personId = 0;
-            renderAll();
-          })
-          .catch(function () {});
+    var box = el('div', 'org-tip-box');
+    box.hidden = true;
+    document.body.appendChild(box);
+    function htmlFor(cell) {
+      var kind = cell.getAttribute('data-tip') || '';
+      if (kind === 'rival') {
+        var rid = cell.getAttribute('data-rid') || '';
+        var rivals = tips.rivals || {};
+        return rivals[rid] || rivals[String(rid)] || '<p class="tip-empty">Нет</p>';
+      }
+      return tips[kind] || '<p class="tip-empty">Нет</p>';
+    }
+    function show(cell) {
+      box.innerHTML = htmlFor(cell);
+      box.hidden = false;
+      var r = cell.getBoundingClientRect();
+      var tw = box.offsetWidth || 240;
+      var th = box.offsetHeight || 48;
+      var left = r.left;
+      if (left + tw > window.innerWidth - 8) {
+        left = window.innerWidth - tw - 8;
+      }
+      if (left < 8) {
+        left = 8;
+      }
+      var top = r.bottom + 6;
+      if (top + th > window.innerHeight - 8) {
+        top = r.top - th - 6;
+      }
+      if (top < 8) {
+        top = 8;
+      }
+      box.style.left = left + 'px';
+      box.style.top = top + 'px';
+    }
+    function hide() {
+      box.hidden = true;
+    }
+    page.querySelectorAll('.has-tip').forEach(function (cell) {
+      cell.addEventListener('mouseenter', function () {
+        show(cell);
       });
-      head.appendChild(delBtn);
-    }
-    card.appendChild(head);
-
-    var body = el('div', 'org-person-body');
-    var left = el('div', 'org-person-stats');
-    var dl = el('dl', 'org-person-dl');
-    addRow(dl, 'Игры', String(p.games));
-    addRow(dl, 'Судейства', String(p.judged));
-    left.appendChild(dl);
-    if (p.funnelNow || p.funnelNext) {
-      var funnel = el('div', 'org-person-funnel');
-      if (p.funnelNow) {
-        var nowRow = el('p', 'org-person-funnel-now');
-        nowRow.appendChild(el('span', '', 'Сейчас:'));
-        nowRow.appendChild(el('span', 'org-chip org-funnel-pill', capFirst(p.funnelNow)));
-        funnel.appendChild(nowRow);
-      }
-      if (p.funnelNext) {
-        var done = p.funnelNext === 'цель стрима достигнута';
-        var line = el('p', done ? 'org-funnel-done' : 'org-funnel-next');
-        line.textContent = done ? p.funnelNext : ('Куда развивать дальше: ' + p.funnelNext);
-        funnel.appendChild(line);
-      }
-      left.appendChild(funnel);
-    }
-    var contacts = el('dl', 'org-person-dl');
-    addRow(contacts, 'Email', p.email, p.email ? 'mailto:' + p.email : '');
-    var tg = (p.telegram || '').replace(/^@/, '');
-    addRow(contacts, 'Telegram', p.telegram, tg ? 'https://t.me/' + tg : '');
-    if (p.telegram_id) {
-      addRow(contacts, 'Telegram (ID)', String(p.telegram_id), 'tg://user?id=' + p.telegram_id);
-    }
-    addRow(contacts, 'Заметки', p.notes);
-    if (contacts.childNodes.length) {
-      left.appendChild(contacts);
-    }
-    body.appendChild(left);
-
-    var table = document.createElement('table');
-    table.className = 'org-circles-table';
-    var thead = document.createElement('thead');
-    var hr = document.createElement('tr');
-    var tbody = document.createElement('tbody');
-    var tr = document.createElement('tr');
-    circles.forEach(function (c) {
-      hr.appendChild(el('th', '', c.title));
-      var td = document.createElement('td');
-      var chips = el('div', 'org-chips');
-      p.memberships
-        .filter(function (m) {
-          return m.circleId === c.id;
-        })
-        .forEach(function (m) {
-          var chip = el('span', 'org-chip');
-          chip.appendChild(el('span', '', m.involvement));
-          var x = el('button', 'org-chip-x', '×');
-          x.type = 'button';
-          x.title = 'Убрать';
-          x.addEventListener('click', function () {
-            api('org_mem_remove', {
-              circle_id: String(c.id),
-              person_id: String(p.id),
-              involvement: m.involvement,
-            }).catch(function () {});
-          });
-          chip.appendChild(x);
-          chips.appendChild(chip);
-        });
-      var wrap = el('div', 'org-suggest-wrap org-chip-add-wrap');
-      var input = el('input', 'org-chip-add');
-      input.placeholder = '+ участие';
-      input.autocomplete = 'off';
-      wrap.appendChild(input);
-      chips.appendChild(wrap);
-      td.appendChild(chips);
-      tr.appendChild(td);
-      var have = {};
-      p.memberships.forEach(function (m) {
-        if (m.circleId === c.id) {
-          have[m.involvement] = true;
+      cell.addEventListener('mouseleave', hide);
+      cell.addEventListener('click', function (e) {
+        e.preventDefault();
+        show(cell);
+      });
+      cell.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          show(cell);
         }
       });
-      var items = circleInvs(c.id)
-        .filter(function (inv) {
-          return !have[inv];
-        })
-        .map(function (inv) {
-          return { label: inv, value: inv };
-        });
-      attachSuggest(input, items, function (it) {
-        api('org_mem_add', {
-          circle_id: String(c.id),
-          person_id: String(p.id),
-          involvement: it.value || it.label,
-        }).catch(function () {});
-      }, true);
     });
-    thead.appendChild(hr);
-    tbody.appendChild(tr);
-    table.appendChild(thead);
-    table.appendChild(tbody);
-    var circlesWrap = el('div', 'org-circles-scroll');
-    circlesWrap.appendChild(table);
-    body.appendChild(circlesWrap);
-    card.appendChild(body);
-    card.appendChild(renderPersonStats(p));
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('.has-tip, .org-tip-box')) {
+        hide();
+      }
+    });
   }
 
   function setSelection(key, multi) {
@@ -1144,7 +971,7 @@
     if (!li) {
       return;
     }
-    selectPerson(parseInt(li.getAttribute('data-id'), 10), false);
+    openPersonCard(parseInt(li.getAttribute('data-id'), 10));
   });
   if (qEl) {
     qEl.addEventListener('input', function () {
@@ -1167,8 +994,4 @@
   var startTab = startParams.get('v');
   setPeopleTab(startTab === 'funnel' ? 'funnel' : 'list');
   renderAll();
-  var startPerson = parseInt(startParams.get('person') || '0', 10) || 0;
-  if (startPerson && peopleById[startPerson]) {
-    selectPerson(startPerson, false);
-  }
 })();
