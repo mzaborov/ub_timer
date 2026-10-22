@@ -307,8 +307,8 @@ body.page-org-people main {
   flex-wrap: wrap;
   gap: 0.35rem;
 }
-.org-funnel-pill {
-  padding: 0.12rem 0.55rem;
+.org-chip.org-funnel-pill {
+  padding: 0.22rem 0.85rem;
 }
 .org-funnel-next { color: var(--orange); font-weight: 700; }
 .org-funnel-done { color: #5f7a6e; font-weight: 600; }
