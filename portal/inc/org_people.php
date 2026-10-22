@@ -717,6 +717,9 @@ function org_inv_rename(mysqli $db): array
 
 function org_person_circle_tree(array $byParent, int $rootId, int $depth = 0): array
 {
+    if ($depth > 12) {
+        return [];
+    }
     $out = [];
     foreach ($byParent[$rootId] ?? [] as $c) {
         $out[] = ['circle' => $c, 'depth' => $depth];
