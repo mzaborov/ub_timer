@@ -106,9 +106,10 @@ foreach (array('классика','парный','экспресс') as $t) {{
 $jn = 0;
 foreach ($map as $oldd => $newd) {{
     if ($oldd < 0) continue;
-    $r = q("SELECT person_id, college, vote FROM duel_judges WHERE duel_id=" . (int)$oldd);
+    // Голоса образца не переносим: тест должен начинаться с пустого голосования.
+    $r = q("SELECT person_id, college FROM duel_judges WHERE duel_id=" . (int)$oldd);
     while ($j = mysql_fetch_assoc($r)) {{
-        q("INSERT INTO duel_judges (duel_id, person_id, college, vote) VALUES (" . (int)$newd . ", " . s($j['person_id']) . ", " . s($j['college']) . ", " . s($j['vote']) . ")");
+        q("INSERT INTO duel_judges (duel_id, person_id, college, vote, agreed) VALUES (" . (int)$newd . ", " . s($j['person_id']) . ", " . s($j['college']) . ", NULL, 0)");
         $jn++;
     }}
 }}
