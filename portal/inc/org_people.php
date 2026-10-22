@@ -953,7 +953,8 @@ function org_person_page(mysqli $db, int $pid): void
             echo '<input type="hidden" name="involvement" value="' . h((string)$m['involvement']) . '">';
             echo '<input type="hidden" name="return_person" value="1">';
             $path = org_person_circle_path($circleById, $mcid);
-            echo '<span class="org-chip">' . h($path)
+            $nodeTitle = (string)($circleById[$mcid]['title'] ?? $path);
+            echo '<span class="org-chip" title="' . h($path) . '">' . h($nodeTitle)
                 . ' · ' . h((string)$m['involvement'])
                 . '<button type="submit" class="org-chip-x" title="Убрать">×</button></span>';
             echo '</form>';
