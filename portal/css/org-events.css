@@ -154,6 +154,18 @@ body.page-org-events .card {
 .org-month td.training.plan a { background: #bbdefb; color: #0d47a1; }
 .org-month td.on a { outline: 2px solid #1a1a1a; outline-offset: -2px; }
 .org-month td.cancelled a { background: #e0e0e0; color: #616161; text-decoration: line-through; }
+.org-month td.test a {
+  background: #ad1457;
+  color: #fff;
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.38) 0 2px,
+    transparent 2px 6px
+  );
+}
+.org-test-actions { margin: 0.65rem 0 0; }
+.org-test-actions button { width: 100%; }
+.org-test-delete { background: #ad1457; border-color: #880e4f; color: #fff; }
 .org-attrs h2,
 .org-gg-wrap h2,
 .org-slots-card h2,
@@ -863,9 +875,10 @@ body.page-org-events .card {
 .org-reg-edit-org { margin-top:4px; border-top:1px dashed #e5e7eb; padding-top:4px; }
 .org-reg-edit-org-label { color:#6b7280; font-size:12px; margin-right:6px; }
 
-/* Подсветка повторов пар: слот, где эти двое уже играли между собой */
-.org-slots tr.org-slot-repeat > td { background: rgba(240, 165, 0, 0.10); }
+/* Подсветка повторов пар: вся строка слота, где эти двое уже играли между собой */
+.org-slots tr.org-slot-repeat > td { background: #fff3d6; }
 .org-slots tr.org-slot-repeat .org-slot-n { box-shadow: inset 3px 0 0 #f0a500; }
+.org-slots tr.org-slot-repeat .org-cell-in { background-color: #fffaf0; }
 .org-repeat-badge {
   display: inline-block;
   margin-left: 6px;

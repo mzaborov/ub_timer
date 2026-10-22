@@ -150,6 +150,15 @@ function dbScheduleExperience_(person) {
     return (lbl === "expert" || lbl === "org" || lbl === "experienced" || lbl === "novice") ? lbl : "none";
 }
 
+/** Код ситуации в БД: «12-Увидеть лес за деревьями» → num «12», name «Увидеть лес за деревьями». */
+function splitSituationCode_(sit) {
+    var code = sit ? String(sit.code || "").trim() : "";
+    var m = code.match(/^(\d+)/);
+    var num = m ? m[1] : (sit && sit.num != null && sit.num !== "" ? String(sit.num) : "");
+    var name = code.replace(/^\s*\d+\s*[-–—.:]?\s*/, "").trim();
+    return { num: num, name: name || code };
+}
+
 /** duelsList из payload БД — форма как у buildDuelsListFromGoogleMeeting_. */
 function buildDuelsListFromDatabase_(payload) {
     var out = [];
@@ -157,6 +166,7 @@ function buildDuelsListFromDatabase_(payload) {
     for (var i = 0; i < duels.length; i++) {
         var src = duels[i];
         var sit = src.situation;
+        var sitParts = splitSituationCode_(sit);
         var defaults = googleScheduleDefaultsForType_(src.duel_type || "");
         var roles = null;
         if (sit && sit.roles_json) {
@@ -180,8 +190,8 @@ function buildDuelsListFromDatabase_(payload) {
             Player2Id: src.player2 ? src.player2.id : null,
             Second1Id: src.second1 ? src.second1.id : null,
             Second2Id: src.second2 ? src.second2.id : null,
-            SituationNum: sit ? String(sit.code || "") : "",
-            SituationName: sit ? String(sit.code || "") : "",
+            SituationNum: sit ? sitParts.num : "",
+            SituationName: sit ? sitParts.name : "",
             SituationId: sit ? sit.id : null,
             SituationDescription: (sit && sit.description) ? String(sit.description) : "",
             SituationRoles: roles || [],

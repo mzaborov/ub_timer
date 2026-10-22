@@ -1190,6 +1190,12 @@ function org_events_handle_post(mysqli $db): array
     if ($action === 'org_event_restore') {
         return org_event_restore($db);
     }
+    if ($action === 'org_event_test_create') {
+        return org_event_test_create($db);
+    }
+    if ($action === 'org_event_test_delete') {
+        return org_event_test_delete($db);
+    }
     if ($action === 'org_slot_add') {
         return org_slot_add($db);
     }
@@ -1410,6 +1416,129 @@ function org_event_restore(mysqli $db): array
     $st->close();
     $_SESSION['org_flash'] = 'Мероприятие восстановлено';
     return ['redirect' => org_event_url($id)];
+}
+
+function org_event_test_create(mysqli $db): array
+{
+    $sourceId = (int)($_POST['event_id'] ?? 0);
+    $src = org_event_load($db, $sourceId);
+    if (!$src) {
+        return ['error' => 'Мероприятие не найдено'];
+    }
+    if (portal_event_is_test($src)) {
+        return ['error' => 'Это уже тестовое мероприятие'];
+    }
+    $today = date('Y-m-d');
+    $title = mb_substr('ТЕСТ БД ' . $today . ' — ' . (string)$src['title'], 0, 255);
+    $type = (string)$src['event_type'];
+    $startAt = $src['starts_at'] ?? null;
+    $endAt = $src['ends_at'] ?? null;
+    $zoom = $src['zoom_url'] ?? null;
+    $ref = (int)($src['referee_person_id'] ?? 0);
+    $refBind = $ref > 0 ? $ref : 0;
+    $db->begin_transaction();
+    try {
+        $st = $db->prepare(
+            'INSERT INTO events (slug, title, event_type, starts_on, ends_on, starts_at, ends_at, status, zoom_url, referee_person_id)
+             VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, NULLIF(?, 0))'
+        );
+        $status = 'Подготовка';
+        $st->bind_param('ssssssssi', $title, $type, $today, $today, $startAt, $endAt, $status, $zoom, $refBind);
+        $st->execute();
+        $newId = (int)$db->insert_id;
+        $st->close();
+
+        $srcDuels = $db->query('SELECT * FROM duels WHERE event_id = ' . $sourceId . ' ORDER BY sort_order, id');
+        $insDuel = $db->prepare(
+            'INSERT INTO duels (event_id, sort_order, duel_date, duel_type, prep_mode, round_minutes,
+                                situation_id, player1_id, second1_id, player2_id, second2_id, referee_qty, notes)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        $map = [];
+        while ($d = $srcDuels->fetch_assoc()) {
+            $order = (int)$d['sort_order'];
+            $duelType = $d['duel_type'];
+            $prep = $d['prep_mode'];
+            $mins = $d['round_minutes'];
+            $sit = $d['situation_id'];
+            $p1 = $d['player1_id'];
+            $s1 = $d['second1_id'];
+            $p2 = $d['player2_id'];
+            $s2 = $d['second2_id'];
+            $qty = $d['referee_qty'];
+            $notes = $d['notes'];
+            $insDuel->bind_param(
+                'iisssssssssss',
+                $newId, $order, $today, $duelType, $prep, $mins, $sit, $p1, $s1, $p2, $s2, $qty, $notes
+            );
+            $insDuel->execute();
+            $map[(int)$d['id']] = (int)$db->insert_id;
+        }
+        $insDuel->close();
+
+        $srcJudge = $db->prepare('SELECT person_id, college FROM duel_judges WHERE duel_id = ?');
+        $insJudge = $db->prepare('INSERT INTO duel_judges (duel_id, person_id, college, vote, agreed) VALUES (?, ?, ?, NULL, 0)');
+        foreach ($map as $oldDuel => $newDuel) {
+            $srcJudge->bind_param('i', $oldDuel);
+            $srcJudge->execute();
+            $judges = $srcJudge->get_result();
+            while ($j = $judges->fetch_assoc()) {
+                $pid = $j['person_id'];
+                $college = $j['college'];
+                $insJudge->bind_param('iss', $newDuel, $pid, $college);
+                $insJudge->execute();
+            }
+        }
+        $srcJudge->close();
+        $insJudge->close();
+
+        $stmt = $db->prepare('INSERT INTO event_organizers (event_id, person_id, role) SELECT ?, person_id, role FROM event_organizers WHERE event_id = ?');
+        $stmt->bind_param('ii', $newId, $sourceId);
+        $stmt->execute();
+        $stmt->close();
+        $stmt = $db->prepare('INSERT INTO event_observers (event_id, person_id) SELECT ?, person_id FROM event_observers WHERE event_id = ?');
+        $stmt->bind_param('ii', $newId, $sourceId);
+        $stmt->execute();
+        $stmt->close();
+
+        $db->commit();
+    } catch (Throwable $e) {
+        $db->rollback();
+        return ['error' => 'Не удалось создать тест: ' . $e->getMessage()];
+    }
+    $_SESSION['org_flash'] = 'Тестовое мероприятие создано';
+    return ['redirect' => org_event_url($newId)];
+}
+
+function org_event_test_delete(mysqli $db): array
+{
+    $id = (int)($_POST['event_id'] ?? 0);
+    $ev = org_event_load($db, $id);
+    if (!$ev) {
+        return ['error' => 'Мероприятие не найдено'];
+    }
+    if (!portal_event_is_test($ev)) {
+        return ['error' => 'Удалять можно только тестовые мероприятия'];
+    }
+    $db->begin_transaction();
+    try {
+        $db->query('DELETE FROM videos WHERE event_id = ' . $id . ' OR duel_id IN (SELECT id FROM duels WHERE event_id = ' . $id . ')');
+        $db->query('DELETE pe FROM protocol_events pe JOIN duels d ON d.id = pe.duel_id WHERE d.event_id = ' . $id);
+        $db->query('DELETE cl FROM duel_change_log cl JOIN duels d ON d.id = cl.duel_id WHERE d.event_id = ' . $id);
+        $db->query('DELETE dj FROM duel_judges dj JOIN duels d ON d.id = dj.duel_id WHERE d.event_id = ' . $id);
+        $db->query('DELETE FROM duels WHERE event_id = ' . $id);
+        $db->query('DELETE FROM event_organizers WHERE event_id = ' . $id);
+        $db->query('DELETE FROM event_observers WHERE event_id = ' . $id);
+        $db->query('DELETE FROM meeting_registrations WHERE event_id = ' . $id);
+        $db->query('UPDATE outreach_campaigns SET event_id = NULL WHERE event_id = ' . $id);
+        $db->query('DELETE FROM events WHERE id = ' . $id);
+        $db->commit();
+    } catch (Throwable $e) {
+        $db->rollback();
+        return ['error' => 'Не удалось удалить тест: ' . $e->getMessage()];
+    }
+    $_SESSION['org_flash'] = 'Тестовое мероприятие удалено';
+    return ['redirect' => org_event_url()];
 }
 
 function org_slot_add(mysqli $db): array
@@ -2165,7 +2294,7 @@ function portal_echo_org_events(mysqli $db, string $flash, string $error): void
     if ($showRecs) {
         org_echo_plan_side($selected, $regs, $career);
     } elseif ($isTraining && $selected && ($selected['status'] ?? '') !== 'Отменено') {
-        org_echo_event_participants($selected, $regs);
+        org_echo_event_participants($selected, $regs, $people);
     }
     echo '</div>';
     if ($selected && !org_event_is_planned($selected)) {
@@ -2269,6 +2398,9 @@ function org_echo_year_month(
                     if (array_filter($evs, static fn($e) => ($e['status'] ?? '') === 'Отменено')) {
                         $cls[] = 'cancelled';
                     }
+                    if (array_filter($evs, static fn($e) => portal_event_is_test($e))) {
+                        $cls[] = 'test';
+                    }
                     if (count($evs) === 1 && (int)$evs[0]['id'] === $selId) {
                         $cls[] = 'on';
                     }
@@ -2301,7 +2433,8 @@ function org_echo_attrs_read(mysqli $db, array $ev): void
 {
     $zoom = portal_zoom_short_url($ev);
     echo '<section class="card org-attrs">';
-    echo '<h2>' . h((string)$ev['title']) . '</h2>';
+    echo '<h2>' . h((string)$ev['title'])
+        . (portal_event_is_test($ev) ? ' <span class="badge-test">тест</span>' : '') . '</h2>';
     echo '<dl class="org-dl">';
     org_dl('Тип', (string)$ev['event_type']);
     org_dl('Статус', (string)$ev['status']);
@@ -2339,6 +2472,7 @@ function org_echo_attrs_read(mysqli $db, array $ev): void
         echo '<button type="submit">Восстановить мероприятие</button>';
         echo '</form>';
     }
+    org_echo_test_actions($ev);
     echo '</section>';
 }
 
@@ -2348,6 +2482,29 @@ function org_dl(string $k, string $v): void
         return;
     }
     echo '<div><dt>' . h($k) . '</dt><dd>' . h($v) . '</dd></div>';
+}
+
+function org_echo_test_actions(?array $ev, bool $isNew = false): void
+{
+    if ($isNew || !$ev) {
+        return;
+    }
+    $id = (int)$ev['id'];
+    if (portal_event_is_test($ev)) {
+        echo '<form method="post" class="org-test-actions" onsubmit="return confirm(\'Удалить тестовое мероприятие?\');">';
+        portal_csrf_field();
+        echo '<input type="hidden" name="action" value="org_event_test_delete">';
+        echo '<input type="hidden" name="event_id" value="' . $id . '">';
+        echo '<button type="submit" class="org-test-delete">Удалить тест</button>';
+        echo '</form>';
+        return;
+    }
+    echo '<form method="post" class="org-test-actions" onsubmit="return confirm(\'Создать тестовое мероприятие на сегодня?\');">';
+    portal_csrf_field();
+    echo '<input type="hidden" name="action" value="org_event_test_create">';
+    echo '<input type="hidden" name="event_id" value="' . $id . '">';
+    echo '<button type="submit" class="org-test-create">Создать тест на сегодня</button>';
+    echo '</form>';
 }
 
 function org_echo_attrs_form(?array $ev, array $people, mysqli $db, ?string $preDate): void
@@ -2376,7 +2533,8 @@ function org_echo_attrs_form(?array $ev, array $people, mysqli $db, ?string $pre
     $roleMap = $isNew ? [] : org_event_role_person_map($db, (int)$ev['id']);
     $orgPool = org_event_orgs_map($db, array_values($roleMap));
     echo '<section class="card org-attrs">';
-    echo '<h2>' . ($isNew ? 'Новое мероприятие' : h($title)) . '</h2>';
+    echo '<h2>' . ($isNew ? 'Новое мероприятие' : h($title))
+        . (!$isNew && portal_event_is_test($ev) ? ' <span class="badge-test">тест</span>' : '') . '</h2>';
     echo '<form method="post" class="org-attrs-form">';
     portal_csrf_field();
     echo '<input type="hidden" name="action" value="' . ($isNew ? 'org_event_create' : 'org_event_save') . '">';
@@ -2415,7 +2573,9 @@ function org_echo_attrs_form(?array $ev, array $people, mysqli $db, ?string $pre
     }
     org_echo_staff_table($roleMap, $ref, $orgPool, $referees, true, '', $type, $refereeAttrs);
     echo '<p class="org-attrs-actions"><button type="submit">' . ($isNew ? 'Создать' : 'Сохранить') . '</button></p>';
-    echo '</form></section>';
+    echo '</form>';
+    org_echo_test_actions($ev, $isNew);
+    echo '</section>';
 }
 
 function org_echo_google_grid(array $ev, array $duels): void
@@ -2767,7 +2927,11 @@ function org_echo_slots_card(
         if ($isLocked) {
             $rowClass[] = 'org-slot-locked';
         }
-        echo '<tr' . ($rowClass ? ' class="' . implode(' ', $rowClass) . '"' : '') . '>';
+        $rowAttrs = $rowClass ? ' class="' . implode(' ', $rowClass) . '"' : '';
+        if ($repeatTip !== '') {
+            $rowAttrs .= ' title="' . h($repeatTip) . '"';
+        }
+        echo '<tr' . $rowAttrs . '>';
         echo '<td class="org-slot-n">' . ($i + 1) . '<input type="hidden" name="duel_id[]" value="' . $did . '"></td>';
         echo '<td><input type="date" class="org-cell-in" name="duel_date[]" value="'
             . h((string)($d['date'] ?? $ev['starts_on'] ?? '')) . '"></td>';
@@ -2780,9 +2944,6 @@ function org_echo_slots_card(
         org_echo_combo('situation_id[]', (int)($d['situation_id'] ?? 0), org_sit_cell_label($d), 'sit', 'sit_label[]');
         echo '</td><td class="org-slot-p1">';
         org_echo_combo('p1[]', (int)($d['p1_id'] ?? 0), (string)($d['p1'] ?? ''), 'person');
-        if ($pairRec) {
-            echo '<span class="org-repeat-badge" title="' . h($repeatTip) . '">повтор</span>';
-        }
         echo $confirmBox((int)($d['p1_id'] ?? 0));
         echo '</td><td>';
         org_echo_combo('s1[]', (int)($d['s1_id'] ?? 0), (string)($d['s1'] ?? ''), 'person');
@@ -3016,15 +3177,34 @@ function org_echo_plan_side(array $ev, array $regs, array $career = []): void
  * секунд) и типы поединков не применяются — показываем только записавшихся,
  * с возможностью добавить или убрать человека вручную.
  */
-function org_echo_event_participants(array $ev, array $regs): void
+function org_echo_event_participants(array $ev, array $regs, array $people = []): void
 {
     $eid = (int)$ev['id'];
     $came = 0;
+    $applied = [];
     foreach ($regs as $r) {
         if (($r['attended'] ?? null) === true) {
             $came++;
         }
+        $pid = (int)($r['id'] ?? 0);
+        if ($pid > 0) {
+            $applied[$pid] = true;
+        }
     }
+    $peopleJs = [];
+    foreach ($people as $pid => $fio) {
+        $peopleJs[] = [
+            'id' => (int)$pid,
+            'name' => (string)$fio,
+            'applied' => isset($applied[(int)$pid]),
+        ];
+    }
+    echo '<script type="application/json" id="org-events-json">'
+        . json_encode(
+            ['people' => $peopleJs, 'situations' => []],
+            JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP
+        )
+        . '</script>';
     echo '<section class="card org-regs-card" id="regs">';
     echo '<h2>Участники <span class="org-regs-total">всего ' . count($regs)
         . ($came > 0 ? ' · пришли ' . $came : '') . '</span></h2>';
