@@ -2841,6 +2841,17 @@ function org_echo_slots_card(
             $gridOk++;
         }
     }
+    $hasRepeat = false;
+    foreach ($duels as $d) {
+        $rp1 = (int)($d['p1_id'] ?? 0);
+        $rp2 = (int)($d['p2_id'] ?? 0);
+        if ($rp1 > 0 && $rp2 > 0 && $rp1 !== $rp2
+            && isset($pairHist[min($rp1, $rp2) . '|' . max($rp1, $rp2)])
+        ) {
+            $hasRepeat = true;
+            break;
+        }
+    }
     $confirmBox = static function (int $pid) use ($confirmed): string {
         if ($pid <= 0) {
             return '';
@@ -2870,6 +2881,10 @@ function org_echo_slots_card(
                 . $gridOk . ' из ' . $gridTotal . '</span>'
             : '')
         . '</h2>';
+    if ($hasRepeat) {
+        echo '<p class="org-slots-legend"><span class="org-slots-legend-dot"></span>'
+            . 'Оранжевая строка — эта пара уже играла раньше</p>';
+    }
     if ($metrics) {
         $namesTip = static function (array $names): string {
             return $names !== [] ? implode(', ', $names) : 'никого';
@@ -3086,7 +3101,15 @@ function org_echo_plan_side(array $ev, array $regs, array $career = []): void
 
             echo '<tr class="org-reg-view" data-reg-row="' . $rid . '">';
             echo '<td class="org-reg-name">';
-            echo '<strong>' . h($r['name']) . '</strong>';
+            $regPid = (int)($r['id'] ?? 0);
+            $regName = h($r['name']);
+            if ($regPid > 0) {
+                echo '<strong><a class="org-person-link" href="'
+                    . h(portal_org_url('people') . '&person=' . $regPid)
+                    . '" title="Открыть карточку человека">' . $regName . '</a></strong>';
+            } else {
+                echo '<strong>' . $regName . '</strong>';
+            }
             if (!empty($r['org_no_play'])) {
                 echo ' <span class="org-reg-flag" title="Пометка орга: не играть">не играть</span>';
             }

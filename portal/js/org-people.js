@@ -19,6 +19,9 @@
   var funnel = data.funnel || { stages: [], goals: [], note: '' };
   var selected = { all: true };
   var personId = 0;
+  var statsCache = {};
+  var statsBusy = {};
+  var statsFailed = {};
   var query = '';
   var draftInv = null;
   var newOpen = false;
@@ -833,6 +836,123 @@
     dl.appendChild(dd);
   }
 
+  function loadStats(pid) {
+    if (statsCache[pid] || statsBusy[pid] || statsFailed[pid]) {
+      return;
+    }
+    statsBusy[pid] = true;
+    var body = new URLSearchParams();
+    body.set('csrf', csrfEl.value);
+    body.set('ajax', '1');
+    body.set('action', 'org_person_stats');
+    body.set('person_id', String(pid));
+    fetch(window.location.pathname + window.location.search, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body,
+      credentials: 'same-origin',
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (res) {
+        statsBusy[pid] = false;
+        if (res && res.stats) {
+          statsCache[pid] = res.stats;
+          if (personId === pid) {
+            renderCard();
+          }
+        }
+      })
+      .catch(function () {
+        statsBusy[pid] = false;
+        statsFailed[pid] = true;
+        if (personId === pid) {
+          renderCard();
+        }
+      });
+  }
+
+  function statsLine(label, value) {
+    var li = el('li');
+    li.appendChild(el('span', '', label));
+    li.appendChild(el('b', '', String(parseInt(value, 10) || 0)));
+    return li;
+  }
+
+  function renderPersonStats(p) {
+    var box = el('div', 'org-person-mystats');
+    box.appendChild(el('h3', '', 'Статистика'));
+    var st = statsCache[p.id];
+    if (!st) {
+      box.appendChild(
+        el(
+          'p',
+          'org-person-mystats-empty',
+          statsFailed[p.id] ? 'Статистика недоступна' : 'Загрузка статистики…'
+        )
+      );
+      loadStats(p.id);
+      return box;
+    }
+    var body = el('div', 'org-person-mystats-body');
+    var kpis = el('ul', 'stats-kpis');
+    kpis.appendChild(statsLine('Играл', st.played));
+    kpis.appendChild(statsLine('Секундировал', st.seconded));
+    kpis.appendChild(statsLine('Судил', st.judged));
+    kpis.appendChild(statsLine('Участие в турнирах', st.tournaments));
+    kpis.appendChild(statsLine('Выиграл', st.won));
+    kpis.appendChild(statsLine('Проиграл', st.lost));
+    body.appendChild(kpis);
+    var rivalsCol = el('div', 'stats-rivals-col');
+    rivalsCol.appendChild(el('h4', '', 'С кем играл'));
+    var rivals = st.rivals || [];
+    if (!rivals.length) {
+      rivalsCol.appendChild(el('p', 'org-person-mystats-empty', 'Пока нет поединков игроком.'));
+    } else {
+      var line = el('p', 'stats-rivals');
+      rivals.forEach(function (rv, i) {
+        if (i) {
+          line.appendChild(document.createTextNode(', '));
+        }
+        var tone = rv.tone === 'win' || rv.tone === 'lose' ? rv.tone : 'even';
+        var span = el('span', 'rival rival--' + tone);
+        span.appendChild(document.createTextNode(rv.name));
+        var n = parseInt(rv.n, 10) || 0;
+        if (n > 0) {
+          span.appendChild(el('span', 'n', ' (' + n + ')'));
+        }
+        if (rv.id) {
+          span.title = 'Открыть карточку';
+          span.addEventListener('click', function () {
+            selectPerson(rv.id);
+          });
+        }
+        line.appendChild(span);
+      });
+      rivalsCol.appendChild(line);
+    }
+    body.appendChild(rivalsCol);
+    box.appendChild(body);
+    return box;
+  }
+
+  function selectPerson(id, scroll) {
+    personId = parseInt(id, 10) || 0;
+    if (personId) {
+      try {
+        var u = new URL(window.location.href);
+        u.searchParams.set('person', String(personId));
+        history.replaceState(null, '', u.pathname + u.search + u.hash);
+      } catch (e) {}
+    }
+    renderList();
+    renderCard();
+    if (scroll !== false && card && card.scrollIntoView) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
   function renderCard() {
     var p = people.find(function (x) {
       return x.id === personId;
@@ -968,8 +1088,11 @@
     tbody.appendChild(tr);
     table.appendChild(thead);
     table.appendChild(tbody);
-    body.appendChild(table);
+    var circlesWrap = el('div', 'org-circles-scroll');
+    circlesWrap.appendChild(table);
+    body.appendChild(circlesWrap);
     card.appendChild(body);
+    card.appendChild(renderPersonStats(p));
   }
 
   function setSelection(key, multi) {
@@ -1021,9 +1144,7 @@
     if (!li) {
       return;
     }
-    personId = parseInt(li.getAttribute('data-id'), 10);
-    renderList();
-    renderCard();
+    selectPerson(parseInt(li.getAttribute('data-id'), 10), false);
   });
   if (qEl) {
     qEl.addEventListener('input', function () {
@@ -1042,7 +1163,12 @@
       setPeopleTab(btn.getAttribute('data-people-tab'));
     });
   });
-  var startTab = new URLSearchParams(window.location.search).get('v');
+  var startParams = new URLSearchParams(window.location.search);
+  var startTab = startParams.get('v');
   setPeopleTab(startTab === 'funnel' ? 'funnel' : 'list');
   renderAll();
+  var startPerson = parseInt(startParams.get('person') || '0', 10) || 0;
+  if (startPerson && peopleById[startPerson]) {
+    selectPerson(startPerson, false);
+  }
 })();

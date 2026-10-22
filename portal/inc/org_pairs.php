@@ -336,7 +336,8 @@ function org_pairs_recent_opponents(mysqli $db): array
         "SELECT d.player1_id p1, d.player2_id p2,
                 COALESCE(NULLIF(d.duel_date, '0000-00-00'), e.starts_on) dd
          FROM duels d JOIN events e ON e.id = d.event_id
-         WHERE d.duel_type IN ('классика', 'экспресс')"
+         WHERE d.duel_type IN ('классика', 'экспресс')
+           AND LTRIM(e.title) NOT LIKE 'ТЕСТ БД%'"
     );
     if (!$r) {
         return $out;
@@ -367,7 +368,8 @@ function org_pairs_pair_history(mysqli $db, int $excludeEventId = 0): array
         "SELECT d.event_id eid, d.player1_id p1, d.player2_id p2,
                 COALESCE(NULLIF(d.duel_date, '0000-00-00'), e.starts_on) dd
          FROM duels d JOIN events e ON e.id = d.event_id
-         WHERE d.duel_type IN ('классика', 'экспресс', 'парный')"
+         WHERE d.duel_type IN ('классика', 'экспресс', 'парный')
+           AND LTRIM(e.title) NOT LIKE 'ТЕСТ БД%'"
     );
     if (!$r) {
         return $out;

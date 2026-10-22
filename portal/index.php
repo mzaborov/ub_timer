@@ -128,7 +128,7 @@ if ($page === 'org' && $orgSection === 'people') {
         $res = org_people_handle_post($db);
         if (!empty($_POST['ajax'])) {
             header('Content-Type: application/json; charset=utf-8');
-            if (empty($res['error'])) {
+            if (empty($res['error']) && empty($res['no_payload'])) {
                 $res['data'] = org_people_payload($db);
             }
             echo json_encode($res, JSON_UNESCAPED_UNICODE);
@@ -262,10 +262,10 @@ if ($page !== 'org') {
     <link rel="stylesheet" href="css/portal.css?v=85">
     <link rel="stylesheet" href="css/org.css?v=7">
     <?php if ($page === 'org' && $orgSection === 'events') { ?>
-    <link rel="stylesheet" href="css/org-events.css?v=46">
+    <link rel="stylesheet" href="css/org-events.css?v=47">
     <?php } ?>
     <?php if ($page === 'org' && $orgSection === 'people') { ?>
-    <link rel="stylesheet" href="css/org-people.css?v=22">
+    <link rel="stylesheet" href="css/org-people.css?v=23">
     <?php } ?>
     <?php if ($page === 'org' && $orgSection === 'situations') {
         if (!function_exists('org_sb_asset_ver')) {
@@ -603,7 +603,7 @@ if ($page !== 'org') {
 <?php } ?>
 <script src="js/menu.js?v=3"></script>
 <?php if ($page === 'org' && $orgSection === 'people') { ?>
-<script src="js/org-people.js?v=24"></script>
+<script src="js/org-people.js?v=26"></script>
 <?php } ?>
 <?php if ($page === 'org' && $orgSection === 'events') { ?>
 <script src="js/org-events.js?v=12"></script>
