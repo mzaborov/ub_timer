@@ -830,7 +830,8 @@ function org_person_page(mysqli $db, int $pid): void
         echo '<span class="org-person-off">не активен</span>';
     }
     if (($p['funnelNow'] ?? '') !== '') {
-        echo '<span class="org-chip org-funnel-pill">Сейчас: ' . h((string)$p['funnelNow']) . '</span>';
+        echo '<span class="org-chip org-funnel-pill">Сейчас: '
+            . h(org_person_funnel_text((string)$p['funnelNow'])) . '</span>';
     }
     echo '</header>';
 
