@@ -57,6 +57,12 @@ function org_event_is_planned(array $ev): bool
     return portal_event_is_open_status((string)($ev['status'] ?? ''));
 }
 
+function org_event_can_manage_regs(array $ev): bool
+{
+    return org_event_is_planned($ev)
+        || (($ev['event_type'] ?? '') === 'обучение' && ($ev['status'] ?? '') !== 'Отменено');
+}
+
 function org_event_url(int $id = 0, string $year = '', bool $new = false, string $date = ''): string
 {
     $q = ['p' => 'org', 's' => 'events'];
@@ -241,7 +247,7 @@ function org_event_regs(mysqli $db, int $eventId): array
 {
     $st = $db->prepare(
         'SELECT id, person_id, full_name, telegram, wants_play, wants_judge, wants_second, duel_type_pref, comment,
-                org_no_play, org_banned_types, org_confirmed
+                org_no_play, org_banned_types, org_confirmed, org_attended, org_attended_comment
          FROM meeting_registrations
          WHERE event_id = ?
          ORDER BY full_name, id'
@@ -264,6 +270,8 @@ function org_event_regs(mysqli $db, int $eventId): array
             'org_no_play' => (int)($row['org_no_play'] ?? 0) === 1,
             'org_banned_types' => (string)($row['org_banned_types'] ?? ''),
             'confirmed' => (int)($row['org_confirmed'] ?? 0) === 1,
+            'attended' => $row['org_attended'] === null ? null : ((int)$row['org_attended'] === 1),
+            'att_comment' => (string)($row['org_attended_comment'] ?? ''),
         ];
     }
     $st->close();
@@ -1212,6 +1220,9 @@ function org_events_handle_post(mysqli $db): array
     if ($action === 'org_reg_confirm') {
         return org_reg_confirm($db);
     }
+    if ($action === 'org_reg_attendance') {
+        return org_reg_attendance($db);
+    }
     if ($action === 'org_gen_pairs') {
         return org_gen_pairs($db);
     }
@@ -1678,7 +1689,7 @@ function org_reg_add(mysqli $db): array
     $eid = (int)($_POST['event_id'] ?? 0);
     $pid = (int)($_POST['person_id'] ?? 0);
     $ev = org_event_load($db, $eid);
-    if (!$ev || !org_event_is_planned($ev) || $pid <= 0) {
+    if (!$ev || !org_event_can_manage_regs($ev) || $pid <= 0) {
         return ['error' => 'Нельзя добавить заявку'];
     }
     $st = $db->prepare(
@@ -1742,7 +1753,7 @@ function org_reg_remove(mysqli $db): array
     $eid = (int)($_POST['event_id'] ?? 0);
     $rid = (int)($_POST['reg_id'] ?? 0);
     $ev = org_event_load($db, $eid);
-    if (!$ev || !org_event_is_planned($ev) || $rid <= 0) {
+    if (!$ev || !org_event_can_manage_regs($ev) || $rid <= 0) {
         return ['error' => 'Нельзя убрать заявку'];
     }
     $del = $db->prepare('DELETE FROM meeting_registrations WHERE id = ? AND event_id = ?');
@@ -1754,6 +1765,38 @@ function org_reg_remove(mysqli $db): array
         return ['error' => 'Заявка не найдена'];
     }
     $_SESSION['org_flash'] = 'Убран из заявок';
+    return ['redirect' => org_event_url($eid) . '#regs'];
+}
+
+function org_reg_attendance(mysqli $db): array
+{
+    $eid = (int)($_POST['event_id'] ?? 0);
+    $ev = org_event_load($db, $eid);
+    if (!$ev || !org_event_can_manage_regs($ev)) {
+        return ['error' => 'Нельзя сохранить посещаемость'];
+    }
+    $att = $_POST['attended'] ?? [];
+    $cmts = $_POST['att_comment'] ?? [];
+    if (!is_array($att) || !is_array($cmts)) {
+        return ['error' => 'Некорректные данные'];
+    }
+    $st = $db->prepare(
+        'UPDATE meeting_registrations
+         SET org_attended=?, org_attended_comment=NULLIF(?, \'\')
+         WHERE id=? AND event_id=?'
+    );
+    foreach ($att as $ridRaw => $valRaw) {
+        $rid = (int)$ridRaw;
+        if ($rid <= 0) {
+            continue;
+        }
+        $val = $valRaw === '' || $valRaw === null ? null : ((int)$valRaw === 1 ? 1 : 0);
+        $comment = trim((string)($cmts[$ridRaw] ?? ''));
+        $st->bind_param('isii', $val, $comment, $rid, $eid);
+        $st->execute();
+    }
+    $st->close();
+    $_SESSION['org_flash'] = 'Посещаемость сохранена';
     return ['redirect' => org_event_url($eid) . '#regs'];
 }
 
@@ -2076,7 +2119,7 @@ function portal_echo_org_events(mysqli $db, string $flash, string $error): void
     }
     $people = org_people_map($db);
     $duels = $selected ? org_event_duels($db, (int)$selected['id']) : [];
-    $regs = ($selected && org_event_is_planned($selected)) ? org_event_regs($db, (int)$selected['id']) : [];
+    $regs = ($selected && org_event_can_manage_regs($selected)) ? org_event_regs($db, (int)$selected['id']) : [];
     $career = ($selected && org_event_is_planned($selected)) ? org_people_career($db, (int)$selected['id']) : [];
     $metrics = $career ? org_event_metrics($db, $duels, $career, $regs) : null;
     $onlinePlan = $selected && ($selected['event_type'] ?? '') === 'онлайн';
@@ -2121,7 +2164,7 @@ function portal_echo_org_events(mysqli $db, string $flash, string $error): void
     echo '</div>';
     if ($showRecs) {
         org_echo_plan_side($selected, $regs, $career);
-    } elseif ($isTraining && $selected && org_event_is_planned($selected)) {
+    } elseif ($isTraining && $selected && ($selected['status'] ?? '') !== 'Отменено') {
         org_echo_event_participants($selected, $regs);
     }
     echo '</div>';
@@ -2976,22 +3019,45 @@ function org_echo_plan_side(array $ev, array $regs, array $career = []): void
 function org_echo_event_participants(array $ev, array $regs): void
 {
     $eid = (int)$ev['id'];
+    $came = 0;
+    foreach ($regs as $r) {
+        if (($r['attended'] ?? null) === true) {
+            $came++;
+        }
+    }
     echo '<section class="card org-regs-card" id="regs">';
-    echo '<h2>Участники <span class="org-regs-total">всего ' . count($regs) . '</span></h2>';
+    echo '<h2>Участники <span class="org-regs-total">всего ' . count($regs)
+        . ($came > 0 ? ' · пришли ' . $came : '') . '</span></h2>';
     if (!$regs) {
         echo '<p class="muted">Пока никто не записался.</p>';
     } else {
+        echo '<form method="post" id="org-reg-attendance-form">';
+        portal_csrf_field();
+        echo '<input type="hidden" name="action" value="org_reg_attendance">';
+        echo '<input type="hidden" name="event_id" value="' . $eid . '">';
         echo '<div class="org-regs-scroll">';
-        echo '<table class="org-regs-table">';
-        echo '<thead><tr><th>Имя</th><th>Комм.</th><th></th></tr></thead>';
+        echo '<table class="org-regs-table org-regs-att-table">';
+        echo '<thead><tr><th>Имя</th><th>Пришёл</th><th>Комментарий</th><th></th></tr></thead>';
         echo '<tbody>';
         foreach ($regs as $r) {
             $rid = (int)($r['reg_id'] ?? 0);
             $comment = trim((string)($r['comment'] ?? ''));
+            $att = $r['attended'] ?? null;
+            $orgComment = (string)($r['att_comment'] ?? '');
             echo '<tr>';
-            echo '<td class="org-reg-name"><strong>' . h($r['name']) . '</strong></td>';
-            echo '<td class="org-reg-comment"' . ($comment !== '' ? ' title="' . h($comment) . '"' : '') . '>'
-                . h($comment !== '' ? mb_strimwidth($comment, 0, 28, '…') : '—') . '</td>';
+            echo '<td class="org-reg-name"><strong>' . h($r['name']) . '</strong>';
+            if ($comment !== '') {
+                echo '<span class="org-reg-name-note" title="' . h($comment) . '">'
+                    . h(mb_strimwidth($comment, 0, 40, '…')) . '</span>';
+            }
+            echo '</td>';
+            echo '<td class="org-reg-att"><select class="org-cell-in" name="attended[' . $rid . ']">';
+            echo '<option value=""' . ($att === null ? ' selected' : '') . '>—</option>';
+            echo '<option value="1"' . ($att === true ? ' selected' : '') . '>пришёл</option>';
+            echo '<option value="0"' . ($att === false ? ' selected' : '') . '>не пришёл</option>';
+            echo '</select></td>';
+            echo '<td class="org-reg-att-comment"><input type="text" class="org-cell-in" name="att_comment['
+                . $rid . ']" value="' . h($orgComment) . '" placeholder="комментарий"></td>';
             echo '<td class="org-reg-actions">';
             if ($rid > 0) {
                 echo '<button type="submit" form="reg-del-' . $rid
@@ -3001,6 +3067,8 @@ function org_echo_event_participants(array $ev, array $regs): void
             echo '</tr>';
         }
         echo '</tbody></table></div>';
+        echo '<div class="org-reg-att-actions"><button type="submit">Сохранить посещаемость</button></div>';
+        echo '</form>';
     }
     echo '<form method="post" class="org-reg-add" id="org-reg-add-form">';
     portal_csrf_field();

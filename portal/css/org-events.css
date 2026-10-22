@@ -492,6 +492,30 @@ body.page-org-events .card {
   width: 1.35rem;
   padding: 0;
 }
+.org-regs-att-table td {
+  vertical-align: middle;
+}
+.org-regs-att-table .org-cell-in {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.18rem 0.3rem;
+  background: #fff;
+}
+.org-reg-att {
+  width: 6.5rem;
+}
+.org-reg-att-comment {
+  min-width: 9rem;
+}
+.org-reg-name-note {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.org-reg-att-actions {
+  margin-top: 0.45rem;
+}
 .org-reg-edit-form {
   padding: 0.2rem 0;
 }
