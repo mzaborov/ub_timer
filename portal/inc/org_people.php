@@ -715,6 +715,28 @@ function org_inv_rename(mysqli $db): array
     return [];
 }
 
+function org_person_circle_tree(array $byParent, int $rootId, int $depth = 0): array
+{
+    $out = [];
+    foreach ($byParent[$rootId] ?? [] as $c) {
+        $out[] = ['circle' => $c, 'depth' => $depth];
+        $out = array_merge($out, org_person_circle_tree($byParent, (int)$c['id'], $depth + 1));
+    }
+    return $out;
+}
+
+function org_person_circle_path(array $circleById, int $cid): string
+{
+    $parts = [];
+    $guard = 0;
+    while ($cid > 0 && isset($circleById[$cid]) && $guard++ < 20) {
+        $c = $circleById[$cid];
+        array_unshift($parts, (string)$c['title']);
+        $cid = $c['parentId'] === null ? 0 : (int)$c['parentId'];
+    }
+    return implode(' → ', $parts);
+}
+
 function org_person_page_data(mysqli $db, int $pid): ?array
 {
     $st = $db->prepare(
@@ -755,6 +777,21 @@ function org_person_page_data(mysqli $db, int $pid): ?array
         'circles' => $payload['circles'],
         'stats' => portal_person_stats($db, $pid),
     ];
+}
+
+function org_person_funnel_text(string $title): string
+{
+    $map = [
+        'Непричастные ЧС' => 'Непричастен к ЧС',
+        'Интересовались, не судили' => 'Интересовался, не судил',
+        'Посудили, но не играли' => 'Судил, но не играл',
+        'Сыграли много и секундировали' => 'Сыграл много и секундировал',
+        'Сыграли много' => 'Сыграл много',
+        'Сыграли 1' => 'Сыграл 1',
+        'Сыграли 2' => 'Сыграл 2',
+        'Сыграли 3' => 'Сыграл 3',
+    ];
+    return $map[$title] ?? $title;
 }
 
 function org_person_kpi(string $label, int $value, string $tip): string
@@ -876,41 +913,75 @@ function org_person_page(mysqli $db, int $pid): void
     if (!$circles) {
         echo '<p class="muted">Кругов пока нет.</p>';
     }
+    $byParent = [];
+    $circleById = [];
     foreach ($circles as $c) {
-        $cid = (int)$c['id'];
+        $circleById[(int)$c['id']] = $c;
+        $parent = $c['parentId'] === null ? 0 : (int)$c['parentId'];
+        $byParent[$parent][] = $c;
+    }
+    $roots = $byParent[0] ?? [];
+    foreach ($roots as $root) {
+        $rid = (int)$root['id'];
+        $tree = array_merge(
+            [['circle' => $root, 'depth' => 0]],
+            org_person_circle_tree($byParent, $rid)
+        );
+        $subtree = [];
+        foreach ($tree as $node) {
+            $subtree[(int)$node['circle']['id']] = true;
+        }
         echo '<div class="org-circle-row">';
-        echo '<div class="org-circle-row-head"><strong>' . h((string)$c['title']) . '</strong>';
-        echo '<span class="muted">' . (int)($c['members'] ?? 0) . '</span></div>';
+        echo '<div class="org-circle-row-head"><strong>' . h((string)$root['title']) . '</strong>';
+        echo '<span class="muted">' . (int)($root['members'] ?? 0) . '</span></div>';
+        echo '<div class="org-circle-body">';
         echo '<div class="org-person-chips">';
-        $mine = array_filter($memberships, static function ($m) use ($cid) {
-            return (int)($m['circleId'] ?? 0) === $cid;
-        });
-        foreach ($mine as $m) {
+        foreach ($memberships as $m) {
+            $mcid = (int)($m['circleId'] ?? 0);
+            if (!isset($subtree[$mcid])) {
+                continue;
+            }
             echo '<form method="post" class="org-chip-form">';
             portal_csrf_field();
             echo '<input type="hidden" name="action" value="org_mem_remove">';
             echo '<input type="hidden" name="person_id" value="' . $pid . '">';
-            echo '<input type="hidden" name="circle_id" value="' . $cid . '">';
+            echo '<input type="hidden" name="circle_id" value="' . $mcid . '">';
             echo '<input type="hidden" name="involvement" value="' . h((string)$m['involvement']) . '">';
             echo '<input type="hidden" name="return_person" value="1">';
-            echo '<span class="org-chip">' . h((string)$m['involvement'])
+            $path = org_person_circle_path($circleById, $mcid);
+            echo '<span class="org-chip">' . h($path)
+                . ' · ' . h((string)$m['involvement'])
                 . '<button type="submit" class="org-chip-x" title="Убрать">×</button></span>';
             echo '</form>';
         }
-        echo '<form method="post" class="org-chip-add-form">';
+        echo '</div>';
+        echo '<form method="post" class="org-circle-assign">';
         portal_csrf_field();
         echo '<input type="hidden" name="action" value="org_mem_add">';
         echo '<input type="hidden" name="person_id" value="' . $pid . '">';
-        echo '<input type="hidden" name="circle_id" value="' . $cid . '">';
         echo '<input type="hidden" name="return_person" value="1">';
-        echo '<input type="text" name="involvement" list="org-inv-' . $cid
-            . '" placeholder="+ участие" autocomplete="off">';
-        echo '<datalist id="org-inv-' . $cid . '">';
-        foreach (array_keys($c['involvements'] ?? []) as $invOpt) {
-            echo '<option value="' . h((string)$invOpt) . '"></option>';
+        echo '<select name="circle_id" aria-label="Узел иерархии">';
+        foreach ($tree as $node) {
+            $c = $node['circle'];
+            $depth = (int)$node['depth'];
+            $label = ($depth > 0 ? str_repeat('— ', $depth) : '') . (string)$c['title'];
+            echo '<option value="' . (int)$c['id'] . '">' . h($label) . '</option>';
+        }
+        echo '</select>';
+        echo '<input type="text" name="involvement" list="org-inv-' . $rid
+            . '" placeholder="участие" autocomplete="off">';
+        echo '<datalist id="org-inv-' . $rid . '">';
+        $invOpts = [];
+        foreach ($tree as $node) {
+            foreach (array_keys($node['circle']['involvements'] ?? []) as $invOpt) {
+                $invOpts[(string)$invOpt] = true;
+            }
+        }
+        foreach (array_keys($invOpts) as $invOpt) {
+            echo '<option value="' . h($invOpt) . '"></option>';
         }
         echo '</datalist>';
-        echo '<button type="submit" class="btn-ghost">Добавить</button>';
+        echo '<button type="submit" class="btn-ghost">Назначить</button>';
         echo '</form>';
         echo '</div></div>';
     }

@@ -697,3 +697,21 @@ body.page-org-people main {
   border-bottom: 1px dotted currentColor;
 }
 .org-rivals .rival a:hover { color: var(--orange); }
+.org-circle-body { display: grid; gap: 0.45rem; }
+.org-circle-assign { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+.org-circle-assign select {
+  min-width: 12rem;
+  max-width: 100%;
+  padding: 0.15rem 0.3rem;
+  border: 1px solid var(--line, #ccc);
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+}
+.org-circle-assign input[type="text"] {
+  width: 10rem;
+  padding: 0.15rem 0.4rem;
+  border: 1px dashed var(--line, #bbb);
+  border-radius: 6px;
+  font: inherit;
+}
