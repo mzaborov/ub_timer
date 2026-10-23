@@ -880,6 +880,9 @@ body.page-org-events .card {
 
 .org-reg-flag { display:inline-block; margin-left:6px; padding:0 6px; border-radius:8px; background:#f3e8ff; color:#6b21a8; font-size:11px; vertical-align:middle; }
 .org-reg-flag-ok { background: rgba(46, 139, 87, 0.15); color: #2e8b57; }
+.org-reg-flag-grid { background: rgba(46, 139, 87, 0.15); color: #2e7d32; font-weight: 700; }
+.org-regs-table tr.org-reg-in-grid td { background: #f1faf3; }
+.org-regs-table tr.org-reg-in-grid .org-reg-name strong { color: #1b5e20; }
 .org-reg-edit-org { margin-top:4px; border-top:1px dashed #e5e7eb; padding-top:4px; }
 .org-reg-edit-org-label { color:#6b7280; font-size:12px; margin-right:6px; }
 
