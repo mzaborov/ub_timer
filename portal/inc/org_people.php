@@ -551,9 +551,15 @@ function org_person_delete(mysqli $db): array
 
 function org_mem_add(mysqli $db): array
 {
-    $cid = (int)($_POST['circle_id'] ?? 0);
+    $cidRaw = (string)($_POST['circle_id'] ?? '');
+    $invSel = '';
+    if (strpos($cidRaw, '|') !== false) {
+        [$cidRaw, $invSel] = explode('|', $cidRaw, 2);
+    }
+    $cid = (int)$cidRaw;
     $pid = (int)($_POST['person_id'] ?? 0);
-    $inv = org_mem_norm((string)($_POST['involvement'] ?? ''));
+    $invRaw = org_mem_norm((string)($_POST['involvement'] ?? ''));
+    $inv = $invRaw !== '' ? $invRaw : org_mem_norm($invSel);
     if ($cid < 1 || $pid < 1 || $inv === '') {
         return ['error' => 'Нужны человек, круг и участие'];
     }
@@ -925,69 +931,121 @@ function org_person_page(mysqli $db, int $pid): void
         $byParent[$parent][] = $c;
     }
     $roots = $byParent[0] ?? [];
+    $csrfField = static function (): string {
+        ob_start();
+        portal_csrf_field();
+        return (string)ob_get_clean();
+    };
+    $renderChips = static function (array $memberships, array $allowed, array $circleById, int $pid) use ($csrfField): string {
+        $out = '';
+        foreach ($memberships as $m) {
+            $mcid = (int)($m['circleId'] ?? 0);
+            if (!isset($allowed[$mcid])) {
+                continue;
+            }
+            $path = org_person_circle_path($circleById, $mcid);
+            $nodeTitle = (string)($circleById[$mcid]['title'] ?? $path);
+            $out .= '<form method="post" class="org-chip-form">' . $csrfField()
+                . '<input type="hidden" name="action" value="org_mem_remove">'
+                . '<input type="hidden" name="person_id" value="' . $pid . '">'
+                . '<input type="hidden" name="circle_id" value="' . $mcid . '">'
+                . '<input type="hidden" name="involvement" value="' . h((string)$m['involvement']) . '">'
+                . '<input type="hidden" name="return_person" value="1">'
+                . '<span class="org-chip" title="' . h($path) . '">' . h($nodeTitle)
+                . ' · ' . h((string)$m['involvement'])
+                . '<button type="submit" class="org-chip-x" title="Убрать">×</button></span>'
+                . '</form>';
+        }
+        return $out;
+    };
+    $renderSelect = static function (array $base, array $children, string $aria): string {
+        $out = '<select name="circle_id" aria-label="' . h($aria) . '">';
+        $invs = array_keys($base['involvements'] ?? []);
+        if ($invs) {
+            $out .= '<optgroup label="' . h((string)$base['title']) . '">';
+            foreach ($invs as $inv) {
+                $out .= '<option value="' . (int)$base['id'] . '|' . h((string)$inv) . '">'
+                    . h((string)$inv) . '</option>';
+            }
+            $out .= '</optgroup>';
+        }
+        $open = false;
+        foreach ($children as $node) {
+            $c = $node['circle'];
+            $depth = (int)$node['depth'];
+            if ($depth === 0) {
+                if ($open) {
+                    $out .= '</optgroup>';
+                }
+                $out .= '<optgroup label="' . h((string)$c['title']) . '">';
+                $open = true;
+                $cInvs = array_keys($c['involvements'] ?? []);
+                if (!$cInvs) {
+                    $out .= '<option value="' . (int)$c['id'] . '|">— впишите участие —</option>';
+                } else {
+                    foreach ($cInvs as $inv) {
+                        $out .= '<option value="' . (int)$c['id'] . '|' . h((string)$inv) . '">'
+                            . h((string)$inv) . '</option>';
+                    }
+                }
+                continue;
+            }
+            foreach (array_keys($c['involvements'] ?? []) as $inv) {
+                $out .= '<option value="' . (int)$c['id'] . '|' . h((string)$inv) . '">'
+                    . h(str_repeat('— ', $depth) . (string)$c['title']) . ' · ' . h((string)$inv) . '</option>';
+            }
+        }
+        if ($open) {
+            $out .= '</optgroup>';
+        }
+        $out .= '</select>';
+        return $out;
+    };
+    $renderForm = static function (array $base, array $children, int $pid, string $aria) use ($renderSelect, $csrfField): string {
+        return '<form method="post" class="org-circle-assign">' . $csrfField()
+            . '<input type="hidden" name="action" value="org_mem_add">'
+            . '<input type="hidden" name="person_id" value="' . $pid . '">'
+            . '<input type="hidden" name="return_person" value="1">'
+            . $renderSelect($base, $children, $aria)
+            . '<input type="text" name="involvement" placeholder="своё участие" autocomplete="off">'
+            . '<button type="submit" class="btn-ghost">Назначить</button>'
+            . '</form>';
+    };
     foreach ($roots as $root) {
         $rid = (int)$root['id'];
-        $tree = array_merge(
-            [['circle' => $root, 'depth' => 0]],
-            org_person_circle_tree($byParent, $rid)
-        );
-        $subtree = [];
-        foreach ($tree as $node) {
-            $subtree[(int)$node['circle']['id']] = true;
-        }
         echo '<div class="org-circle-row">';
         echo '<div class="org-circle-row-head"><strong>' . h((string)$root['title']) . '</strong>';
         echo '<span class="muted">' . (int)($root['members'] ?? 0) . '</span></div>';
         echo '<div class="org-circle-body">';
-        echo '<div class="org-person-chips">';
-        foreach ($memberships as $m) {
-            $mcid = (int)($m['circleId'] ?? 0);
-            if (!isset($subtree[$mcid])) {
-                continue;
-            }
-            echo '<form method="post" class="org-chip-form">';
-            portal_csrf_field();
-            echo '<input type="hidden" name="action" value="org_mem_remove">';
-            echo '<input type="hidden" name="person_id" value="' . $pid . '">';
-            echo '<input type="hidden" name="circle_id" value="' . $mcid . '">';
-            echo '<input type="hidden" name="involvement" value="' . h((string)$m['involvement']) . '">';
-            echo '<input type="hidden" name="return_person" value="1">';
-            $path = org_person_circle_path($circleById, $mcid);
-            $nodeTitle = (string)($circleById[$mcid]['title'] ?? $path);
-            echo '<span class="org-chip" title="' . h($path) . '">' . h($nodeTitle)
-                . ' · ' . h((string)$m['involvement'])
-                . '<button type="submit" class="org-chip-x" title="Убрать">×</button></span>';
-            echo '</form>';
+        $rootChips = $renderChips($memberships, [$rid => true], $circleById, $pid);
+        if ($rootChips !== '') {
+            echo '<div class="org-person-chips">' . $rootChips . '</div>';
         }
-        echo '</div>';
-        echo '<form method="post" class="org-circle-assign">';
-        portal_csrf_field();
-        echo '<input type="hidden" name="action" value="org_mem_add">';
-        echo '<input type="hidden" name="person_id" value="' . $pid . '">';
-        echo '<input type="hidden" name="return_person" value="1">';
-        echo '<select name="circle_id" aria-label="Узел иерархии">';
-        foreach ($tree as $node) {
-            $c = $node['circle'];
-            $depth = (int)$node['depth'];
-            $label = ($depth > 0 ? str_repeat('— ', $depth) : '') . (string)$c['title'];
-            echo '<option value="' . (int)$c['id'] . '">' . h($label) . '</option>';
-        }
-        echo '</select>';
-        echo '<input type="text" name="involvement" list="org-inv-' . $rid
-            . '" placeholder="участие" autocomplete="off">';
-        echo '<datalist id="org-inv-' . $rid . '">';
-        $invOpts = [];
-        foreach ($tree as $node) {
-            foreach (array_keys($node['circle']['involvements'] ?? []) as $invOpt) {
-                $invOpts[(string)$invOpt] = true;
+        $viewpoints = $byParent[$rid] ?? [];
+        if (!$viewpoints) {
+            echo $renderForm($root, [], $pid, 'Уровень участия');
+        } else {
+            foreach ($viewpoints as $vp) {
+                $vid = (int)$vp['id'];
+                $vpTree = org_person_circle_tree($byParent, $vid);
+                $vpIds = [$vid => true];
+                foreach ($vpTree as $node) {
+                    $vpIds[(int)$node['circle']['id']] = true;
+                }
+                echo '<div class="org-circle-view">';
+                echo '<div class="org-circle-view-head"><strong>' . h((string)$vp['title']) . '</strong>';
+                if ((int)($vp['members'] ?? 0) > 0) {
+                    echo ' <span class="muted">' . (int)$vp['members'] . '</span>';
+                }
+                echo '</div>';
+                $vpChips = $renderChips($memberships, $vpIds, $circleById, $pid);
+                if ($vpChips !== '') {
+                    echo '<div class="org-person-chips">' . $vpChips . '</div>';
+                }
+                echo $renderForm($vp, $vpTree, $pid, (string)$vp['title'] . ' — уровень участия');
+                echo '</div>';
             }
         }
-        foreach (array_keys($invOpts) as $invOpt) {
-            echo '<option value="' . h($invOpt) . '"></option>';
-        }
-        echo '</datalist>';
-        echo '<button type="submit" class="btn-ghost">Назначить</button>';
-        echo '</form>';
         echo '</div></div>';
     }
     echo '</section>';
