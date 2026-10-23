@@ -269,7 +269,7 @@ if ($page !== 'org') {
     <link rel="stylesheet" href="css/org-events.css?v=51">
     <?php } ?>
     <?php if ($page === 'org' && $orgSection === 'people') { ?>
-    <link rel="stylesheet" href="css/org-people.css?v=29">
+    <link rel="stylesheet" href="css/org-people.css?v=30">
     <?php } ?>
     <?php if ($page === 'org' && $orgSection === 'situations') {
         if (!function_exists('org_sb_asset_ver')) {

@@ -674,6 +674,7 @@ body.page-org-people main {
   border-radius: 6px;
 }
 .org-secret { display: inline-block; }
+.org-secret:not([open]) .org-secret-body { display: none; }
 .org-secret summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
 .org-secret-body { margin-top: 0.25rem; display: flex; gap: 0.4rem; flex-wrap: wrap; }
 .org-tip-box {
