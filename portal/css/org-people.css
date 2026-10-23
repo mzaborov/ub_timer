@@ -701,6 +701,16 @@ body.page-org-people main {
 }
 .org-rivals .rival a:hover { color: var(--orange); }
 .org-circle-body { display: grid; gap: 0.4rem; }
+.org-circle-view {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--line, #e4e4e4);
+}
+.org-circle-view:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.org-circle-view-head strong { font-size: 0.88rem; font-weight: 700; }
+.org-circle-view-head .muted { font-size: 0.78rem; }
 .org-circle-assign { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
 .org-circle-assign select {
   flex: 1 1 18rem;
