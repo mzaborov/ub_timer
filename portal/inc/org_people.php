@@ -203,7 +203,8 @@ function org_people_skip_ids(mysqli $db): array
     $duelRows = [];
     $r = $db->query(
         'SELECT d.player1_id, d.second1_id, d.player2_id, d.second2_id, e.event_type
-         FROM duels d JOIN events e ON e.id = d.event_id'
+         FROM duels d JOIN events e ON e.id = d.event_id
+         WHERE LTRIM(COALESCE(e.title, \'\')) NOT LIKE \'ТЕСТ БД%\''
     );
     while ($row = $r->fetch_assoc()) {
         $duelRows[] = $row;

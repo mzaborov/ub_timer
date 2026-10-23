@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/elo.php';
 require_once __DIR__ . '/org_pairs.php';
+require_once __DIR__ . '/home_data.php';
 
 function org_default_zoom(): string
 {
@@ -327,9 +328,13 @@ function org_people_career(mysqli $db, int $excludeEventId = 0): array
             'last_seconded' => '',
         ];
     }
+    $playedCond = portal_duel_played_sql('d', 'e');
     $r = $db->query(
-        'SELECT duel_type, player1_id, player2_id, second1_id, second2_id FROM duels'
-        . ($ex > 0 ? ' WHERE event_id <> ' . $ex : '')
+        'SELECT d.duel_type, d.player1_id, d.player2_id, d.second1_id, d.second2_id
+         FROM duels d JOIN events e ON e.id = d.event_id
+         WHERE LTRIM(COALESCE(e.title, \'\')) NOT LIKE \'ТЕСТ БД%\'
+           AND ' . $playedCond
+        . ($ex > 0 ? ' AND d.event_id <> ' . $ex : '')
     );
     while ($row = $r->fetch_assoc()) {
         $paired = ($row['duel_type'] ?? '') === 'парный';
@@ -368,7 +373,9 @@ function org_people_career(mysqli $db, int $excludeEventId = 0): array
          JOIN duels d ON d.id = dj.duel_id
          JOIN events e ON e.id = d.event_id
          WHERE dj.person_id IS NOT NULL
-         ' . ($ex > 0 ? ' AND d.event_id <> ' . $ex : '') . '
+           AND LTRIM(COALESCE(e.title, \'\')) NOT LIKE \'ТЕСТ БД%\'
+           AND ' . $playedCond
+        . ($ex > 0 ? ' AND d.event_id <> ' . $ex : '') . '
          GROUP BY dj.person_id'
     );
     while ($row = $r->fetch_assoc()) {
@@ -393,7 +400,9 @@ function org_people_career(mysqli $db, int $excludeEventId = 0): array
                    END AS play_on
             FROM duels d
             JOIN events e ON e.id = d.event_id
-            WHERE d.player1_id IS NOT NULL' . ($ex > 0 ? ' AND d.event_id <> ' . $ex : '') . '
+            WHERE d.player1_id IS NOT NULL
+              AND LTRIM(COALESCE(e.title, \'\')) NOT LIKE \'ТЕСТ БД%\'
+              AND ' . $playedCond . ($ex > 0 ? ' AND d.event_id <> ' . $ex : '') . '
             UNION ALL
             SELECT d.player2_id AS pid,
                    CASE
@@ -402,7 +411,9 @@ function org_people_career(mysqli $db, int $excludeEventId = 0): array
                    END AS play_on
             FROM duels d
             JOIN events e ON e.id = d.event_id
-            WHERE d.player2_id IS NOT NULL' . ($ex > 0 ? ' AND d.event_id <> ' . $ex : '') . '
+            WHERE d.player2_id IS NOT NULL
+              AND LTRIM(COALESCE(e.title, \'\')) NOT LIKE \'ТЕСТ БД%\'
+              AND ' . $playedCond . ($ex > 0 ? ' AND d.event_id <> ' . $ex : '') . '
          ) t
          WHERE pid IS NOT NULL
          GROUP BY pid'
@@ -428,7 +439,9 @@ function org_people_career(mysqli $db, int $excludeEventId = 0): array
                    END AS sec_on
             FROM duels d
             JOIN events e ON e.id = d.event_id
-            WHERE d.second1_id IS NOT NULL' . ($ex > 0 ? ' AND d.event_id <> ' . $ex : '') . '
+            WHERE d.second1_id IS NOT NULL
+              AND LTRIM(COALESCE(e.title, \'\')) NOT LIKE \'ТЕСТ БД%\'
+              AND ' . $playedCond . ($ex > 0 ? ' AND d.event_id <> ' . $ex : '') . '
             UNION ALL
             SELECT d.second2_id AS pid,
                    CASE
@@ -437,7 +450,9 @@ function org_people_career(mysqli $db, int $excludeEventId = 0): array
                    END AS sec_on
             FROM duels d
             JOIN events e ON e.id = d.event_id
-            WHERE d.second2_id IS NOT NULL' . ($ex > 0 ? ' AND d.event_id <> ' . $ex : '') . '
+            WHERE d.second2_id IS NOT NULL
+              AND LTRIM(COALESCE(e.title, \'\')) NOT LIKE \'ТЕСТ БД%\'
+              AND ' . $playedCond . ($ex > 0 ? ' AND d.event_id <> ' . $ex : '') . '
          ) t
          WHERE pid IS NOT NULL
          GROUP BY pid'

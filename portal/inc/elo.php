@@ -108,7 +108,8 @@ function portal_elo_recompute(mysqli $db): int
                 COALESCE(NULLIF(d.duel_date, '0000-00-00'), e.starts_on) AS ddate
          FROM duels d
          JOIN events e ON e.id = d.event_id
-         WHERE d.duel_type IN ('классика', 'экспресс', 'парный')"
+         WHERE d.duel_type IN ('классика', 'экспресс', 'парный')
+           AND LTRIM(COALESCE(e.title, '')) NOT LIKE 'ТЕСТ БД%'"
     );
     if ($r) {
         while ($row = $r->fetch_assoc()) {

@@ -108,7 +108,14 @@ if ($r) {
 }
 
 $judgeRows = array();
-$r = mysql_query("SELECT duel_id, person_id, vote FROM duel_judges", $link);
+$r = mysql_query(
+    "SELECT dj.duel_id, dj.person_id, dj.vote
+     FROM duel_judges dj
+     LEFT JOIN duels d ON d.id = dj.duel_id
+     LEFT JOIN events e ON e.id = d.event_id
+     WHERE LTRIM(COALESCE(e.title, '')) NOT LIKE 'ТЕСТ БД%'",
+    $link
+);
 while ($row = mysql_fetch_assoc($r)) {
     $judgeRows[] = $row;
 }
@@ -117,7 +124,8 @@ $duelRows = array();
 $r = mysql_query(
     "SELECT d.id, d.player1_id, d.second1_id, d.player2_id, d.second2_id, d.situation_id, d.duel_type, " .
     "e.id AS event_id, e.event_type, e.title " .
-    "FROM duels d JOIN events e ON e.id = d.event_id",
+    "FROM duels d JOIN events e ON e.id = d.event_id " .
+    "WHERE LTRIM(COALESCE(e.title, '')) NOT LIKE 'ТЕСТ БД%'",
     $link
 );
 while ($d = mysql_fetch_assoc($r)) {
