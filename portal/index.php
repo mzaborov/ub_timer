@@ -610,7 +610,7 @@ if ($page !== 'org') {
 <script src="js/org-people.js?v=28"></script>
 <?php } ?>
 <?php if ($page === 'org' && $orgSection === 'events') { ?>
-<script src="js/org-events.js?v=13"></script>
+<script src="js/org-events.js?v=14"></script>
 <?php } ?>
 <?php if ($page === 'org' && $orgSection === 'situations') {
     $sbVer = function_exists('org_sb_asset_ver') ? org_sb_asset_ver() : '106';

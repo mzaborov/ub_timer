@@ -301,6 +301,7 @@ function org_situations_list(mysqli $db): array
             'id' => (int)$row['id'],
             'label' => $label,
             'type' => (string)$row['duel_type'],
+            'url' => portal_sit_bank_url($code, $label),
         ];
     }
     return $out;
@@ -2173,16 +2174,29 @@ function org_echo_staff_cell(
     echo '</td>';
 }
 
-function org_echo_combo(string $name, int $selected, string $label, string $kind, string $textName = ''): void
+function org_echo_combo(string $name, int $selected, string $label, string $kind, string $textName = '', string $link = ''): void
 {
     echo '<div class="org-combo" data-combo="' . h($kind) . '">';
     echo '<input type="hidden" name="' . h($name) . '" value="' . (int)$selected . '">';
     $tn = $textName !== '' ? ' name="' . h($textName) . '"' : '';
-    if ($kind === 'person' && $selected > 0) {
-        echo '<a class="org-combo-view" href="'
-            . h(portal_org_url('people') . '&person=' . $selected)
-            . '" target="_blank" rel="noopener" title="Открыть карточку (двойной клик — изменить)">'
-            . h($label) . '</a>';
+    if (($kind === 'person' || $kind === 'sit') && $selected > 0) {
+        if ($kind === 'person') {
+            $viewUrl = portal_org_url('people') . '&person=' . $selected;
+            $viewTitle = 'Открыть карточку (двойной клик — изменить)';
+        } else {
+            $viewUrl = $link;
+            $viewTitle = $viewUrl !== ''
+                ? 'Открыть ситуацию в банке (двойной клик — изменить)'
+                : 'Двойной клик — изменить';
+        }
+        if ($viewUrl !== '') {
+            echo '<a class="org-combo-view" href="' . h($viewUrl)
+                . '" target="_blank" rel="noopener" title="' . h($viewTitle) . '">'
+                . h($label) . '</a>';
+        } else {
+            echo '<span class="org-combo-view" title="' . h($viewTitle) . '">'
+                . h($label) . '</span>';
+        }
         echo '<input type="text" class="org-cell-in org-combo-input"' . $tn . ' value="' . h($label)
             . '" placeholder="—" autocomplete="off" hidden>';
         echo '<button type="button" class="org-combo-arrow" aria-label="Выбрать" title="Выбрать">▾</button>';
@@ -2710,7 +2724,8 @@ function org_echo_sit_labels_form(array $ev, array $duels, array $people, mysqli
             (int)($d['situation_id'] ?? 0),
             org_sit_cell_label($d),
             'sit',
-            'sit_label[]'
+            'sit_label[]',
+            (string)($d['sit_url'] ?? '')
         );
         echo '</td></tr>';
     }
@@ -2981,7 +2996,7 @@ function org_echo_slots_card(
         }
         echo '</select></td>';
         echo '<td>';
-        org_echo_combo('situation_id[]', (int)($d['situation_id'] ?? 0), org_sit_cell_label($d), 'sit', 'sit_label[]');
+        org_echo_combo('situation_id[]', (int)($d['situation_id'] ?? 0), org_sit_cell_label($d), 'sit', 'sit_label[]', (string)($d['sit_url'] ?? ''));
         echo '</td><td class="org-slot-p1">';
         org_echo_combo('p1[]', (int)($d['p1_id'] ?? 0), (string)($d['p1'] ?? ''), 'person');
         echo $confirmBox((int)($d['p1_id'] ?? 0));
