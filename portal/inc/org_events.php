@@ -2185,9 +2185,9 @@ function org_echo_combo(string $name, int $selected, string $label, string $kind
             $viewTitle = 'Открыть карточку (двойной клик — изменить)';
         } else {
             $viewUrl = $link;
-            $viewTitle = $viewUrl !== ''
-                ? 'Открыть ситуацию в банке (двойной клик — изменить)'
-                : 'Двойной клик — изменить';
+            $viewTitle = $label . ($viewUrl !== ''
+                ? ' — открыть ситуацию в банке (двойной клик — изменить)'
+                : ' — двойной клик, чтобы изменить');
         }
         if ($viewUrl !== '') {
             echo '<a class="org-combo-view" href="' . h($viewUrl)

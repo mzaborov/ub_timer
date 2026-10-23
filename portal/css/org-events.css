@@ -356,6 +356,14 @@ body.org-resizing {
   font-size: 0.75rem;
   white-space: nowrap;
 }
+.org-slots th:nth-child(2),
+.org-slots td:nth-child(2) { width: 6.8rem; }
+.org-slots th:nth-child(3),
+.org-slots td:nth-child(3) { width: 6.2rem; }
+.org-slots th:nth-child(4),
+.org-slots td:nth-child(4) { width: 11rem; max-width: 12rem; }
+.org-slots td:nth-child(4) .org-combo { min-width: 0; }
+.org-slots .org-combo { min-width: 6.5rem; }
 .org-slots td.org-slot-n {
   padding: 0.12rem 0.28rem;
   color: var(--muted);
@@ -690,6 +698,11 @@ body.org-resizing {
   font-size: 0.74rem;
   color: #0a7d6b;
   font-weight: 600;
+}
+.org-play-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 .org-play-list li {
   display: flex;
