@@ -2915,8 +2915,10 @@ function org_echo_slots_card(
         if ($pid <= 0) {
             return '';
         }
-        return '<label class="org-confirm" title="Отметить, что человек подтвердил участие"><input type="checkbox" class="org-confirm-box" data-pid="'
-            . $pid . '"' . (isset($confirmed[$pid]) ? ' checked' : '') . '>подтв.</label>';
+        return '<label class="org-confirm" title="Подтвердил участие">'
+            . '<input type="checkbox" class="org-confirm-box" data-pid="' . $pid . '"'
+            . (isset($confirmed[$pid]) ? ' checked' : '')
+            . ' aria-label="Подтвердил участие"></label>';
     };
     $peopleJs = [];
     foreach ($people as $pid => $fio) {
@@ -3020,22 +3022,22 @@ function org_echo_slots_card(
                 . '<input type="date" class="org-date-input" name="duel_date[]" value="' . h($dDate)
                 . '" aria-label="Дата слота"></label></td>';
         }
-        echo '<td class="org-slot-type"><select class="org-cell-in org-slot-type-sel" name="duel_type[]">';
+        echo '<td class="org-slot-type"><select class="org-cell-in org-slot-type-sel" name="duel_type[]" title="'
+            . h((string)($d['type'] ?? '')) . '">';
         foreach (org_duel_types() as $t) {
-            echo '<option' . (($d['type'] ?? '') === $t ? ' selected' : '') . '>' . h($t) . '</option>';
+            echo '<option value="' . h($t) . '" title="' . h($t) . '"'
+                . (($d['type'] ?? '') === $t ? ' selected' : '') . '>' . h(mb_substr($t, 0, 3)) . '</option>';
         }
         echo '</select></td>';
         echo '<td class="org-slot-sit">';
         org_echo_combo('situation_id[]', (int)($d['situation_id'] ?? 0), org_sit_cell_label($d), 'sit', 'sit_label[]', (string)($d['sit_url'] ?? ''));
-        echo '</td><td class="org-slot-p1">';
+        echo '</td><td class="org-slot-p1"><div class="org-player-cell">';
         org_echo_combo('p1[]', (int)($d['p1_id'] ?? 0), (string)($d['p1'] ?? ''), 'person');
-        echo $confirmBox((int)($d['p1_id'] ?? 0));
-        echo '</td><td>';
+        echo $confirmBox((int)($d['p1_id'] ?? 0)), '</div></td><td>';
         org_echo_combo('s1[]', (int)($d['s1_id'] ?? 0), (string)($d['s1'] ?? ''), 'person');
-        echo '</td><td>';
+        echo '</td><td class="org-slot-p2"><div class="org-player-cell">';
         org_echo_combo('p2[]', (int)($d['p2_id'] ?? 0), (string)($d['p2'] ?? ''), 'person');
-        echo $confirmBox((int)($d['p2_id'] ?? 0));
-        echo '</td><td>';
+        echo $confirmBox((int)($d['p2_id'] ?? 0)), '</div></td><td>';
         org_echo_combo('s2[]', (int)($d['s2_id'] ?? 0), (string)($d['s2'] ?? ''), 'person');
         echo '</td><td class="org-slot-lock">';
         echo '<label title="Зафиксировать пару: генерация не изменит этот слот">'

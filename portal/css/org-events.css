@@ -358,9 +358,20 @@ body.org-resizing {
 }
 .org-slots .org-slot-date,
 .org-slots .org-slot-type { width: 1%; white-space: nowrap; }
-.org-slots .org-slot-sit { width: 11rem; max-width: 12rem; }
+.org-slots .org-slot-sit { width: 11rem; min-width: 9rem; max-width: 12rem; }
 .org-slots .org-slot-sit .org-combo { min-width: 0; }
 .org-slots .org-combo { min-width: 6.5rem; }
+.org-player-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.org-player-cell .org-combo { flex: 1 1 auto; min-width: 0; }
+.org-player-cell .org-confirm { flex: 0 0 auto; margin: 0; gap: 0; }
+.org-slots .org-confirm input { width: 0.85rem; height: 0.85rem; }
+.org-slot-type select { text-align: center; padding: 0 0.15rem; }
+.org-slots td { padding: 0.08rem 0.24rem; }
 .org-date-cell {
   position: relative;
   display: block;
