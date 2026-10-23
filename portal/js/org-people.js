@@ -11,6 +11,7 @@
   var errEl = document.getElementById('org-people-err');
   var csrfEl = document.getElementById('org-people-csrf');
   attachPersonTips();
+  attachCircleAssign();
   if (!raw || !tree || !ul || !card || !csrfEl) {
     return;
   }
@@ -847,6 +848,27 @@
   function renderCard() {
     card.replaceChildren();
     card.appendChild(el('p', 'muted', 'Клик по человеку откроет карточку в новой вкладке.'));
+  }
+
+  function attachCircleAssign() {
+    document.querySelectorAll('.org-circle-assign').forEach(function (form) {
+      var sel = form.querySelector('select[name="circle_id"]');
+      var inp = form.querySelector('input.org-circle-custom');
+      if (!sel || !inp) {
+        return;
+      }
+      function sync() {
+        var custom = /__custom__$/.test(sel.value || '');
+        inp.hidden = !custom;
+        if (!custom) {
+          inp.value = '';
+        } else {
+          inp.focus();
+        }
+      }
+      sel.addEventListener('change', sync);
+      sync();
+    });
   }
 
   function attachPersonTips() {

@@ -559,7 +559,13 @@ function org_mem_add(mysqli $db): array
     $cid = (int)$cidRaw;
     $pid = (int)($_POST['person_id'] ?? 0);
     $invRaw = org_mem_norm((string)($_POST['involvement'] ?? ''));
-    $inv = $invRaw !== '' ? $invRaw : org_mem_norm($invSel);
+    if ($invSel === '__custom__') {
+        $inv = $invRaw;
+    } elseif ($invSel !== '') {
+        $inv = org_mem_norm($invSel);
+    } else {
+        $inv = $invRaw;
+    }
     if ($cid < 1 || $pid < 1 || $inv === '') {
         return ['error' => 'Нужны человек, круг и участие'];
     }
@@ -967,6 +973,7 @@ function org_person_page(mysqli $db, int $pid): void
                 $out .= '<option value="' . (int)$base['id'] . '|' . h((string)$inv) . '">'
                     . h((string)$inv) . '</option>';
             }
+            $out .= '<option value="' . (int)$base['id'] . '|__custom__">+ своё участие…</option>';
             $out .= '</optgroup>';
         }
         $open = false;
@@ -981,12 +988,13 @@ function org_person_page(mysqli $db, int $pid): void
                 $open = true;
                 $cInvs = array_keys($c['involvements'] ?? []);
                 if (!$cInvs) {
-                    $out .= '<option value="' . (int)$c['id'] . '|">— впишите участие —</option>';
+                    $out .= '<option value="' . (int)$c['id'] . '|__custom__">+ своё участие…</option>';
                 } else {
                     foreach ($cInvs as $inv) {
                         $out .= '<option value="' . (int)$c['id'] . '|' . h((string)$inv) . '">'
                             . h((string)$inv) . '</option>';
                     }
+                    $out .= '<option value="' . (int)$c['id'] . '|__custom__">+ своё участие…</option>';
                 }
                 continue;
             }
@@ -1007,7 +1015,7 @@ function org_person_page(mysqli $db, int $pid): void
             . '<input type="hidden" name="person_id" value="' . $pid . '">'
             . '<input type="hidden" name="return_person" value="1">'
             . $renderSelect($base, $children, $aria)
-            . '<input type="text" name="involvement" placeholder="своё участие" autocomplete="off">'
+            . '<input type="text" class="org-circle-custom" name="involvement" placeholder="участие" autocomplete="off" hidden>'
             . '<button type="submit" class="btn-ghost">Назначить</button>'
             . '</form>';
     };

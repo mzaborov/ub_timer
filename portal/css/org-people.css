@@ -734,6 +734,7 @@ body.page-org-people main {
   font: inherit;
   font-size: 0.88rem;
 }
+.org-circle-assign input[hidden] { display: none !important; }
 .org-circle-assign .btn-ghost {
   padding: 0.18rem 0.55rem;
   font-size: 0.85rem;
