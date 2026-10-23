@@ -2316,6 +2316,7 @@ function portal_echo_org_events(mysqli $db, string $flash, string $error): void
         org_echo_slots_card($selected, $duels, $regs, $people, $db, $metrics);
     }
     echo '</div>';
+    echo '<div class="org-splitter" data-org-resize="side" role="separator" aria-orientation="vertical" tabindex="0" title="Потяните, чтобы изменить ширину"></div>';
     echo '<div class="org-ev-col org-ev-col-side">';
     echo '<div class="org-ev-attrs">';
     if ($isNew) {
@@ -2344,6 +2345,7 @@ function portal_echo_org_events(mysqli $db, string $flash, string $error): void
     }
     echo '</div>';
     if ($showRecs) {
+        echo '<div class="org-splitter" data-org-resize="recs" role="separator" aria-orientation="vertical" tabindex="0" title="Потяните, чтобы изменить ширину"></div>';
         echo '<aside class="org-ev-recs">';
         org_echo_event_recs($selected, $duels, $regs, $attract, $career, $db);
         echo '</aside>';

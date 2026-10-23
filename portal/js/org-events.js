@@ -725,4 +725,100 @@
     }
   }
   bindRegConfirms();
+
+  function initEventSplitters() {
+    var KEY = 'org-ev-sizes';
+    var saved = {};
+    try {
+      saved = JSON.parse(window.localStorage.getItem(KEY) || '{}') || {};
+    } catch (e) {
+      saved = {};
+    }
+    var defs = {
+      side: {
+        box: '.org-ev-main',
+        pane: '.org-ev-col-side',
+        cssVar: '--org-side-w',
+        min: 240,
+        max: 620
+      },
+      recs: {
+        box: '.org-ev-split',
+        pane: '.org-ev-recs',
+        cssVar: '--org-recs-w',
+        min: 180,
+        max: 480
+      }
+    };
+    function save() {
+      try {
+        window.localStorage.setItem(KEY, JSON.stringify(saved));
+      } catch (e) {}
+    }
+    Object.keys(defs).forEach(function (key) {
+      var def = defs[key];
+      var box = document.querySelector(def.box);
+      var handle = document.querySelector('.org-splitter[data-org-resize="' + key + '"]');
+      var pane = box ? box.querySelector(def.pane) : null;
+      if (!box || !handle || !pane) {
+        return;
+      }
+      if (saved[key]) {
+        box.style.setProperty(def.cssVar, saved[key] + 'px');
+      }
+
+      handle.addEventListener('pointerdown', function (e) {
+        if (e.button !== 0) {
+          return;
+        }
+        e.preventDefault();
+        var startX = e.clientX;
+        var startW = pane.getBoundingClientRect().width;
+        handle.classList.add('is-dragging');
+        document.body.classList.add('org-resizing');
+        function move(ev) {
+          var w = Math.round(startW - (ev.clientX - startX));
+          w = Math.max(def.min, Math.min(def.max, w));
+          box.style.setProperty(def.cssVar, w + 'px');
+        }
+        function up() {
+          document.removeEventListener('pointermove', move);
+          document.removeEventListener('pointerup', up);
+          handle.classList.remove('is-dragging');
+          document.body.classList.remove('org-resizing');
+          var w = parseFloat(box.style.getPropertyValue(def.cssVar)) || 0;
+          if (w > 0) {
+            saved[key] = Math.round(w);
+            save();
+          }
+        }
+        document.addEventListener('pointermove', move);
+        document.addEventListener('pointerup', up);
+      });
+
+      handle.addEventListener('dblclick', function () {
+        box.style.removeProperty(def.cssVar);
+        delete saved[key];
+        save();
+      });
+
+      handle.addEventListener('keydown', function (e) {
+        var step = e.shiftKey ? 40 : 16;
+        var cur = pane.getBoundingClientRect().width;
+        if (e.key === 'ArrowLeft') {
+          cur += step;
+        } else if (e.key === 'ArrowRight') {
+          cur -= step;
+        } else {
+          return;
+        }
+        e.preventDefault();
+        cur = Math.max(def.min, Math.min(def.max, Math.round(cur)));
+        box.style.setProperty(def.cssVar, cur + 'px');
+        saved[key] = cur;
+        save();
+      });
+    });
+  }
+  initEventSplitters();
 })();
