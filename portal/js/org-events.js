@@ -726,6 +726,45 @@
   }
   bindRegConfirms();
 
+  function bindSlotDates() {
+    var WD = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+    document.addEventListener('click', function (e) {
+      var cell = e.target && e.target.closest ? e.target.closest('.org-date-cell') : null;
+      if (!cell) {
+        return;
+      }
+      var input = cell.querySelector('.org-date-input');
+      if (!input) {
+        return;
+      }
+      if (typeof input.showPicker === 'function') {
+        e.preventDefault();
+        try {
+          input.showPicker();
+        } catch (err) {
+          input.style.opacity = '1';
+          input.focus();
+        }
+      }
+    });
+    document.addEventListener('change', function (e) {
+      var input = e.target;
+      if (!input || !input.classList || !input.classList.contains('org-date-input')) {
+        return;
+      }
+      var cell = input.closest('.org-date-cell');
+      var view = cell ? cell.querySelector('.org-date-view') : null;
+      if (!view || !input.value) {
+        return;
+      }
+      var parts = input.value.split('-');
+      var d = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+      view.textContent = isNaN(d.getTime()) ? '' : WD[d.getDay()];
+      cell.title = input.value;
+    });
+  }
+  bindSlotDates();
+
   function initEventSplitters() {
     var KEY = 'org-ev-sizes';
     var saved = {};
