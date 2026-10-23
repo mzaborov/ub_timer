@@ -2870,6 +2870,10 @@ function org_echo_slots_card(
         }
     }
     $multiDay = count($slotDates) > 1;
+    $typeIcons = ['классика' => 'fa-chess', 'экспресс' => 'fa-bolt', 'парный' => 'fa-user-group'];
+    $typeLabel = static function (string $t): string {
+        return mb_strtoupper(mb_substr($t, 0, 1)) . mb_substr($t, 1);
+    };
     $weekDay = static function (string $iso): string {
         $ts = strtotime($iso);
         if ($ts === false) {
@@ -3022,13 +3026,22 @@ function org_echo_slots_card(
                 . '<input type="date" class="org-date-input" name="duel_date[]" value="' . h($dDate)
                 . '" aria-label="Дата слота"></label></td>';
         }
-        echo '<td class="org-slot-type"><select class="org-cell-in org-slot-type-sel" name="duel_type[]" title="'
-            . h((string)($d['type'] ?? '')) . '">';
-        foreach (org_duel_types() as $t) {
-            echo '<option value="' . h($t) . '" title="' . h($t) . '"'
-                . (($d['type'] ?? '') === $t ? ' selected' : '') . '>' . h(mb_substr($t, 0, 3)) . '</option>';
+        $curType = (string)($d['type'] ?? '');
+        if (!in_array($curType, org_duel_types(), true)) {
+            $curType = org_duel_types()[0];
         }
-        echo '</select></td>';
+        echo '<td class="org-slot-type"><div class="org-type-combo">';
+        echo '<button type="button" class="org-type-btn" title="' . h($typeLabel($curType)) . '">'
+            . '<i class="fa-solid ' . h($typeIcons[$curType] ?? 'fa-circle') . '"></i>'
+            . '<span class="org-type-abbr">' . h(mb_substr($curType, 0, 3)) . '</span></button>';
+        echo '<ul class="org-type-menu" hidden>';
+        foreach (org_duel_types() as $t) {
+            echo '<li><button type="button" data-value="' . h($t) . '"'
+                . ($t === $curType ? ' class="is-on"' : '') . '>'
+                . '<i class="fa-solid ' . h($typeIcons[$t] ?? 'fa-circle') . '"></i>'
+                . '<span>' . h($typeLabel($t)) . '</span></button></li>';
+        }
+        echo '</ul><input type="hidden" name="duel_type[]" value="' . h($curType) . '"></div></td>';
         echo '<td class="org-slot-sit">';
         org_echo_combo('situation_id[]', (int)($d['situation_id'] ?? 0), org_sit_cell_label($d), 'sit', 'sit_label[]', (string)($d['sit_url'] ?? ''));
         echo '</td><td class="org-slot-p1"><div class="org-player-cell">';

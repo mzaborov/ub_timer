@@ -370,7 +370,51 @@ body.org-resizing {
 .org-player-cell .org-combo { flex: 1 1 auto; min-width: 0; }
 .org-player-cell .org-confirm { flex: 0 0 auto; margin: 0; gap: 0; }
 .org-slots .org-confirm input { width: 0.85rem; height: 0.85rem; }
-.org-slot-type select { text-align: center; padding: 0 0.15rem; }
+.org-type-combo { position: relative; display: inline-flex; }
+.org-type-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  border: 0;
+  background: transparent;
+  padding: 0.12rem 0.3rem;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.org-type-btn i { color: var(--muted); font-size: 0.72rem; }
+.org-type-btn:hover i { color: var(--orange); }
+.org-type-abbr { line-height: 1.1; }
+.org-type-menu {
+  position: absolute;
+  z-index: 60;
+  top: 100%;
+  left: 0;
+  min-width: 8.6rem;
+  margin: 0;
+  padding: 0.15rem 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #c6c6c6;
+  border-radius: 6px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+.org-type-menu[hidden] { display: none; }
+.org-type-menu button {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0.32rem 0.55rem;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.org-type-menu button:hover { background: var(--orange-soft, #e0f2f1); }
+.org-type-menu button.is-on { font-weight: 600; }
+.org-type-menu button i { width: 1rem; text-align: center; color: var(--muted); }
 .org-slots td { padding: 0.08rem 0.24rem; }
 .org-date-cell {
   position: relative;
