@@ -190,6 +190,10 @@ function sit_video_maps(mysqli $db): array
          ORDER BY v.id'
     );
     while ($v = $vidRes->fetch_assoc()) {
+        $evTitle = trim((string)($v['event_title'] ?? ''));
+        if (strncmp(ltrim($evTitle), 'ТЕСТ БД', 7) === 0) {
+            continue;
+        }
         $url = trim((string)($v['url'] ?? ''));
         if (!sit_is_http_url($url)) {
             continue;
@@ -282,7 +286,12 @@ function sit_plays_by_code(mysqli $db, ?array $videos = null): array
                 LEFT JOIN people p2 ON p2.id = d.player2_id
                 LEFT JOIN people s2 ON s2.id = d.second2_id
                 WHERE d.situation_id IS NOT NULL
-                  AND (e.slug IS NULL OR e.slug NOT IN ($skipSql))";
+                  AND (e.slug IS NULL OR e.slug NOT IN ($skipSql))
+                  AND LTRIM(COALESCE(e.title, '')) NOT LIKE 'ТЕСТ БД%'
+                  AND (e.status = 'Проведено' OR EXISTS (
+                        SELECT 1 FROM duel_judges djv
+                        WHERE djv.duel_id = d.id AND djv.vote IS NOT NULL))
+                  AND COALESCE(NULLIF(d.duel_date, '0000-00-00'), e.starts_on, CURDATE()) <= CURDATE()";
     $duelRes = $db->query($duelSql);
 
     $duels = [];
