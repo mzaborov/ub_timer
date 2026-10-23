@@ -765,6 +765,85 @@
   }
   bindSlotDates();
 
+  function initTypeCombos() {
+    var combos = document.querySelectorAll('.org-type-combo');
+    if (!combos.length) {
+      return;
+    }
+    var openMenu = null;
+    var openCombo = null;
+
+    function closeMenu() {
+      if (!openMenu) {
+        return;
+      }
+      openMenu.hidden = true;
+      openMenu.removeAttribute('style');
+      if (openCombo) {
+        openCombo.appendChild(openMenu);
+      }
+      openMenu = null;
+      openCombo = null;
+    }
+
+    Array.prototype.forEach.call(combos, function (combo) {
+      var btn = combo.querySelector('.org-type-btn');
+      var menu = combo.querySelector('.org-type-menu');
+      var input = combo.querySelector('input[type="hidden"]');
+      if (!btn || !menu || !input) {
+        return;
+      }
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (openMenu === menu) {
+          closeMenu();
+          return;
+        }
+        closeMenu();
+        var r = btn.getBoundingClientRect();
+        document.body.appendChild(menu);
+        menu.hidden = false;
+        menu.style.position = 'fixed';
+        menu.style.left = Math.round(r.left) + 'px';
+        menu.style.top = Math.round(r.bottom + 2) + 'px';
+        openMenu = menu;
+        openCombo = combo;
+      });
+      menu.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var opt = e.target.closest ? e.target.closest('button[data-value]') : null;
+        if (!opt) {
+          return;
+        }
+        var val = opt.getAttribute('data-value');
+        var optIcon = opt.querySelector('i');
+        var optLabel = opt.querySelector('span');
+        input.value = val;
+        btn.title = optLabel ? optLabel.textContent : val;
+        var abbr = btn.querySelector('.org-type-abbr');
+        if (abbr) {
+          abbr.textContent = val.slice(0, 3);
+        }
+        var btnIcon = btn.querySelector('i');
+        if (btnIcon && optIcon) {
+          btnIcon.className = optIcon.className;
+        }
+        Array.prototype.forEach.call(menu.querySelectorAll('button'), function (b) {
+          b.classList.toggle('is-on', b === opt);
+        });
+        closeMenu();
+      });
+    });
+
+    document.addEventListener('click', closeMenu);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        closeMenu();
+      }
+    });
+  }
+  initTypeCombos();
+
   function initEventSplitters() {
     var KEY = 'org-ev-sizes';
     var saved = {};
