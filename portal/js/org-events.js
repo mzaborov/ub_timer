@@ -387,7 +387,7 @@
 
   function sitItems(type) {
     var items = situations.map(function (s) {
-      return { id: s.id, label: s.label, meta: s.type || '' };
+      return { id: s.id, label: s.label, meta: s.type || '', url: s.url || '' };
     });
     if (!type) {
       return items;
@@ -442,6 +442,20 @@
         return;
       }
       var id = parseInt(hidden.value, 10) || 0;
+      if (kind === 'sit') {
+        var foundSit = id > 0
+          ? situations.find(function (x) {
+              return x.id === id;
+            })
+          : null;
+        view.textContent = foundSit ? foundSit.label : (input.value || '—');
+        if (foundSit && foundSit.url) {
+          view.setAttribute('href', foundSit.url);
+        } else {
+          view.removeAttribute('href');
+        }
+        return;
+      }
       if (id > 0) {
         var found = people.find(function (x) {
           return x.id === id;
