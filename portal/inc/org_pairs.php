@@ -332,12 +332,17 @@ function org_pairs_judged_duel_ids(mysqli $db, int $eventId): array
 function org_pairs_recent_opponents(mysqli $db): array
 {
     $out = [];
+    if (!function_exists('portal_duel_played_sql')) {
+        require_once __DIR__ . '/home_data.php';
+    }
+    $playedCond = portal_duel_played_sql('d', 'e');
     $r = $db->query(
         "SELECT d.player1_id p1, d.player2_id p2,
                 COALESCE(NULLIF(d.duel_date, '0000-00-00'), e.starts_on) dd
          FROM duels d JOIN events e ON e.id = d.event_id
          WHERE d.duel_type IN ('классика', 'экспресс')
-           AND LTRIM(e.title) NOT LIKE 'ТЕСТ БД%'"
+           AND LTRIM(COALESCE(e.title, '')) NOT LIKE 'ТЕСТ БД%'
+           AND $playedCond"
     );
     if (!$r) {
         return $out;
@@ -364,12 +369,17 @@ function org_pairs_recent_opponents(mysqli $db): array
 function org_pairs_pair_history(mysqli $db, int $excludeEventId = 0): array
 {
     $out = [];
+    if (!function_exists('portal_duel_played_sql')) {
+        require_once __DIR__ . '/home_data.php';
+    }
+    $playedCond = portal_duel_played_sql('d', 'e');
     $r = $db->query(
         "SELECT d.event_id eid, d.player1_id p1, d.player2_id p2,
                 COALESCE(NULLIF(d.duel_date, '0000-00-00'), e.starts_on) dd
          FROM duels d JOIN events e ON e.id = d.event_id
          WHERE d.duel_type IN ('классика', 'экспресс', 'парный')
-           AND LTRIM(e.title) NOT LIKE 'ТЕСТ БД%'"
+           AND LTRIM(COALESCE(e.title, '')) NOT LIKE 'ТЕСТ БД%'
+           AND $playedCond"
     );
     if (!$r) {
         return $out;
