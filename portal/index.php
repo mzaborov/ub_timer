@@ -266,7 +266,7 @@ if ($page !== 'org') {
     <link rel="stylesheet" href="css/portal.css?v=85">
     <link rel="stylesheet" href="css/org.css?v=7">
     <?php if ($page === 'org' && $orgSection === 'events') { ?>
-    <link rel="stylesheet" href="css/org-events.css?v=57">
+    <link rel="stylesheet" href="css/org-events.css?v=58">
     <?php } ?>
     <?php if ($page === 'org' && $orgSection === 'people') { ?>
     <link rel="stylesheet" href="css/org-people.css?v=30">
@@ -610,7 +610,7 @@ if ($page !== 'org') {
 <script src="js/org-people.js?v=28"></script>
 <?php } ?>
 <?php if ($page === 'org' && $orgSection === 'events') { ?>
-<script src="js/org-events.js?v=17"></script>
+<script src="js/org-events.js?v=18"></script>
 <?php } ?>
 <?php if ($page === 'org' && $orgSection === 'situations') {
     $sbVer = function_exists('org_sb_asset_ver') ? org_sb_asset_ver() : '106';

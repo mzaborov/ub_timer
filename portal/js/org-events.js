@@ -820,10 +820,7 @@
         var optLabel = opt.querySelector('span');
         input.value = val;
         btn.title = optLabel ? optLabel.textContent : val;
-        var abbr = btn.querySelector('.org-type-abbr');
-        if (abbr) {
-          abbr.textContent = val.slice(0, 3);
-        }
+        btn.setAttribute('aria-label', btn.title);
         var btnIcon = btn.querySelector('i');
         if (btnIcon && optIcon) {
           btnIcon.className = optIcon.className;

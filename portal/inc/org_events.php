@@ -2870,7 +2870,7 @@ function org_echo_slots_card(
         }
     }
     $multiDay = count($slotDates) > 1;
-    $typeIcons = ['классика' => 'fa-chess', 'экспресс' => 'fa-bolt', 'парный' => 'fa-user-group'];
+    $typeIcons = ['классика' => 'fa-landmark', 'экспресс' => 'fa-bolt-lightning', 'парный' => 'fa-user-group'];
     $typeLabel = static function (string $t): string {
         return mb_strtoupper(mb_substr($t, 0, 1)) . mb_substr($t, 1);
     };
@@ -3031,9 +3031,9 @@ function org_echo_slots_card(
             $curType = org_duel_types()[0];
         }
         echo '<td class="org-slot-type"><div class="org-type-combo">';
-        echo '<button type="button" class="org-type-btn" title="' . h($typeLabel($curType)) . '">'
-            . '<i class="fa-solid ' . h($typeIcons[$curType] ?? 'fa-circle') . '"></i>'
-            . '<span class="org-type-abbr">' . h(mb_substr($curType, 0, 3)) . '</span></button>';
+        echo '<button type="button" class="org-type-btn" title="' . h($typeLabel($curType))
+            . '" aria-label="' . h($typeLabel($curType)) . '">'
+            . '<i class="fa-solid ' . h($typeIcons[$curType] ?? 'fa-circle') . '"></i></button>';
         echo '<ul class="org-type-menu" hidden>';
         foreach (org_duel_types() as $t) {
             echo '<li><button type="button" data-value="' . h($t) . '"'
