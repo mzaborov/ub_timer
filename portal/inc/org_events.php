@@ -2860,6 +2860,23 @@ function org_echo_slots_card(
     }
     $sits = $db ? org_situations_list($db) : [];
     $pairHist = $db ? org_pairs_pair_history($db, $eid) : [];
+    // Дата в слотах нужна только для многодневных мероприятий: если все слоты
+    // одного дня, колонку не показываем — дата задаётся календарём.
+    $slotDates = [];
+    foreach ($duels as $sd) {
+        $sdt = trim((string)($sd['date'] ?? ''));
+        if ($sdt !== '') {
+            $slotDates[$sdt] = true;
+        }
+    }
+    $multiDay = count($slotDates) > 1;
+    $weekDay = static function (string $iso): string {
+        $ts = strtotime($iso);
+        if ($ts === false) {
+            return '';
+        }
+        return ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][(int)date('w', $ts)];
+    };
     // «Подтвердил участие»: карта по person_id + сводка по игрокам сетки.
     $confirmed = [];
     foreach ($regs as $r) {
@@ -2954,7 +2971,9 @@ function org_echo_slots_card(
     echo '<input type="hidden" name="action" value="org_slots_save">';
     echo '<input type="hidden" name="event_id" value="' . $eid . '">';
     echo '<div class="org-slots-scroll"><table class="org-slots">';
-    echo '<thead><tr><th>#</th><th>Дата</th><th>Тип</th><th>Ситуация</th>'
+    echo '<thead><tr><th>#</th>'
+        . ($multiDay ? '<th>Дата</th>' : '')
+        . '<th>Тип</th><th>Ситуация</th>'
         . '<th>Игрок 1</th><th>Секундант 1</th><th>Игрок 2</th><th>Секундант 2</th>'
         . '<th title="Зафиксировать слот: при генерации пар он не меняется">Фикс.</th><th></th></tr></thead><tbody>';
     foreach ($duels as $i => $d) {
@@ -2989,15 +3008,24 @@ function org_echo_slots_card(
             $rowAttrs .= ' title="' . h($repeatTip) . '"';
         }
         echo '<tr' . $rowAttrs . '>';
-        echo '<td class="org-slot-n">' . ($i + 1) . '<input type="hidden" name="duel_id[]" value="' . $did . '"></td>';
-        echo '<td><input type="date" class="org-cell-in" name="duel_date[]" value="'
-            . h((string)($d['date'] ?? $ev['starts_on'] ?? '')) . '"></td>';
-        echo '<td><select class="org-cell-in" name="duel_type[]">';
+        $dDate = (string)($d['date'] ?? $ev['starts_on'] ?? '');
+        echo '<td class="org-slot-n">' . ($i + 1);
+        if (!$multiDay) {
+            echo '<input type="hidden" name="duel_date[]" value="' . h($dDate) . '">';
+        }
+        echo '<input type="hidden" name="duel_id[]" value="' . $did . '"></td>';
+        if ($multiDay) {
+            echo '<td class="org-slot-date"><label class="org-date-cell" title="' . h($dDate) . '">'
+                . '<span class="org-date-view">' . h($weekDay($dDate)) . '</span>'
+                . '<input type="date" class="org-date-input" name="duel_date[]" value="' . h($dDate)
+                . '" aria-label="Дата слота"></label></td>';
+        }
+        echo '<td class="org-slot-type"><select class="org-cell-in org-slot-type-sel" name="duel_type[]">';
         foreach (org_duel_types() as $t) {
             echo '<option' . (($d['type'] ?? '') === $t ? ' selected' : '') . '>' . h($t) . '</option>';
         }
         echo '</select></td>';
-        echo '<td>';
+        echo '<td class="org-slot-sit">';
         org_echo_combo('situation_id[]', (int)($d['situation_id'] ?? 0), org_sit_cell_label($d), 'sit', 'sit_label[]', (string)($d['sit_url'] ?? ''));
         echo '</td><td class="org-slot-p1">';
         org_echo_combo('p1[]', (int)($d['p1_id'] ?? 0), (string)($d['p1'] ?? ''), 'person');
