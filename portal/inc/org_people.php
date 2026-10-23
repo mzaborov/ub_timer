@@ -965,7 +965,8 @@ function org_person_page(mysqli $db, int $pid): void
         return $out;
     };
     $renderSelect = static function (array $base, array $children, string $aria): string {
-        $out = '<select name="circle_id" aria-label="' . h($aria) . '">';
+        $out = '<select name="circle_id" aria-label="' . h($aria) . '" required>';
+        $out .= '<option value="" selected disabled>— выберите группу и участие —</option>';
         $invs = array_keys($base['involvements'] ?? []);
         if ($invs) {
             $out .= '<optgroup label="' . h((string)$base['title']) . '">';
