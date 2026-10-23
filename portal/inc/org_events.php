@@ -2302,7 +2302,7 @@ function portal_echo_org_events(mysqli $db, string $flash, string $error): void
     }
     echo '</div>';
     if ($showRecs) {
-        org_echo_plan_side($selected, $regs, $career);
+        org_echo_plan_side($selected, $regs, $career, $duels);
     } elseif ($isTraining && $selected && ($selected['status'] ?? '') !== 'Отменено') {
         org_echo_event_participants($selected, $regs, $people);
     }
@@ -3029,9 +3029,25 @@ function org_echo_slots_card(
     echo '</section>';
 }
 
-function org_echo_plan_side(array $ev, array $regs, array $career = []): void
+function org_echo_plan_side(array $ev, array $regs, array $career = [], array $duels = []): void
 {
     $eid = (int)$ev['id'];
+    $inGrid = [];
+    $gridRoles = [];
+    foreach ($duels as $d) {
+        foreach ([
+            'p1_id' => 'игра',
+            'p2_id' => 'игра',
+            's1_id' => 'секунд',
+            's2_id' => 'секунд',
+        ] as $key => $role) {
+            $gpid = (int)($d[$key] ?? 0);
+            if ($gpid > 0) {
+                $inGrid[$gpid] = true;
+                $gridRoles[$gpid][$role] = true;
+            }
+        }
+    }
     echo '<aside class="org-plan-side" id="regs">';
     echo '<section class="card org-regs-card">';
     $regTotal = count($regs);
@@ -3108,8 +3124,15 @@ function org_echo_plan_side(array $ev, array $regs, array $career = []): void
             $rid = (int)($r['reg_id'] ?? 0);
             $hasEdit = $rid > 0;
             $comment = trim((string)$r['comment']);
+            $regPidRow = (int)($r['id'] ?? 0);
+            $rowIsInGrid = $regPidRow > 0 && isset($inGrid[$regPidRow]);
+            $gridTip = '';
+            if ($rowIsInGrid) {
+                $gridTip = ' title="Включён в сетку слотов: '
+                    . h(implode(', ', array_keys($gridRoles[$regPidRow] ?? []))) . '"';
+            }
 
-            echo '<tr class="org-reg-view" data-reg-row="' . $rid . '">';
+            echo '<tr class="org-reg-view' . ($rowIsInGrid ? ' org-reg-in-grid' : '') . '" data-reg-row="' . $rid . '"' . $gridTip . '>';
             echo '<td class="org-reg-name">';
             $regPid = (int)($r['id'] ?? 0);
             $regName = h($r['name']);
@@ -3119,6 +3142,9 @@ function org_echo_plan_side(array $ev, array $regs, array $career = []): void
                     . '" target="_blank" rel="noopener" title="Открыть карточку человека">' . $regName . '</a></strong>';
             } else {
                 echo '<strong>' . $regName . '</strong>';
+            }
+            if ($rowIsInGrid) {
+                echo ' <span class="org-reg-flag org-reg-flag-grid" title="Попал в сетку слотов">в сетке</span>';
             }
             if (!empty($r['org_no_play'])) {
                 echo ' <span class="org-reg-flag" title="Пометка орга: не играть">не играть</span>';
