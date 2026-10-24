@@ -140,6 +140,39 @@ function dbSaveSortOrder_(order) {
     dbWriteNotify_({ op: "sort", order: order }, true);
 }
 
+/** Добавить поединок в мероприятие (сразу, без очереди — нужен id нового поединка). */
+function dbAddDuel_(options, onDone, onError) {
+    if (!dbWriteActive_()) {
+        if (onError) onError("расписание не из базы");
+        return;
+    }
+    var op = {
+        op: "duel_add",
+        duel_type: (options && options.type) || "классика",
+        random: !!(options && options.random)
+    };
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", DB_WRITE_URL, true);
+    xhr.setRequestHeader("Content-Type", "application/json; charset=utf-8");
+    xhr.onreadystatechange = function () {
+        if (xhr.readyState !== 4) return;
+        var data = null;
+        try { data = JSON.parse(xhr.responseText); } catch (e) { /* ignore */ }
+        if (xhr.status >= 200 && xhr.status < 300 && data && data.ok) {
+            if (data.added && data.added.length) {
+                if (onDone) onDone(data.added[0]);
+            } else if (onError) {
+                onError("поединок не добавлен");
+            }
+            return;
+        }
+        var msg = (data && data.error) ? String(data.error) : ("HTTP " + xhr.status);
+        if (xhr.status === 403 || msg === "org_required") msg = "нужен режим организатора";
+        if (onError) onError(msg);
+    };
+    xhr.send(JSON.stringify({ event_id: dbEventId, ops: [op] }));
+}
+
 /** id человека, сидящего в слоте refereeList[refIdx] текущего поединка (для материализации голоса). */
 function dbJudgePersonForRefereeIndex_(refIdx) {
     if (typeof getJudgeSlotsForDuel !== "function") return null;
