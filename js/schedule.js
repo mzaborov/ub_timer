@@ -180,10 +180,101 @@ function getRevealedSituationIndicesForPayload() {
     return out;
 }
 
+function canReorderDuels_() {
+    return scheduleSource === "db" && duelsList && duelsList.length > 1
+        && typeof dbWriteActive_ === "function" && dbWriteActive_();
+}
+
+function buildDuelOrderTools_(index) {
+    var tools = document.createElement("div");
+    tools.className = "duel-order-tools";
+    var defs = [
+        { to: 0, label: "⇤", title: "В начало" },
+        { to: index - 1, label: "↑", title: "Выше" },
+        { to: index + 1, label: "↓", title: "Ниже" },
+        { to: duelsList.length - 1, label: "⇥", title: "В конец" }
+    ];
+    defs.forEach(function (def) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn btn-sm btn-outline-secondary duel-order-btn";
+        btn.textContent = def.label;
+        btn.title = def.title;
+        btn.setAttribute("aria-label", def.title);
+        btn.disabled = def.to === index || def.to < 0 || def.to >= duelsList.length;
+        btn.addEventListener("click", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            reorderDuel_(index, def.to);
+        });
+        tools.appendChild(btn);
+    });
+    return tools;
+}
+
+/** Переставляет поединок в списке часов и сохраняет порядок в duels.sort_order. */
+function reorderDuel_(fromIdx, toIdx) {
+    if (!canReorderDuels_()) return;
+    if (fromIdx === toIdx || fromIdx < 0 || fromIdx >= duelsList.length
+        || toIdx < 0 || toIdx >= duelsList.length) return;
+
+    function mapIdx_(i) {
+        if (i === fromIdx) return toIdx;
+        if (fromIdx < toIdx && i > fromIdx && i <= toIdx) return i - 1;
+        if (toIdx < fromIdx && i >= toIdx && i < fromIdx) return i + 1;
+        return i;
+    }
+
+    var moved = duelsList.splice(fromIdx, 1)[0];
+    duelsList.splice(toIdx, 0, moved);
+    if (duelAssignments && fromIdx < duelAssignments.length) {
+        var movedA = duelAssignments.splice(fromIdx, 1)[0];
+        if (movedA !== undefined) duelAssignments.splice(toIdx, 0, movedA);
+    }
+
+    var remappedRevealed = {};
+    for (var key in revealedSituationIndices) {
+        if (!revealedSituationIndices.hasOwnProperty(key) || !revealedSituationIndices[key]) continue;
+        var oldIdx = parseInt(key, 10);
+        if (!isNaN(oldIdx) && oldIdx >= 0) remappedRevealed[mapIdx_(oldIdx)] = true;
+    }
+    revealedSituationIndices = remappedRevealed;
+
+    var cd = (typeof currentDuel === "string") ? parseInt(currentDuel, 10) : currentDuel;
+    if (cd != null && !isNaN(cd) && cd >= 0 && cd < duelsList.length) currentDuel = mapIdx_(cd);
+    if (lastCompletedDuelIndex != null) {
+        var lc = parseInt(lastCompletedDuelIndex, 10);
+        if (!isNaN(lc) && lc >= 0) lastCompletedDuelIndex = mapIdx_(lc);
+    }
+
+    var order = [];
+    var complete = true;
+    for (var i = 0; i < duelsList.length; i++) {
+        duelsList[i].DuelNum = i + 1;
+        duelsList[i].SortOrder = i + 1;
+        if (duelsList[i].DuelId == null) {
+            complete = false;
+        } else {
+            order.push(Number(duelsList[i].DuelId));
+        }
+    }
+    if (complete && order.length === duelsList.length) dbSaveSortOrder_(order);
+
+    if (typeof saveProtocolStateToLocalStorage === "function") saveProtocolStateToLocalStorage();
+    renderDuelChooser();
+    if (typeof renderJudgesLayoutTab === "function") renderJudgesLayoutTab();
+}
+
 function renderDuelChooser() {
     var duelChooser = document.getElementById("duel-chooser");
     if (!duelChooser || !duelsList) return;
     duelChooser.innerHTML = "";
+    if (canReorderDuels_()) {
+        var hint = document.createElement("p");
+        hint.className = "small text-muted mb-2";
+        hint.textContent = "Порядок поединков: ⇤ в начало · ↑ выше · ↓ ниже · ⇥ в конец. Изменения сразу сохраняются в базе.";
+        duelChooser.appendChild(hint);
+    }
     duelsList.forEach(function (duel, index) {
         var figure = document.createElement("figure");
         var duelNum = duel.DuelNum != null ? duel.DuelNum : (index + 1);
@@ -191,6 +282,9 @@ function renderDuelChooser() {
         figure.innerHTML = '<a class="icon-link" href="#" onclick=\'duelChoosed("' + index + '"); return false;\'>' +
             '<blockquote class="blockquote"><p>№' + duelNum + " :: " + situationHtml + "</p></blockquote></a>" +
             '<figcaption class="blockquote-footer">' + formatDuelPlayersCaption(duel) + "</figcaption>";
+        if (canReorderDuels_()) {
+            figure.appendChild(buildDuelOrderTools_(index));
+        }
         duelChooser.appendChild(figure);
     });
 }

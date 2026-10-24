@@ -1635,12 +1635,15 @@ function org_slots_save(mysqli $db): array
                 player2_id=NULLIF(?, 0), second2_id=NULLIF(?, 0), gen_locked=?
          WHERE id=? AND event_id=?'
     );
+    $ordSt = $db->prepare('UPDATE duels SET sort_order=? WHERE id=? AND event_id=?');
+    $sortPos = 0;
     $seconds = [];
     foreach ($ids as $i => $rawId) {
         $did = (int)$rawId;
         if ($did <= 0) {
             continue;
         }
+        $sortPos++;
         $type = (string)($types[$i] ?? 'классика');
         if (!in_array($type, org_duel_types(), true)) {
             $type = 'классика';
@@ -1666,8 +1669,11 @@ function org_slots_save(mysqli $db): array
         $lock = !empty($locks[$i]) ? 1 : 0;
         $st->bind_param('sssiisiiiiiii', $date, $type, $prep, $mins, $sid, $notes, $p1, $s1, $p2, $s2, $lock, $did, $eid);
         $st->execute();
+        $ordSt->bind_param('iii', $sortPos, $did, $eid);
+        $ordSt->execute();
     }
     $st->close();
+    $ordSt->close();
 
     // Секундантов, выбранных не из заявок, добавляем в заявки мероприятия.
     if ($seconds) {
@@ -3015,7 +3021,14 @@ function org_echo_slots_card(
         }
         echo '<tr' . $rowAttrs . '>';
         $dDate = (string)($d['date'] ?? $ev['starts_on'] ?? '');
-        echo '<td class="org-slot-n">' . ($i + 1);
+        echo '<td class="org-slot-n">';
+        echo '<span class="org-slot-num">' . ($i + 1) . '</span>';
+        echo '<span class="org-slot-move">'
+            . '<button type="button" class="org-slot-move-btn" data-slot-move="up" title="Переместить выше" aria-label="Переместить слот выше"'
+            . ($i === 0 ? ' disabled' : '') . '><i class="fa-solid fa-arrow-up"></i></button>'
+            . '<button type="button" class="org-slot-move-btn" data-slot-move="down" title="Переместить ниже" aria-label="Переместить слот ниже"'
+            . ($i === count($duels) - 1 ? ' disabled' : '') . '><i class="fa-solid fa-arrow-down"></i></button>'
+            . '</span>';
         if (!$multiDay) {
             echo '<input type="hidden" name="duel_date[]" value="' . h($dDate) . '">';
         }
