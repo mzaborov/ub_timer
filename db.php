@@ -8,6 +8,7 @@
  *
  *   ?action=events[&scope=today|upcoming]
  *   ?action=event&id=<int>
+ *   ?action=protocol_events&duel_id=<int>
  *
  * Запись канона (СобытиеПротокола, состав, судьи) добавится сюда же на шаге 3.
  */
@@ -436,6 +437,39 @@ function dbj_event($link) {
     ));
 }
 
+/** События протокола поединка (только организатор). */
+function dbj_protocol_events($link) {
+    if (dbj_org_configured() && !dbj_is_org()) {
+        dbj_err('org_required', 403);
+    }
+    $duelId = isset($_GET['duel_id']) ? (int)$_GET['duel_id'] : 0;
+    if ($duelId <= 0) {
+        dbj_err('bad_duel', 400);
+    }
+    $events = array();
+    $r = mysql_query(
+        'SELECT id, seq_num, moment_sec, event_type, payload_json ' .
+        'FROM protocol_events WHERE duel_id = ' . $duelId . ' ORDER BY seq_num ASC, id ASC',
+        $link
+    );
+    if ($r) {
+        while ($row = mysql_fetch_assoc($r)) {
+            $payload = null;
+            if ($row['payload_json'] !== null && $row['payload_json'] !== '') {
+                $payload = json_decode((string)$row['payload_json'], true);
+            }
+            $events[] = array(
+                'id' => (int)$row['id'],
+                'seq_num' => (int)$row['seq_num'],
+                'moment_sec' => ($row['moment_sec'] === null ? null : (int)$row['moment_sec']),
+                'event_type' => (string)$row['event_type'],
+                'payload' => $payload
+            );
+        }
+    }
+    dbj_out(array('ok' => true, 'duel_id' => $duelId, 'events' => $events));
+}
+
 /** Запись: POST JSON {event_id, ops:[...]}. Каждая операция — маленькая идемпотентная. */
 function dbj_write($link) {
     if (dbj_org_configured() && !dbj_is_org()) {
@@ -472,7 +506,11 @@ function dbj_write($link) {
             $type = isset($op['type']) ? (string)$op['type'] : '';
             if ($type === '') { $results[] = 'event:no_type'; continue; }
             $moment = (isset($op['moment_sec']) && $op['moment_sec'] !== null && $op['moment_sec'] !== '') ? (int)$op['moment_sec'] : null;
-            $payload = isset($op['payload']) ? json_encode($op['payload']) : null;
+            $payloadData = isset($op['payload']) ? $op['payload'] : null;
+            if (is_array($payloadData)) {
+                $payloadData['server_ts'] = (int)round(microtime(true) * 1000);
+            }
+            $payload = $payloadData === null ? null : json_encode($payloadData);
             $r = mysql_query('SELECT IFNULL(MAX(seq_num),0)+1 FROM protocol_events WHERE duel_id=' . $duelId, $link);
             $seqRow = $r ? mysql_fetch_row($r) : array(1);
             $seq = (int)$seqRow[0];
@@ -679,6 +717,8 @@ if ($action === 'events') {
     dbj_events($link);
 } elseif ($action === 'event') {
     dbj_event($link);
+} elseif ($action === 'protocol_events') {
+    dbj_protocol_events($link);
 } elseif ($action === 'situations') {
     dbj_situations($link);
 } elseif ($action === 'write') {

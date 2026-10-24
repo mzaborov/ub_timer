@@ -8,6 +8,7 @@ var dbWriteTimer_ = null;
 var dbWriteInFlight_ = false;
 var dbWriteFailCount_ = 0;
 var dbWriteOrgWarned_ = false;
+var dbDuelLogStartMs_ = {};
 
 /** Запись активна: состав из БД и известно мероприятие. */
 function dbWriteActive_() {
@@ -86,7 +87,19 @@ function dbWriteFlush_() {
 function dbLogEvent_(type, payload, idx) {
     var duelId = dbWriteDuelId_(idx);
     if (!dbWriteActive_() || !duelId || !type) return;
-    dbWriteNotify_({ op: "event", duel_id: duelId, type: String(type), payload: payload || null }, true);
+    var ts = Date.now();
+    if (type === "жеребьёвка" || !dbDuelLogStartMs_[duelId]) {
+        dbDuelLogStartMs_[duelId] = ts;
+    }
+    var momentSec = Math.max(0, Math.round((ts - dbDuelLogStartMs_[duelId]) / 1000));
+    var data = {};
+    if (payload && typeof payload === "object") {
+        for (var k in payload) {
+            if (Object.prototype.hasOwnProperty.call(payload, k)) data[k] = payload[k];
+        }
+    }
+    data.ts = ts;
+    dbWriteNotify_({ op: "event", duel_id: duelId, type: String(type), payload: data, moment_sec: momentSec }, true);
 }
 
 /** Изменения состава поединка: fields — новые значения, changes — [{field, old, new}]. */
