@@ -622,6 +622,38 @@
         </div>
     </div>
 
+    <div class="modal fade" id="duelScheduleEditModal" tabindex="-1" aria-labelledby="duelScheduleEditTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="duelScheduleEditTitle">Поединок</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label" for="duel-schedule-edit-type">Тип поединка</label>
+                            <select class="form-select" id="duel-schedule-edit-type">
+                                <option value="классика">Классика</option>
+                                <option value="экспресс">Экспресс</option>
+                                <option value="парный">Парный</option>
+                            </select>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label" for="duel-schedule-edit-situation">Ситуация</label>
+                            <select class="form-select" id="duel-schedule-edit-situation"></select>
+                        </div>
+                    </div>
+                    <div class="small text-muted mt-2" id="duel-schedule-edit-note"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" id="duel-schedule-edit-save" onclick="saveDuelScheduleEdit_()">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="credit-hidden" aria-hidden="true">Исходный код доступен на: https://github.com/mzaborov/ub_timer/ | Версия: 126</div>
     <div class="app-version text-end small text-muted me-2 mb-1" title="Версия выкладки">v 126</div>
     <script type="application/json" id="intro-tracks-json">["Baba_O_Riley.mp3","Bad_To_The_Bone.mp3","Cant_Stop.mp3","Deutschland.mp3","Eye_Of_The_Tiger.mp3","Jamming.mp3","Masha_i_medvedi.mp3","Misirlou.mp3","Peremen.mp3","Stop_the_Rock.mp3","Sweet_Home_Alabama.mp3","Tatarskaya_plyasovaya.mp3"]</script>
