@@ -283,6 +283,29 @@ function dbj_events($link) {
     ));
 }
 
+/** Опубликованные ситуации для выбора в расписании. */
+function dbj_situations($link) {
+    $out = array();
+    $r = mysql_query(
+        'SELECT id, code, num, duel_type, description, roles_json ' .
+        'FROM situations WHERE is_published = 1 ORDER BY num IS NULL, num, code',
+        $link
+    );
+    if ($r) {
+        while ($row = mysql_fetch_assoc($r)) {
+            $out[] = array(
+                'id' => (int)$row['id'],
+                'code' => ($row['code'] === null ? '' : (string)$row['code']),
+                'num' => ($row['num'] === null ? null : (int)$row['num']),
+                'duel_type' => ($row['duel_type'] === null ? '' : (string)$row['duel_type']),
+                'description' => ($row['description'] === null ? '' : (string)$row['description']),
+                'roles_json' => ($row['roles_json'] === null ? '' : (string)$row['roles_json'])
+            );
+        }
+    }
+    dbj_out(array('ok' => true, 'situations' => $out));
+}
+
 function dbj_event($link) {
     $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
     if ($id <= 0) {
@@ -656,6 +679,8 @@ if ($action === 'events') {
     dbj_events($link);
 } elseif ($action === 'event') {
     dbj_event($link);
+} elseif ($action === 'situations') {
+    dbj_situations($link);
 } elseif ($action === 'write') {
     dbj_write($link);
 } elseif ($action === 'org_status') {
