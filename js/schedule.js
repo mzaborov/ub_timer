@@ -272,11 +272,19 @@ function canAddDuel_() {
         && typeof dbWriteActive_ === "function" && dbWriteActive_();
 }
 
+/** Почему добавление поединка недоступно (пустая строка — доступно). */
+function addDuelUnavailableReason_() {
+    if (scheduleSource !== "db") return "Доступно при расписании из базы";
+    if (typeof dbOrgMode === "undefined" || !dbOrgMode) return "Войдите в режим организатора";
+    if (typeof dbWriteActive_ !== "function" || !dbWriteActive_()) return "Запись в базу недоступна";
+    return "";
+}
+
 var addDuelBusy_ = false;
 
-function buildAddDuelBox_() {
+function buildAddDuelBox_(compact) {
     var box = document.createElement("div");
-    box.className = "duel-add-box border-top pt-2 mt-2";
+    box.className = compact ? "duel-add-box duel-add-box-compact" : "duel-add-box border-top pt-2 mt-2";
     var row = document.createElement("div");
     row.className = "d-flex align-items-center gap-2 flex-wrap";
 
@@ -315,8 +323,32 @@ function buildAddDuelBox_() {
     var hint = document.createElement("div");
     hint.className = "small text-muted mt-1";
     hint.textContent = "Поединок появится в конце списка. Ситуацию можно разыграть кубиком, игроков и судей назначить в раскладке.";
-    box.appendChild(hint);
+    if (!compact) box.appendChild(hint);
     return box;
+}
+
+/** Блок добавления поединка в шапке вкладки «Расписание». */
+function renderJudgesAddDuelTools_() {
+    var slot = document.getElementById("judges-add-duel-slot");
+    if (!slot) return;
+    slot.innerHTML = "";
+    var box = buildAddDuelBox_(true);
+    var reason = addDuelUnavailableReason_();
+    if (reason) {
+        box.classList.add("duel-add-box-disabled");
+        box.title = reason;
+        var controls = box.querySelectorAll("select, button");
+        for (var i = 0; i < controls.length; i++) {
+            controls[i].disabled = true;
+            controls[i].title = reason;
+        }
+        var note = document.createElement("span");
+        note.className = "small text-muted";
+        note.textContent = reason;
+        var row = box.querySelector(".d-flex");
+        if (row) row.appendChild(note);
+    }
+    slot.appendChild(box);
 }
 
 /** Добавляет поединок в локальный список после ответа БД. Возвращает его индекс. */
@@ -1178,7 +1210,7 @@ function renderJudgesLayoutTab() {
     var tbody = document.getElementById("judges-layout-tbody");
     if (!thead || !tbody) return;
     var duels = duelsList || [];
-    if (duels.length === 0) { thead.innerHTML = ""; tbody.innerHTML = "<tr><td colspan=\"2\" class=\"text-muted\">Загрузите расписание поединков.</td></tr>"; return; }
+    if (duels.length === 0) { thead.innerHTML = ""; tbody.innerHTML = "<tr><td colspan=\"2\" class=\"text-muted\">Загрузите расписание поединков.</td></tr>"; renderJudgesAddDuelTools_(); return; }
     var cd = (currentDuel != null && currentDuel !== "-1") ? (typeof currentDuel === "string" ? parseInt(currentDuel, 10) : currentDuel) : 0;
     if (isNaN(cd) || cd < 0) cd = 0;
     var headerRow = "<tr><th class=\"table-secondary\">Блок / позиция</th>";
@@ -1206,6 +1238,10 @@ function renderJudgesLayoutTab() {
     }
     thead.innerHTML = headerRow + "</tr>";
     var table = document.getElementById("judges-layout-table");
+    if (table) {
+        table.style.width = "100%";
+        table.style.minWidth = (160 + duels.length * 224) + "px";
+    }
     if (table && !table._autofillDelegate) {
         table._autofillDelegate = true;
         table.addEventListener("click", function (e) {
@@ -1403,6 +1439,7 @@ function renderJudgesLayoutTab() {
     });
     var autofillBtn = document.getElementById("judges-autofill-btn");
     if (autofillBtn) autofillBtn.onclick = function (e) { runJudgesAutofill(!!(e && e.ctrlKey)); };
+    renderJudgesAddDuelTools_();
 }
 
 function openJudgesCellCombobox(duelIdx, slotKey, cellEl) {

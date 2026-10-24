@@ -70,6 +70,7 @@ function updateDbOrgUi_() {
         && (duelsList.length || (typeof scheduleSource !== "undefined" && scheduleSource === "db"))) {
         renderDuelChooser();
     }
+    if (typeof renderJudgesAddDuelTools_ === "function") renderJudgesAddDuelTools_();
 }
 
 /** Узнать статус орга на сервере (по cookie). */
