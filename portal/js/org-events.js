@@ -708,6 +708,15 @@
   }
   bindSlotsClear();
 
+  var slotMenu = null;
+
+  function closeSlotMenu() {
+    if (slotMenu && slotMenu.parentNode) {
+      slotMenu.parentNode.removeChild(slotMenu);
+    }
+    slotMenu = null;
+  }
+
   function syncSlotOrderControls(form) {
     if (!form) {
       return;
@@ -718,14 +727,6 @@
       if (num) {
         num.textContent = String(idx + 1);
       }
-      var up = row.querySelector('[data-slot-move="up"]');
-      if (up) {
-        up.disabled = idx === 0;
-      }
-      var down = row.querySelector('[data-slot-move="down"]');
-      if (down) {
-        down.disabled = idx === rows.length - 1;
-      }
       var lock = row.querySelector('input[name^="lock["]');
       if (lock) {
         lock.name = 'lock[' + idx + ']';
@@ -733,36 +734,88 @@
     });
   }
 
+  function moveSlotRow(row, dir) {
+    var form = document.getElementById('org-slots-form');
+    if (!form || !row) {
+      return;
+    }
+    if (dir === 'up' && row.previousElementSibling) {
+      row.parentNode.insertBefore(row, row.previousElementSibling);
+    } else if (dir === 'down' && row.nextElementSibling) {
+      row.parentNode.insertBefore(row.nextElementSibling, row);
+    } else {
+      return;
+    }
+    syncSlotOrderControls(form);
+    if (typeof form.requestSubmit === 'function') {
+      form.requestSubmit();
+    } else {
+      form.submit();
+    }
+  }
+
+  function openSlotMenu(row, x, y) {
+    closeSlotMenu();
+    var rows = row.parentNode.querySelectorAll('tr');
+    var idx = Array.prototype.indexOf.call(rows, row);
+    var menu = document.createElement('div');
+    menu.className = 'org-slot-menu';
+    menu.setAttribute('role', 'menu');
+    [
+      { label: 'Поднять выше', dir: 'up', disabled: idx <= 0 },
+      { label: 'Опустить ниже', dir: 'down', disabled: idx >= rows.length - 1 }
+    ].forEach(function (item) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = item.label;
+      btn.disabled = item.disabled;
+      if (!item.disabled) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          closeSlotMenu();
+          moveSlotRow(row, item.dir);
+        });
+      }
+      menu.appendChild(btn);
+    });
+    document.body.appendChild(menu);
+    var left = Math.min(x, window.innerWidth - menu.offsetWidth - 8);
+    var top = Math.min(y, window.innerHeight - menu.offsetHeight - 8);
+    menu.style.left = Math.max(4, left) + 'px';
+    menu.style.top = Math.max(4, top) + 'px';
+    slotMenu = menu;
+  }
+
   function bindSlotMoves() {
     var form = document.getElementById('org-slots-form');
     if (!form) {
       return;
     }
-    form.addEventListener('click', function (e) {
-      var btn = e.target && e.target.closest ? e.target.closest('[data-slot-move]') : null;
-      if (!btn) {
+    form.addEventListener('contextmenu', function (e) {
+      var cell = e.target && e.target.closest ? e.target.closest('td.org-slot-n') : null;
+      if (!cell) {
         return;
       }
-      e.preventDefault();
-      var row = btn.closest('tr');
+      var row = cell.closest('tr');
       if (!row) {
         return;
       }
-      var dir = btn.getAttribute('data-slot-move');
-      if (dir === 'up' && row.previousElementSibling) {
-        row.parentNode.insertBefore(row, row.previousElementSibling);
-      } else if (dir === 'down' && row.nextElementSibling) {
-        row.parentNode.insertBefore(row.nextElementSibling, row);
-      } else {
-        return;
-      }
-      syncSlotOrderControls(form);
-      if (typeof form.requestSubmit === 'function') {
-        form.requestSubmit();
-      } else {
-        form.submit();
+      e.preventDefault();
+      openSlotMenu(row, e.clientX, e.clientY);
+    });
+    document.addEventListener('click', function (e) {
+      if (slotMenu && !slotMenu.contains(e.target)) {
+        closeSlotMenu();
       }
     });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        closeSlotMenu();
+      }
+    });
+    window.addEventListener('scroll', closeSlotMenu, true);
+    window.addEventListener('resize', closeSlotMenu);
   }
   bindSlotMoves();
 

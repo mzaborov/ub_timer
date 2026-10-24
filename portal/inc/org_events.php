@@ -3021,14 +3021,8 @@ function org_echo_slots_card(
         }
         echo '<tr' . $rowAttrs . '>';
         $dDate = (string)($d['date'] ?? $ev['starts_on'] ?? '');
-        echo '<td class="org-slot-n">';
+        echo '<td class="org-slot-n" title="ПКМ по номеру — изменить порядок">';
         echo '<span class="org-slot-num">' . ($i + 1) . '</span>';
-        echo '<span class="org-slot-move">'
-            . '<button type="button" class="org-slot-move-btn" data-slot-move="up" title="Переместить выше" aria-label="Переместить слот выше"'
-            . ($i === 0 ? ' disabled' : '') . '><i class="fa-solid fa-arrow-up"></i></button>'
-            . '<button type="button" class="org-slot-move-btn" data-slot-move="down" title="Переместить ниже" aria-label="Переместить слот ниже"'
-            . ($i === count($duels) - 1 ? ' disabled' : '') . '><i class="fa-solid fa-arrow-down"></i></button>'
-            . '</span>';
         if (!$multiDay) {
             echo '<input type="hidden" name="duel_date[]" value="' . h($dDate) . '">';
         }
