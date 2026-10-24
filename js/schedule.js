@@ -431,6 +431,26 @@ function fetchDbSituations_() {
     });
 }
 
+function dbSituationsToBankMap_(list) {
+    var map = {};
+    for (var i = 0; i < (list || []).length; i++) {
+        var sit = list[i];
+        var num = dbSituationNum_(sit);
+        if (!num) continue;
+        var obj = {
+            "Номер": num,
+            "Тип": String(sit.duel_type || ""),
+            "Название ситуации": dbSituationName_(sit),
+            "SituationDescription": String(sit.description || ""),
+            "SituationRoles": String(sit.roles_json || ""),
+            "_dbId": sit.id
+        };
+        map[num] = obj;
+        map[num.toUpperCase()] = obj;
+    }
+    return map;
+}
+
 function dbSituationNum_(sit) {
     var code = sit ? String(sit.code || "").trim() : "";
     var m = code.match(/^(\d+)/);
@@ -611,7 +631,7 @@ function openDuelScheduleEditor_(idx, opts) {
     duelScheduleEditOriginal_ = {
         id: originalId,
         typeValue: duelTypeValueForLabel_(duel.Type),
-        random: !!duel.wasRandomSlot || isRandomSituationPlaceholderDuel_(duel) || !originalId
+        random: isRandomSituationPlaceholderDuel_(duel) || !originalId
     };
     var titleEl = document.getElementById("duelScheduleEditTitle");
     if (titleEl) titleEl.textContent = "Поединок " + (duel.DuelNum != null ? duel.DuelNum : (idx + 1));
@@ -3173,6 +3193,7 @@ function isUsableBankSituationForRandom_(obj) {
     if (!num || isRandomSituationSlotNum_(num)) return false;
     var name = String(obj["Название ситуации"] || obj["SituationName"] || "").trim().toLowerCase();
     if (name === "случайная ситуация") return false;
+    if (obj._dbId) return true;
     var desc = String(obj["SituationDescription"] || "").trim();
     var roles = String(obj["SituationRoles"] || "").trim();
     return !!(desc || roles);
@@ -3229,16 +3250,27 @@ function applyBankSituationToDuel_(duel, bankObj, kind) {
     duel.SituationName = name;
     duel.SituationDescription = desc;
     duel.SituationRoles = roles;
+    duel.SituationId = (bankObj._dbId != null && bankObj._dbId !== "") ? Number(bankObj._dbId) : null;
     duel.Type = defaults.typeLabel;
     duel.DuelMinutesLength = defaults.minutes;
     duel.RefereeQty = defaults.refereeQty;
-    duel.wasRandomSlot = true;
-    duel.randomSlotKind = kind === "express" ? "express" : "classic";
+    duel.wasRandomSlot = false;
+    delete duel.randomSlotKind;
 }
 
 function fetchBankMapForRandom_() {
     if (googleSituationsBankMapCache) return Promise.resolve(googleSituationsBankMapCache);
-    return fetchGoogleSituationsBankMap_().then(function (map) {
+    var fromDb = (typeof scheduleSource !== "undefined" && scheduleSource === "db"
+        && typeof fetchDbSituations_ === "function");
+    var load = fromDb
+        ? fetchDbSituations_().then(function (list) {
+            if (!list || !list.length) return fetchGoogleSituationsBankMap_();
+            return dbSituationsToBankMap_(list);
+        }).catch(function () {
+            return fetchGoogleSituationsBankMap_();
+        })
+        : fetchGoogleSituationsBankMap_();
+    return load.then(function (map) {
         googleSituationsBankMapCache = map;
         return map;
     });
@@ -3293,6 +3325,15 @@ function rollRandomSituation() {
                     }
                     duelChoosed(String(idx));
                     if (typeof notifyLiveProtocolSituation_ === "function") notifyLiveProtocolSituation_(idx);
+                    if (duel.SituationId && canAddDuel_() && typeof dbSaveComposition_ === "function") {
+                        dbSaveComposition_(idx, {
+                            situation_id: duel.SituationId,
+                            duel_type: duelTypeValueForLabel_(duel.Type),
+                            round_minutes: duel.DuelMinutesLength,
+                            referee_qty: duel.RefereeQty,
+                            notes: null
+                        }, [{ field: "Ситуация", old: "Случайная ситуация", new: "№" + duel.SituationNum + " " + duel.SituationName }]);
+                    }
                     resolve(pick);
                 }, waitMs);
             });
