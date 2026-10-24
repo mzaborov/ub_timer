@@ -476,6 +476,18 @@ body.org-resizing {
 }
 .org-slot-menu button:hover:not(:disabled) { background: #eef3f9; }
 .org-slot-menu button:disabled { opacity: 0.45; cursor: default; }
+.org-slot-off {
+  display: none;
+  padding: 0.12rem 0.28rem;
+  color: #adb5bd;
+  cursor: not-allowed;
+}
+.org-slot-s1.is-off .org-combo,
+.org-slot-s2.is-off .org-combo { display: none; }
+.org-slot-s1.is-off .org-slot-off,
+.org-slot-s2.is-off .org-slot-off { display: block; }
+.org-slots td.org-slot-s1.is-off,
+.org-slots td.org-slot-s2.is-off { background: #f6f7f8; }
 .org-slots td.org-slot-x { width: 1.6rem; text-align: center; }
 .org-slots td.org-slot-x .btn-ghost { padding: 0 0.25rem; }
 .org-cell-in,

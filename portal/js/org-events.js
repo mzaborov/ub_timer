@@ -876,6 +876,37 @@
   }
   bindSlotDates();
 
+  function syncRowSecondSlots(row, type) {
+    if (!row) {
+      return;
+    }
+    var express = type === 'экспресс';
+    ['s1', 's2'].forEach(function (key) {
+      var cell = row.querySelector('.org-slot-' + key);
+      if (!cell) {
+        return;
+      }
+      cell.classList.toggle('is-off', express);
+      if (!express) {
+        return;
+      }
+      var hidden = cell.querySelector('input[type="hidden"]');
+      if (hidden) {
+        hidden.value = '0';
+      }
+      var input = cell.querySelector('input.org-cell-in');
+      if (input) {
+        input.value = '';
+      }
+      var view = cell.querySelector('.org-combo-view');
+      if (view) {
+        view.textContent = '';
+        view.removeAttribute('href');
+        view.removeAttribute('title');
+      }
+    });
+  }
+
   function initTypeCombos() {
     var combos = document.querySelectorAll('.org-type-combo');
     if (!combos.length) {
@@ -904,6 +935,7 @@
       if (!btn || !menu || !input) {
         return;
       }
+      syncRowSecondSlots(combo.closest('tr'), input.value);
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
         if (openMenu === menu) {
@@ -930,6 +962,7 @@
         var optIcon = opt.querySelector('i');
         var optLabel = opt.querySelector('span');
         input.value = val;
+        syncRowSecondSlots(combo.closest('tr'), val);
         btn.title = optLabel ? optLabel.textContent : val;
         btn.setAttribute('aria-label', btn.title);
         var btnIcon = btn.querySelector('i');
