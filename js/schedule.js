@@ -3238,7 +3238,7 @@ function pickCryptoRandomIndex_(n) {
 function applyBankSituationToDuel_(duel, bankObj, kind) {
     var num = String(bankObj["Номер"] != null ? bankObj["Номер"] : "").trim();
     var typeFromBank = String(bankObj["Тип"] || bankObj["Type"] || "").trim();
-    var defaults = googleScheduleDefaultsForType_(typeFromBank);
+    var defaults = googleScheduleDefaultsForType_(duelTypeLabelFromKey_(normalizeDuelTypeStr(typeFromBank)));
     var name = String(bankObj["Название ситуации"] || bankObj["SituationName"] || "").trim();
     var desc = String(bankObj["SituationDescription"] || "").trim();
     var rolesRaw = bankObj["SituationRoles"];
