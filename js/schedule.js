@@ -265,6 +265,135 @@ function reorderDuel_(fromIdx, toIdx) {
     if (typeof renderJudgesLayoutTab === "function") renderJudgesLayoutTab();
 }
 
+/** Можно ли добавлять поединки по ходу онлайна (расписание из БД + режим орга). */
+function canAddDuel_() {
+    return scheduleSource === "db" && duelsList && typeof dbAddDuel_ === "function"
+        && typeof dbOrgMode !== "undefined" && dbOrgMode
+        && typeof dbWriteActive_ === "function" && dbWriteActive_();
+}
+
+var addDuelBusy_ = false;
+
+function buildAddDuelBox_() {
+    var box = document.createElement("div");
+    box.className = "duel-add-box border-top pt-2 mt-2";
+    var row = document.createElement("div");
+    row.className = "d-flex align-items-center gap-2 flex-wrap";
+
+    var sel = document.createElement("select");
+    sel.className = "form-select form-select-sm duel-add-type";
+    sel.setAttribute("aria-label", "Тип нового поединка");
+    sel.innerHTML = '<option value="классика">Классика</option><option value="экспресс">Экспресс</option>';
+
+    var add = document.createElement("button");
+    add.type = "button";
+    add.className = "btn btn-sm btn-primary";
+    add.textContent = "+ Поединок";
+    add.title = "Добавить поединок в конец расписания";
+    add.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        addDuelFromTimer_(sel.value, false);
+    });
+
+    var rnd = document.createElement("button");
+    rnd.type = "button";
+    rnd.className = "btn btn-sm btn-outline-primary";
+    rnd.innerHTML = '<i class="fa-solid fa-dice me-1"></i>Случайная ситуация';
+    rnd.title = "Добавить поединок и пометить его как слот со случайной ситуацией";
+    rnd.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        addDuelFromTimer_(sel.value, true);
+    });
+
+    row.appendChild(sel);
+    row.appendChild(add);
+    row.appendChild(rnd);
+    box.appendChild(row);
+
+    var hint = document.createElement("div");
+    hint.className = "small text-muted mt-1";
+    hint.textContent = "Поединок появится в конце списка. Ситуацию можно разыграть кубиком, игроков и судей назначить в раскладке.";
+    box.appendChild(hint);
+    return box;
+}
+
+/** Добавляет поединок в локальный список после ответа БД. Возвращает его индекс. */
+function appendDuelFromDb_(added) {
+    if (!duelsList) duelsList = [];
+    if (typeof duelAssignments === "undefined" || !duelAssignments) duelAssignments = [];
+    var type = added.duel_type === "экспресс" ? "экспресс" : "классика";
+    var defaults = googleScheduleDefaultsForType_(type);
+    var duel = {
+        DuelId: added.id,
+        DuelNum: duelsList.length + 1,
+        SortOrder: added.sort_order,
+        Player1: "",
+        Player2: "",
+        Second1: "",
+        Second2: "",
+        "Cornerman 1": "",
+        "Cornerman 2": "",
+        Player1Id: null,
+        Player2Id: null,
+        Second1Id: null,
+        Second2Id: null,
+        SituationNum: type === "экспресс" ? "00Э" : "00",
+        SituationName: "Случайная ситуация",
+        SituationId: null,
+        SituationDescription: "",
+        SituationRoles: [],
+        Type: defaults.typeLabel,
+        DuelMinutesLength: added.round_minutes || defaults.minutes,
+        RefereeQty: added.referee_qty || defaults.refereeQty,
+        PrepMode: added.prep_mode || "",
+        wasRandomSlot: true,
+        randomSlotKind: type === "экспресс" ? "express" : "classic"
+    };
+    normalizeDuelHiddenFlag(duel);
+    duelsList.push(duel);
+
+    var assign = {
+        player1Id: null,
+        player2Id: null,
+        second1Id: null,
+        second2Id: null,
+        judges: [],
+        confirmed: {}
+    };
+    for (var j = 0; j < 9; j++) {
+        assign.judges.push({ personId: null, category: "negotiators" });
+    }
+    duelAssignments.push(assign);
+
+    for (var i = 0; i < duelsList.length; i++) {
+        duelsList[i].DuelNum = i + 1;
+        duelsList[i].SortOrder = i + 1;
+    }
+    if (typeof saveProtocolStateToLocalStorage === "function") saveProtocolStateToLocalStorage();
+    renderDuelChooser();
+    if (typeof renderJudgesLayoutTab === "function") renderJudgesLayoutTab();
+    return duelsList.length - 1;
+}
+
+function addDuelFromTimer_(type, random) {
+    if (addDuelBusy_ || !canAddDuel_()) return;
+    addDuelBusy_ = true;
+    if (typeof showAppToast_ === "function") showAppToast_("Добавляю поединок…", "info");
+    dbAddDuel_({ type: type, random: random }, function (added) {
+        addDuelBusy_ = false;
+        var idx = appendDuelFromDb_(added);
+        if (typeof showAppToast_ === "function") {
+            showAppToast_("Поединок №" + (idx + 1) + " добавлен" + (random ? " (случайная ситуация)" : ""), "success");
+        }
+    }, function (msg) {
+        addDuelBusy_ = false;
+        if (typeof showAppToast_ === "function") showAppToast_("Не удалось добавить поединок: " + msg, "error");
+        else alert("Не удалось добавить поединок: " + msg);
+    });
+}
+
 function renderDuelChooser() {
     var duelChooser = document.getElementById("duel-chooser");
     if (!duelChooser || !duelsList) return;
@@ -287,6 +416,9 @@ function renderDuelChooser() {
         }
         duelChooser.appendChild(figure);
     });
+    if (canAddDuel_()) {
+        duelChooser.appendChild(buildAddDuelBox_());
+    }
 }
 
 function saveProtocolStateToLocalStorage() {

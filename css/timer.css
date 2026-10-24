@@ -671,3 +671,12 @@ body.dice-blink-active #Player2Label {
   font-size: 0.8rem;
   line-height: 1.4;
 }
+
+/* Добавление поединков по ходу онлайна */
+.duel-add-box .duel-add-type {
+  width: auto;
+  min-width: 8.5rem;
+}
+.duel-add-box .btn {
+  white-space: nowrap;
+}

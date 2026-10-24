@@ -66,6 +66,10 @@ function updateDbOrgUi_() {
     }
     var badge = document.getElementById("org-mode-badge");
     if (badge) badge.style.display = dbOrgMode ? "" : "none";
+    if (typeof duelsList !== "undefined" && duelsList && typeof renderDuelChooser === "function"
+        && (duelsList.length || (typeof scheduleSource !== "undefined" && scheduleSource === "db"))) {
+        renderDuelChooser();
+    }
 }
 
 /** Узнать статус орга на сервере (по cookie). */

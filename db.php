@@ -24,6 +24,7 @@ function mysql_query($sql, $link) { return mysqli_query($link, $sql); }
 function mysql_fetch_assoc($res) { return mysqli_fetch_assoc($res); }
 function mysql_fetch_row($res) { return mysqli_fetch_row($res); }
 function mysql_num_rows($res) { return mysqli_num_rows($res); }
+function mysql_insert_id($link) { return mysqli_insert_id($link); }
 function mysql_real_escape_string($str, $link) { return mysqli_real_escape_string($link, $str); }
 function mysql_error($link) { return mysqli_error($link); }
 
@@ -435,6 +436,7 @@ function dbj_write($link) {
 
     $applied = 0;
     $results = array();
+    $added = array();
     foreach ($ops as $op) {
         if (!is_array($op) || !isset($op['op'])) {
             continue;
@@ -554,6 +556,58 @@ function dbj_write($link) {
             continue;
         }
 
+        if ($kind === 'duel_add') {
+            $type = isset($op['duel_type']) ? (string)$op['duel_type'] : 'классика';
+            if ($type !== 'классика' && $type !== 'экспресс') { $type = 'классика'; }
+            $random = !empty($op['random']);
+            $r = mysql_query(
+                'SELECT e.starts_on,
+                        (SELECT d.duel_date FROM duels d
+                          WHERE d.event_id = e.id AND d.duel_date IS NOT NULL
+                          ORDER BY d.sort_order DESC, d.id DESC LIMIT 1) AS last_date,
+                        (SELECT MAX(d.sort_order) FROM duels d WHERE d.event_id = e.id) AS max_order
+                   FROM events e WHERE e.id = ' . $eventId . ' LIMIT 1',
+                $link
+            );
+            $ev = ($r && mysql_num_rows($r)) ? mysql_fetch_assoc($r) : null;
+            if (!$ev) { $results[] = 'duel_add:no_event'; continue; }
+            $order = (int)$ev['max_order'] + 1;
+            $date = ($ev['last_date'] !== null && $ev['last_date'] !== '')
+                ? (string)$ev['last_date']
+                : (($ev['starts_on'] !== null && $ev['starts_on'] !== '') ? (string)$ev['starts_on'] : null);
+            $mins = ($type === 'экспресс') ? 1 : 5;
+            $qty = ($type === 'экспресс') ? 5 : 9;
+            $note = $random ? 'Случайная ситуация' : null;
+            $dateSql = ($date === null) ? 'NULL' : "'" . mysql_real_escape_string($date, $link) . "'";
+            $noteSql = ($note === null) ? 'NULL' : "'" . mysql_real_escape_string($note, $link) . "'";
+            $ok = mysql_query(
+                'INSERT INTO duels (event_id, sort_order, duel_date, duel_type, prep_mode,
+                                    round_minutes, referee_qty, notes)
+                 VALUES (' . $eventId . ', ' . $order . ', ' . $dateSql . ", '" . $type . "', 'обычный', "
+                    . $mins . ', ' . $qty . ', ' . $noteSql . ')',
+                $link
+            );
+            if ($ok) {
+                $newId = (int)mysql_insert_id($link);
+                $added[] = array(
+                    'id' => $newId,
+                    'event_id' => $eventId,
+                    'sort_order' => $order,
+                    'duel_date' => $date,
+                    'duel_type' => $type,
+                    'prep_mode' => 'обычный',
+                    'round_minutes' => $mins,
+                    'referee_qty' => $qty,
+                    'notes' => $note,
+                    'random' => $random
+                );
+                $applied++;
+            } else {
+                $results[] = 'duel_add:' . mysql_error($link);
+            }
+            continue;
+        }
+
         if ($kind === 'sort') {
             $order = isset($op['order']) && is_array($op['order']) ? $op['order'] : array();
             $n = 0;
@@ -569,7 +623,7 @@ function dbj_write($link) {
         $results[] = 'unknown_op:' . $kind;
     }
 
-    dbj_out(array('ok' => true, 'applied' => $applied, 'results' => $results));
+    dbj_out(array('ok' => true, 'applied' => $applied, 'results' => $results, 'added' => $added));
 }
 
 function dbj_has_column($link, $table, $col) {
