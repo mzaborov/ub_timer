@@ -401,6 +401,7 @@ function changePlayer() {
         }
      }
     if (typeof dbLogEvent_ === "function") {
+        dbLogEvent_("конецРаунда", { round: current_round - 1, player: previousPlayer, duration_sec: durationSec, time_left_sec: time[previousPlayer - 1] });
         dbLogEvent_("сменаХода", { from: previousPlayer, to: newPlayer, round: current_round });
         dbLogEvent_("стартРаунда", { round: current_round, player: current_player });
     }
@@ -522,7 +523,10 @@ function stop_duel() {
     var reopenBtn = document.getElementById("reopen_judges_form_btn");
     if (reopenBtn) reopenBtn.style.display = "none";
     myModal.show();
-    if (typeof dbLogEvent_ === "function") dbLogEvent_("завершение", { rounds: roundRoles.length, durations: roundDurations.slice() });
+    if (typeof dbLogEvent_ === "function") {
+        dbLogEvent_("конецРаунда", { round: current_round, player: current_player, duration_sec: durationSec, time_left_sec: time[current_player - 1] });
+        dbLogEvent_("завершение", { rounds: roundRoles.length, durations: roundDurations.slice() });
+    }
 }
 
 function protest(regime)

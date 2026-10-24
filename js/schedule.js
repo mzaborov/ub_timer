@@ -3323,6 +3323,15 @@ function rollRandomSituation() {
                         resolve(null);
                         return;
                     }
+                    if (typeof dbLogEvent_ === "function") {
+                        dbLogEvent_("расчетСитуации", {
+                            kind: kind,
+                            pool_size: pool.length,
+                            situation_id: (duel.SituationId != null ? Number(duel.SituationId) : null),
+                            situation_num: (duel.SituationNum || null),
+                            situation_name: (duel.SituationName || null)
+                        }, idx);
+                    }
                     duelChoosed(String(idx));
                     if (typeof notifyLiveProtocolSituation_ === "function") notifyLiveProtocolSituation_(idx);
                     if (duel.SituationId && canAddDuel_() && typeof dbSaveComposition_ === "function") {
