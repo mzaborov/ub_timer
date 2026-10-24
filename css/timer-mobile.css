@@ -609,7 +609,8 @@
     padding: 0.35rem;
   }
   #judges-layout-table tbody td:not(:first-child) {
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: break-word;
   }
 
   /* Банк ситуаций: список сверху, деталь снизу */
