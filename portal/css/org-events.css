@@ -517,11 +517,11 @@ body.org-resizing {
 .org-combo.is-editing { display: block; }
 .org-combo > input[type="text"] { flex: 1 1 auto; min-width: 0; }
 .org-suggest {
-  position: absolute;
-  z-index: 20;
+  position: fixed;
+  z-index: 1000;
   left: 0;
-  min-width: 100%;
-  top: 100%;
+  top: 0;
+  min-width: 12rem;
   margin: 0;
   padding: 0.1rem 0;
   list-style: none;

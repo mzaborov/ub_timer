@@ -511,6 +511,37 @@
       list.replaceChildren();
     }
 
+    function positionList() {
+      if (list.hidden) {
+        return;
+      }
+      var r = input.getBoundingClientRect();
+      var margin = 8;
+      var vw = document.documentElement.clientWidth || window.innerWidth;
+      var vh = document.documentElement.clientHeight || window.innerHeight;
+      var width = Math.max(240, r.width);
+      width = Math.min(width, vw - margin * 2);
+      var left = Math.min(Math.max(margin, r.left), vw - width - margin);
+      list.style.width = width + 'px';
+      list.style.left = left + 'px';
+      list.style.maxHeight = '14rem';
+      var listH = list.offsetHeight;
+      var below = vh - r.bottom - margin;
+      var above = r.top - margin;
+      var up = below < listH && above > below;
+      list.style.top = up ? 'auto' : (r.bottom + 2) + 'px';
+      list.style.bottom = up ? (vh - r.top + 2) + 'px' : 'auto';
+      var avail = up ? above : below;
+      list.style.maxHeight = Math.max(48, Math.min(224, avail)) + 'px';
+    }
+
+    window.addEventListener('scroll', function (e) {
+      if (e.target !== list) {
+        positionList();
+      }
+    }, true);
+    window.addEventListener('resize', positionList);
+
     function pick(it) {
       hidden.value = String(it.id || 0);
       input.value = it.label || '';
@@ -564,6 +595,7 @@
         list.appendChild(li);
       });
       list.hidden = !list.childNodes.length;
+      positionList();
     }
 
     input.addEventListener('input', function () {
