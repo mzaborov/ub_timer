@@ -490,6 +490,7 @@ function stop_duel() {
     stop_timer();
     // Сохраняем длительность последнего сегмента при завершении поединка
     var durationSec = roundStartRemaining[current_player - 1] - time[current_player - 1];
+    var timeLeftSec = time[current_player - 1];
     if (durationSec > 0) roundDurations.push(durationSec);
     if (isClassicLikeType(duelType)) {
         var sel1 = document.getElementById('Player1Roles');
@@ -524,7 +525,7 @@ function stop_duel() {
     if (reopenBtn) reopenBtn.style.display = "none";
     myModal.show();
     if (typeof dbLogEvent_ === "function") {
-        dbLogEvent_("конецРаунда", { round: current_round, player: current_player, duration_sec: durationSec, time_left_sec: time[current_player - 1] });
+        dbLogEvent_("конецРаунда", { round: current_round, player: current_player, duration_sec: durationSec, time_left_sec: timeLeftSec });
         dbLogEvent_("завершение", { rounds: roundRoles.length, durations: roundDurations.slice() });
     }
 }
