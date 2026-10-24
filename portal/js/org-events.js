@@ -708,6 +708,64 @@
   }
   bindSlotsClear();
 
+  function syncSlotOrderControls(form) {
+    if (!form) {
+      return;
+    }
+    var rows = form.querySelectorAll('.org-slots tbody tr');
+    rows.forEach(function (row, idx) {
+      var num = row.querySelector('.org-slot-num');
+      if (num) {
+        num.textContent = String(idx + 1);
+      }
+      var up = row.querySelector('[data-slot-move="up"]');
+      if (up) {
+        up.disabled = idx === 0;
+      }
+      var down = row.querySelector('[data-slot-move="down"]');
+      if (down) {
+        down.disabled = idx === rows.length - 1;
+      }
+      var lock = row.querySelector('input[name^="lock["]');
+      if (lock) {
+        lock.name = 'lock[' + idx + ']';
+      }
+    });
+  }
+
+  function bindSlotMoves() {
+    var form = document.getElementById('org-slots-form');
+    if (!form) {
+      return;
+    }
+    form.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest ? e.target.closest('[data-slot-move]') : null;
+      if (!btn) {
+        return;
+      }
+      e.preventDefault();
+      var row = btn.closest('tr');
+      if (!row) {
+        return;
+      }
+      var dir = btn.getAttribute('data-slot-move');
+      if (dir === 'up' && row.previousElementSibling) {
+        row.parentNode.insertBefore(row, row.previousElementSibling);
+      } else if (dir === 'down' && row.nextElementSibling) {
+        row.parentNode.insertBefore(row.nextElementSibling, row);
+      } else {
+        return;
+      }
+      syncSlotOrderControls(form);
+      if (typeof form.requestSubmit === 'function') {
+        form.requestSubmit();
+      } else {
+        form.submit();
+      }
+    });
+  }
+  bindSlotMoves();
+
   function bindRegConfirms() {
     var form = document.getElementById('org-reg-confirm-form');
     if (!form) {
