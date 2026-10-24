@@ -3037,6 +3037,7 @@ function org_echo_slots_card(
         if (!in_array($curType, org_duel_types(), true)) {
             $curType = org_duel_types()[0];
         }
+        $isExpress = $curType === 'экспресс';
         echo '<td class="org-slot-type"><div class="org-type-combo">';
         echo '<button type="button" class="org-type-btn" title="' . h($typeLabel($curType))
             . '" aria-label="' . h($typeLabel($curType)) . '">'
@@ -3053,12 +3054,14 @@ function org_echo_slots_card(
         org_echo_combo('situation_id[]', (int)($d['situation_id'] ?? 0), org_sit_cell_label($d), 'sit', 'sit_label[]', (string)($d['sit_url'] ?? ''));
         echo '</td><td class="org-slot-p1"><div class="org-player-cell">';
         org_echo_combo('p1[]', (int)($d['p1_id'] ?? 0), (string)($d['p1'] ?? ''), 'person');
-        echo $confirmBox((int)($d['p1_id'] ?? 0)), '</div></td><td>';
-        org_echo_combo('s1[]', (int)($d['s1_id'] ?? 0), (string)($d['s1'] ?? ''), 'person');
+        echo $confirmBox((int)($d['p1_id'] ?? 0)), '</div></td><td class="org-slot-s1' . ($isExpress ? ' is-off' : '') . '">';
+        org_echo_combo('s1[]', $isExpress ? 0 : (int)($d['s1_id'] ?? 0), $isExpress ? '' : (string)($d['s1'] ?? ''), 'person');
+        echo '<span class="org-slot-off" title="Экспресс: секунданты не участвуют">—</span>';
         echo '</td><td class="org-slot-p2"><div class="org-player-cell">';
         org_echo_combo('p2[]', (int)($d['p2_id'] ?? 0), (string)($d['p2'] ?? ''), 'person');
-        echo $confirmBox((int)($d['p2_id'] ?? 0)), '</div></td><td>';
-        org_echo_combo('s2[]', (int)($d['s2_id'] ?? 0), (string)($d['s2'] ?? ''), 'person');
+        echo $confirmBox((int)($d['p2_id'] ?? 0)), '</div></td><td class="org-slot-s2' . ($isExpress ? ' is-off' : '') . '">';
+        org_echo_combo('s2[]', $isExpress ? 0 : (int)($d['s2_id'] ?? 0), $isExpress ? '' : (string)($d['s2'] ?? ''), 'person');
+        echo '<span class="org-slot-off" title="Экспресс: секунданты не участвуют">—</span>';
         echo '</td><td class="org-slot-lock">';
         echo '<label title="Зафиксировать пару: генерация не изменит этот слот">'
             . '<input type="checkbox" name="lock[' . $i . ']" value="1"'
