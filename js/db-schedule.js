@@ -229,8 +229,12 @@ function applyDatabaseAssignments_(payload) {
         while (a.judges.length < 9) a.judges.push({ personId: null, category: "negotiators" });
         var js = d.judges || [];
         var slots = (typeof getJudgeSlotsForDuel === "function") ? getJudgeSlotsForDuel(i) : [];
-        for (var j = 0; j < js.length; j++) {
-            var slotKey = slots[j] || ("j" + j);
+        var limit = slots.length ? Math.min(js.length, slots.length) : js.length;
+        if (js.length > limit && typeof console !== "undefined" && console.warn) {
+            console.warn("duel " + d.id + ": в БД " + js.length + " судей, активных слотов " + limit + "; лишние проигнорированы");
+        }
+        for (var j = 0; j < limit; j++) {
+            var slotKey = slots.length ? slots[j] : ("j" + j);
             var idx = parseInt(slotKey.slice(1), 10);
             if (isNaN(idx) || idx < 0) idx = j;
             var slot = a.judges[idx] || (a.judges[idx] = { personId: null, category: "negotiators" });

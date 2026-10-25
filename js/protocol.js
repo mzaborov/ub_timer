@@ -54,7 +54,10 @@ function buildProtocolAndDownload() {
             else if (r >= 6 && r < 6 + maxRef) {
                 var judgeIdx = r - 6;
                 var a = duelAssignments[col];
-                if (a && a.judges && a.judges[judgeIdx] && a.judges[judgeIdx].personId) val = getPersonName(a.judges[judgeIdx].personId);
+                var slots = (typeof getJudgeSlotsForDuel === "function") ? getJudgeSlotsForDuel(col) : [];
+                var slotKey = slots[judgeIdx];
+                var ji = slotKey ? parseInt(slotKey.slice(1), 10) : -1;
+                if (a && a.judges && ji >= 0 && !isNaN(ji) && a.judges[ji] && a.judges[ji].personId) val = getPersonName(a.judges[ji].personId);
             } else if (r >= 6 + maxRef && r < 6 + 2 * maxRef) {
                 var voteIdx = r - 6 - maxRef;
                 var votes = duel.JudgeVotes;
@@ -201,7 +204,10 @@ function exportOnlineStatusToFile() {
             else if (r >= 6 && r < 6 + maxRef) {
                 var judgeIdx = r - 6;
                 var a = duelAssignments[col];
-                if (a && a.judges && a.judges[judgeIdx] && a.judges[judgeIdx].personId) val = getPersonName(a.judges[judgeIdx].personId);
+                var slots = (typeof getJudgeSlotsForDuel === "function") ? getJudgeSlotsForDuel(col) : [];
+                var slotKey = slots[judgeIdx];
+                var ji = slotKey ? parseInt(slotKey.slice(1), 10) : -1;
+                if (a && a.judges && ji >= 0 && !isNaN(ji) && a.judges[ji] && a.judges[ji].personId) val = getPersonName(a.judges[ji].personId);
             } else if (r >= 6 + maxRef && r < 6 + 2 * maxRef) {
                 var voteIdx = r - 6 - maxRef;
                 var votes = duel.JudgeVotes;

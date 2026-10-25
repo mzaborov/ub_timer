@@ -243,10 +243,22 @@ function dbPersistComposition_(idx) {
 
     var judges = [];
     if (a && a.judges) {
-        for (var j = 0; j < a.judges.length; j++) {
-            var jj = a.judges[j];
-            if (!jj || !jj.personId) continue;
-            judges.push({ person_id: Number(jj.personId), college: jj.category || null, agreed: dbConfirmedSlot_(idx, "j" + j) });
+        var slots = (typeof getJudgeSlotsForDuel === "function") ? getJudgeSlotsForDuel(idx) : [];
+        if (slots.length) {
+            for (var s = 0; s < slots.length; s++) {
+                var slotKey = slots[s];
+                var ji = parseInt(slotKey.slice(1), 10);
+                var jj = (!isNaN(ji) && a.judges[ji]) ? a.judges[ji] : null;
+                if (!jj || !jj.personId) continue;
+                var college = (typeof getSlotCategory === "function") ? getSlotCategory(idx, slotKey) : (jj.category || null);
+                judges.push({ person_id: Number(jj.personId), college: college, agreed: dbConfirmedSlot_(idx, slotKey) });
+            }
+        } else {
+            for (var j = 0; j < a.judges.length; j++) {
+                var jjFallback = a.judges[j];
+                if (!jjFallback || !jjFallback.personId) continue;
+                judges.push({ person_id: Number(jjFallback.personId), college: jjFallback.category || null, agreed: dbConfirmedSlot_(idx, "j" + j) });
+            }
         }
     }
     dbWriteNotify_({ op: "judges", duel_id: duelId, judges: judges }, true);

@@ -695,6 +695,7 @@ function saveDuelScheduleEdit_() {
         }
         applyDbSituationToDuel_(duel, sit, typeKey);
     }
+    clearInactiveJudgeAssignments_(idx);
     var newSituation = (duel.SituationNum ? "№" + duel.SituationNum + " " : "") + (duel.SituationName || "");
     var fields = {
         situation_id: duel.SituationId || null,
@@ -708,6 +709,7 @@ function saveDuelScheduleEdit_() {
         { field: "Ситуация", old: oldSituation, new: newSituation }
     ];
     if (typeof dbSaveComposition_ === "function") dbSaveComposition_(idx, fields, changes);
+    if (typeof dbPersistComposition_ === "function") dbPersistComposition_(idx);
     if (typeof saveProtocolStateToLocalStorage === "function") saveProtocolStateToLocalStorage();
     renderDuelChooser();
     if (typeof renderJudgesLayoutTab === "function") renderJudgesLayoutTab();
@@ -890,6 +892,7 @@ function restoreProtocolStateFromLocalStorage() {
             ensurePeopleFromSchedule();
             initDuelAssignmentsFromDuels();
         }
+        reconcileAllJudgeSlots_();
         var fileNameEl = document.getElementById("file-name");
         if (fileNameEl) fileNameEl.innerHTML = scheduleFileName || "Восстановлено";
         renderDuelChooser();
@@ -1009,8 +1012,13 @@ function countTimesJudged(personId) {
     if (!personId || !duelAssignments.length) return n;
     for (var d = 0; d < duelAssignments.length; d++) {
         var a = duelAssignments[d];
-        if (!a.judges) continue;
-        for (var j = 0; j < a.judges.length; j++) { if (a.judges[j].personId === personId) n++; }
+        if (!a) continue;
+        var slots = (typeof getJudgeSlotsForDuel === "function") ? getJudgeSlotsForDuel(d) : [];
+        if (slots.length) {
+            for (var s = 0; s < slots.length; s++) { if (getAssignmentSlot(d, slots[s]) === personId) n++; }
+        } else if (a.judges) {
+            for (var j = 0; j < a.judges.length; j++) { if (a.judges[j].personId === personId) n++; }
+        }
     }
     return n;
 }
@@ -1197,6 +1205,7 @@ function setDuelRefereeQty(duelIdx, qty) {
     var q = normalizeRefereeQty(qty);
     if (duelsList[duelIdx].RefereeQty === q) return;
     duelsList[duelIdx].RefereeQty = q;
+    clearInactiveJudgeAssignments_(duelIdx);
     var cd = (currentDuel != null && currentDuel !== "-1") ? (typeof currentDuel === "string" ? parseInt(currentDuel, 10) : currentDuel) : -1;
     if (cd === duelIdx) {
         refereeQty = q;
@@ -1227,6 +1236,41 @@ function getJudgeSlotsForDuel(duelIdx) {
 
 function isJudgeSlotUsedInDuel(duelIdx, slotKey) {
     return getJudgeSlotsForDuel(duelIdx).indexOf(slotKey) !== -1;
+}
+
+function clearInactiveJudgeAssignments_(duelIdx) {
+    if (!duelsList || !duelAssignments || duelIdx < 0 || duelIdx >= duelsList.length || !duelAssignments[duelIdx]) return 0;
+    var a = duelAssignments[duelIdx];
+    var slots = getJudgeSlotsForDuel(duelIdx);
+    var active = {};
+    for (var i = 0; i < slots.length; i++) active[slots[i]] = true;
+    var cleared = 0;
+    if (a.judges) {
+        for (var j = 0; j < a.judges.length; j++) {
+            if (active["j" + j]) continue;
+            var jj = a.judges[j];
+            if (jj && (jj.personId != null || jj.vote != null || jj.college != null)) {
+                jj.personId = null;
+                delete jj.vote;
+                delete jj.college;
+                cleared++;
+            }
+            if (a.confirmed && a.confirmed["j" + j]) {
+                delete a.confirmed["j" + j];
+                cleared++;
+            }
+        }
+    }
+    return cleared;
+}
+
+function reconcileAllJudgeSlots_() {
+    if (!duelsList || !duelAssignments) return 0;
+    var cleared = 0;
+    for (var i = 0; i < duelsList.length && i < duelAssignments.length; i++) {
+        cleared += clearInactiveJudgeAssignments_(i);
+    }
+    return cleared;
 }
 
 var PARTICIPANT_ASSIGNMENT_SLOTS = ["player1", "player2", "second1", "second2"];
@@ -1437,7 +1481,10 @@ function setAssignmentSlot(duelIdx, slotKey, personId) {
     else if (slotKey === "second2") { a.second2Id = personId; if (duelsList && duelsList[duelIdx]) duelsList[duelIdx].Second2 = getPersonName(personId); }
     else if (slotKey.indexOf("j") === 0) {
         var j = parseInt(slotKey.slice(1), 10);
-        if (a.judges[j]) a.judges[j].personId = personId;
+        if (a.judges[j]) {
+            a.judges[j].personId = personId;
+            if (typeof getSlotCategory === "function") a.judges[j].category = getSlotCategory(duelIdx, slotKey);
+        }
     }
     var cd = (currentDuel != null && currentDuel !== "-1") ? (typeof currentDuel === "string" ? parseInt(currentDuel, 10) : currentDuel) : -1;
     if (duelIdx === cd && duelsList && duelsList[duelIdx] && (slotKey === "player1" || slotKey === "player2" || slotKey === "second1" || slotKey === "second2")) {
@@ -1479,7 +1526,15 @@ function getBusyInDuel(duelIdx) {
         var id = getAssignmentSlot(duelIdx, k);
         if (id) busy[id] = true;
     });
-    if (a.judges) for (var j = 0; j < a.judges.length; j++) { if (a.judges[j].personId) busy[a.judges[j].personId] = true; }
+    var slots = (typeof getJudgeSlotsForDuel === "function") ? getJudgeSlotsForDuel(duelIdx) : [];
+    if (slots.length) {
+        for (var i = 0; i < slots.length; i++) {
+            var judgeId = getAssignmentSlot(duelIdx, slots[i]);
+            if (judgeId) busy[judgeId] = true;
+        }
+    } else if (a.judges) {
+        for (var j = 0; j < a.judges.length; j++) { if (a.judges[j].personId) busy[a.judges[j].personId] = true; }
+    }
     return busy;
 }
 
@@ -3323,6 +3378,7 @@ function rollRandomSituation() {
                         resolve(null);
                         return;
                     }
+                    clearInactiveJudgeAssignments_(idx);
                     if (typeof dbLogEvent_ === "function") {
                         dbLogEvent_("расчетСитуации", {
                             kind: kind,
@@ -3342,6 +3398,7 @@ function rollRandomSituation() {
                             referee_qty: duel.RefereeQty,
                             notes: null
                         }, [{ field: "Ситуация", old: "Случайная ситуация", new: "№" + duel.SituationNum + " " + duel.SituationName }]);
+                        if (typeof dbPersistComposition_ === "function") dbPersistComposition_(idx);
                     }
                     resolve(pick);
                 }, waitMs);
