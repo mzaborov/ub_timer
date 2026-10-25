@@ -173,6 +173,8 @@ tbody tr:hover td { background: #fbfdff; }
             var s = d.situation || null;
             var sitCode = s ? (s.code || ("№" + (s.num == null ? "" : s.num))) : "—";
             var sitDesc = s && s.description ? plain(s.description) : "";
+            var sitDescFull = sitDesc;
+            if (sitDesc.length > 170) sitDesc = sitDesc.slice(0, 167).replace(/\s+\S*$/, "") + "…";
             var p1 = personName(people, d.player1) || "—";
             var p2 = personName(people, d.player2) || "—";
             var s1 = personName(people, d.second1);
@@ -184,7 +186,7 @@ tbody tr:hover td { background: #fbfdff; }
                 '<td class="num">' + esc(num) + "</td>" +
                 '<td class="type"><span class="type-badge ' + typeClass(type) + '">' + esc(typeLabel(type)) + "</span></td>" +
                 '<td class="sit"><div class="sit-code">' + esc(sitCode) + "</div>" +
-                    (sitDesc ? '<div class="sit-desc" title="' + esc(sitDesc) + '">' + esc(sitDesc) + "</div>" : "") + "</td>" +
+                    (sitDesc ? '<div class="sit-desc" title="' + esc(sitDescFull) + '">' + esc(sitDesc) + "</div>" : "") + "</td>" +
                 '<td class="people"><div class="person">' + esc(p1) + "</div></td>" +
                 '<td class="people">' + (s1 ? '<div class="second">' + esc(s1) + "</div>" : '<span class="empty">—</span>') + "</td>" +
                 '<td class="people"><div class="person">' + esc(p2) + "</div></td>" +
