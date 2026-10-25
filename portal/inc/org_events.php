@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/elo.php';
 require_once __DIR__ . '/org_pairs.php';
 require_once __DIR__ . '/home_data.php';
+require_once __DIR__ . '/xlsx.php';
 
 function org_default_zoom(): string
 {
@@ -720,6 +721,31 @@ function org_event_staff_role_keys(): array
     ];
 }
 
+/** Подписи ролей event_organizers для выгрузки в Бипиум. */
+function org_event_organizer_role_labels(): array
+{
+    return [
+        'планированиеМероприятия' => 'Планирование мероприятия',
+        'работаСНовичками' => 'Работа с новичками',
+        'показывалЧасы' => 'Демонстрация часов',
+        'велЗапись' => 'Запись',
+        'настраивалКомнатыZoom' => 'Zoom',
+        'экспертныйКомментарий' => 'Экспертный комментарий',
+        'обработкаВидео' => 'Обработка видео',
+        'подведениеИтогов' => 'Подготовка итогов и закрытие',
+        'подготовкаУчастников' => 'Подготовка участников',
+        'обновлениеДанных' => 'Обновление данных',
+        'организацияПомещения' => 'Организация помещения',
+        'подготовкаМатериалов' => 'Подготовка материалов',
+    ];
+}
+
+function org_event_organizer_role_label(string $role): string
+{
+    $labels = org_event_organizer_role_labels();
+    return $labels[$role] ?? $role;
+}
+
 function org_event_referee_label(string $eventType = ''): string
 {
     return $eventType === 'обучение' ? 'Ведущий' : 'Арбитр';
@@ -794,6 +820,413 @@ function org_event_role_person_map(mysqli $db, int $eventId): array
     }
     $st->close();
     return $out;
+}
+
+/** Строки event_organizers с ФИО и всеми ролями человека. */
+function org_event_organizers_rows(mysqli $db, int $eventId): array
+{
+    if ($eventId <= 0) {
+        return [];
+    }
+    $st = $db->prepare(
+        'SELECT eo.person_id, eo.role, p.full_name
+         FROM event_organizers eo
+         LEFT JOIN people p ON p.id = eo.person_id
+         WHERE eo.event_id = ?
+         ORDER BY eo.id'
+    );
+    $st->bind_param('i', $eventId);
+    $st->execute();
+    $res = $st->get_result();
+    $out = [];
+    while ($row = $res->fetch_assoc()) {
+        $pid = (int)($row['person_id'] ?? 0);
+        $name = trim((string)($row['full_name'] ?? ''));
+        $role = (string)($row['role'] ?? '');
+        if ($pid <= 0 || $name === '' || $role === '') {
+            continue;
+        }
+        if (!isset($out[$pid])) {
+            $out[$pid] = ['id' => $pid, 'name' => $name, 'roles' => []];
+        }
+        if (!in_array($role, $out[$pid]['roles'], true)) {
+            $out[$pid]['roles'][] = $role;
+        }
+    }
+    $st->close();
+    return $out;
+}
+
+function org_event_export_url(int $eventId): string
+{
+    return org_event_url($eventId) . '&export=xlsx';
+}
+
+function org_event_export_next_day(string $iso): string
+{
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $iso)) {
+        return $iso;
+    }
+    $d = DateTime::createFromFormat('!Y-m-d', $iso);
+    return $d ? $d->modify('+1 day')->format('Y-m-d') : $iso;
+}
+
+/** Соседние дни одного многодневного события (Купала, Новый год). */
+function org_event_export_group(mysqli $db, int $eventId): array
+{
+    $ev = org_event_load($db, $eventId);
+    if (!$ev) {
+        return [];
+    }
+    $type = (string)($ev['event_type'] ?? '');
+    if (!in_array($type, ['купала', 'новогоднее'], true)) {
+        return [$ev];
+    }
+    $st = $db->prepare(
+        'SELECT e.id, e.slug, e.title, e.event_type, e.starts_on, e.ends_on,
+                e.starts_at, e.ends_at, e.status, e.zoom_url, e.referee_person_id,
+                p.full_name AS referee_name
+         FROM events e
+         LEFT JOIN people p ON p.id = e.referee_person_id
+         WHERE e.event_type = ? AND e.status <> ?
+         ORDER BY e.starts_on, e.ends_on, e.id'
+    );
+    $cancelled = 'Отменено';
+    $st->bind_param('ss', $type, $cancelled);
+    $st->execute();
+    $res = $st->get_result();
+    $all = [];
+    while ($row = $res->fetch_assoc()) {
+        $all[] = portal_hydrate_event_times($row);
+    }
+    $st->close();
+
+    $groups = [];
+    $cur = [];
+    $curEnd = '';
+    foreach ($all as $item) {
+        $start = portal_event_date_start($item);
+        $end = portal_event_date_end($item);
+        if ($start === '') {
+            if ($cur) {
+                $groups[] = $cur;
+                $cur = [];
+                $curEnd = '';
+            }
+            $groups[] = [$item];
+            continue;
+        }
+        if (!$cur) {
+            $cur = [$item];
+            $curEnd = $end !== '' ? $end : $start;
+            continue;
+        }
+        if ($start <= org_event_export_next_day($curEnd)) {
+            $cur[] = $item;
+            if ($end > $curEnd) {
+                $curEnd = $end;
+            }
+        } else {
+            $groups[] = $cur;
+            $cur = [$item];
+            $curEnd = $end !== '' ? $end : $start;
+        }
+    }
+    if ($cur) {
+        $groups[] = $cur;
+    }
+    foreach ($groups as $group) {
+        foreach ($group as $item) {
+            if ((int)$item['id'] === $eventId) {
+                return $group;
+            }
+        }
+    }
+    return [$ev];
+}
+
+function org_event_export_group_label(array $events): string
+{
+    if (!$events) {
+        return '';
+    }
+    $first = $events[0];
+    $title = trim((string)($first['title'] ?? ''));
+    if (count($events) < 2) {
+        return $title;
+    }
+    $type = (string)($first['event_type'] ?? '');
+    $names = ['купала' => 'Купала', 'новогоднее' => 'Новый год'];
+    if (!isset($names[$type])) {
+        return $title;
+    }
+    $start = portal_event_date_start($first);
+    $year = preg_match('/^\d{4}/', $start) ? substr($start, 2, 2) : '';
+    return trim($names[$type] . ' ' . $year);
+}
+
+/** Игры до даты мероприятия: для исторической выгрузки, без более поздних событий. */
+function org_event_export_career_before(mysqli $db, array $excludeEventIds, string $beforeIso): array
+{
+    $out = [];
+    $r = $db->query('SELECT id, full_name FROM people');
+    while ($row = $r->fetch_assoc()) {
+        $out[(int)$row['id']] = ['name' => (string)$row['full_name'], 'games' => 0];
+    }
+    $ids = [];
+    foreach ($excludeEventIds as $id) {
+        $id = (int)$id;
+        if ($id > 0) {
+            $ids[$id] = $id;
+        }
+    }
+    $beforeIso = trim($beforeIso);
+    $dateCond = '';
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $beforeIso)) {
+        $dateCond = " AND COALESCE(NULLIF(d.duel_date, '0000-00-00'), e.starts_on, '9999-12-31') < '"
+            . $beforeIso . "'";
+    }
+    $playedCond = portal_duel_played_sql('d', 'e');
+    $excludeSql = $ids ? ' AND d.event_id NOT IN (' . implode(',', $ids) . ')' : '';
+    $r = $db->query(
+        'SELECT d.duel_type, d.player1_id, d.player2_id, d.second1_id, d.second2_id
+         FROM duels d
+         JOIN events e ON e.id = d.event_id
+         WHERE LTRIM(COALESCE(e.title, \'\')) NOT LIKE \'ТЕСТ БД%\'
+           AND ' . $playedCond
+        . $excludeSql
+        . $dateCond
+    );
+    while ($row = $r->fetch_assoc()) {
+        foreach (['player1_id', 'player2_id'] as $k) {
+            $pid = (int)($row[$k] ?? 0);
+            if ($pid > 0 && isset($out[$pid])) {
+                $out[$pid]['games']++;
+            }
+        }
+        if (($row['duel_type'] ?? '') === 'парный') {
+            foreach (['second1_id', 'second2_id'] as $k) {
+                $pid = (int)($row[$k] ?? 0);
+                if ($pid > 0 && isset($out[$pid])) {
+                    $out[$pid]['games']++;
+                }
+            }
+        }
+    }
+    return $out;
+}
+
+/** Арбитры и организаторы группы: без дублей, роли орга объединены. */
+function org_event_export_staff(mysqli $db, array $events): array
+{
+    $referees = [];
+    $organizers = [];
+    foreach ($events as $ev) {
+        $refName = trim((string)($ev['referee_name'] ?? ''));
+        $refId = (int)($ev['referee_person_id'] ?? 0);
+        if ($refName !== '') {
+            $key = $refId > 0 ? 'p' . $refId : 'n' . mb_strtolower($refName, 'UTF-8');
+            if (!isset($referees[$key])) {
+                $referees[$key] = ['id' => $refId, 'name' => $refName];
+            }
+        }
+        foreach (org_event_organizers_rows($db, (int)$ev['id']) as $organizer) {
+            $pid = (int)$organizer['id'];
+            if ($pid <= 0) {
+                continue;
+            }
+            if (!isset($organizers[$pid])) {
+                $organizers[$pid] = ['id' => $pid, 'name' => $organizer['name'], 'roles' => []];
+            }
+            foreach ($organizer['roles'] as $role) {
+                if (!in_array($role, $organizers[$pid]['roles'], true)) {
+                    $organizers[$pid]['roles'][] = $role;
+                }
+            }
+        }
+    }
+    return ['referees' => array_values($referees), 'organizers' => $organizers];
+}
+
+function org_event_export_novice(array $career, int $pid, string $role): string
+{
+    if ($pid <= 0 || !isset($career[$pid])) {
+        return 'FALSE';
+    }
+    $c = $career[$pid];
+    if ($role === 'player' || $role === 'second') {
+        return ((int)($c['games'] ?? 0) <= 1) ? 'TRUE' : 'FALSE';
+    }
+    return '';
+}
+
+/** @return list<array<int, mixed>> */
+function org_event_export_rows(
+    array $events,
+    array $duels,
+    array $career,
+    array $referees,
+    array $organizers
+): array {
+    $primary = $events[0] ?? [];
+    $rows = [[
+        'Номер поединка',
+        'Человек',
+        'очки',
+        'Событие',
+        'Мероприятие',
+        'Признак новичка',
+        'Роли орга',
+    ]];
+
+    foreach ($duels as $idx => $d) {
+        $num = (int)($d['id'] ?? 0);
+        if ($num <= 0) {
+            $num = $idx + 1;
+        }
+        $type = (string)($d['type'] ?? '');
+        $playerEvent = $type === 'экспресс' ? 'Играл экспресс' : 'Играл Классику';
+        $meeting = (string)($d['meeting'] ?? ($primary['title'] ?? ''));
+        $winner = (int)($d['winner'] ?? 0);
+
+        $sides = [
+            ['p' => 'p1', 'pid' => 'p1_id', 's' => 's1', 'sid' => 's1_id', 'side' => 1],
+            ['p' => 'p2', 'pid' => 'p2_id', 's' => 's2', 'sid' => 's2_id', 'side' => 2],
+        ];
+        foreach ($sides as $side) {
+            $playerName = trim((string)($d[$side['p']] ?? ''));
+            $playerId = (int)($d[$side['pid']] ?? 0);
+            if ($playerName !== '') {
+                $rows[] = [
+                    $num,
+                    $playerName,
+                    '',
+                    $playerEvent,
+                    $meeting,
+                    org_event_export_novice($career, $playerId, 'player'),
+                    '',
+                ];
+            }
+
+            $secondName = trim((string)($d[$side['s']] ?? ''));
+            $secondId = (int)($d[$side['sid']] ?? 0);
+            if ($secondName !== '') {
+                if ($winner === 0) {
+                    $secondEvent = 'Секундант';
+                } elseif ($winner === $side['side']) {
+                    $secondEvent = 'Секундант выиграл';
+                } else {
+                    $secondEvent = 'Секундант проиграл';
+                }
+                $rows[] = [
+                    $num,
+                    $secondName,
+                    '',
+                    $secondEvent,
+                    $meeting,
+                    org_event_export_novice($career, $secondId, 'second'),
+                    '',
+                ];
+            }
+        }
+
+        foreach (($d['judge_rows'] ?? []) as $judge) {
+            $judgeName = trim((string)($judge['name'] ?? ''));
+            if ($judgeName === '') {
+                continue;
+            }
+            $rows[] = [$num, $judgeName, '', 'Судил', $meeting, '', ''];
+        }
+    }
+
+    $refIds = [];
+    $refNames = [];
+    $refLabel = org_event_referee_label((string)($primary['event_type'] ?? ''));
+    foreach ($referees as $referee) {
+        $name = trim((string)($referee['name'] ?? ''));
+        if ($name === '') {
+            continue;
+        }
+        $pid = (int)($referee['id'] ?? 0);
+        if ($pid > 0) {
+            $refIds[$pid] = true;
+        }
+        $refNames[mb_strtolower($name, 'UTF-8')] = true;
+        $rows[] = ['', $name, '', $refLabel, '', '', ''];
+    }
+
+    foreach ($organizers as $organizer) {
+        $pid = (int)($organizer['id'] ?? 0);
+        $name = (string)($organizer['name'] ?? '');
+        if ($pid > 0 && isset($refIds[$pid])) {
+            continue;
+        }
+        if ($name !== '' && isset($refNames[mb_strtolower($name, 'UTF-8')])) {
+            continue;
+        }
+        $labels = [];
+        foreach ($organizer['roles'] as $role) {
+            $labels[] = org_event_organizer_role_label($role);
+        }
+        $rows[] = [
+            '',
+            $name,
+            '',
+            'Организатор',
+            '',
+            '',
+            implode(', ', $labels),
+        ];
+    }
+
+    return $rows;
+}
+
+function org_event_export_filename(array $events): string
+{
+    $base = 'Баллы ' . org_event_export_group_label($events);
+    $base = str_replace(['\\', '/', ':', '*', '?', '"', '<', '>', '|'], ' ', $base);
+    $base = trim(preg_replace('/\s+/u', ' ', $base) ?? $base);
+    return ($base !== '' ? $base : 'Баллы') . '.xlsx';
+}
+
+function org_event_export_download(mysqli $db, int $eventId): void
+{
+    $events = org_event_export_group($db, $eventId);
+    if (!$events) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'Мероприятие не найдено';
+        exit;
+    }
+    $duels = [];
+    foreach ($events as $ev) {
+        $title = (string)($ev['title'] ?? '');
+        foreach (org_event_duels($db, (int)$ev['id']) as $duel) {
+            $duel['meeting'] = $title;
+            $duels[] = $duel;
+        }
+    }
+    $start = portal_event_date_start($events[0]);
+    $career = org_event_export_career_before($db, array_column($events, 'id'), $start);
+    $staff = org_event_export_staff($db, $events);
+    $rows = org_event_export_rows(
+        $events,
+        $duels,
+        $career,
+        $staff['referees'],
+        $staff['organizers']
+    );
+    $xlsx = xlsx_build_table($rows, [14, 32, 10, 22, 34, 16, 44], 'Баллы');
+    $filename = org_event_export_filename($events);
+    $fallback = preg_replace('/[^\x20-\x7E]/', '_', $filename) ?? 'baly.xlsx';
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="' . $fallback . '"; filename*=UTF-8\'\'' . rawurlencode($filename));
+    header('Content-Length: ' . strlen($xlsx));
+    header('Cache-Control: no-store, no-cache, must-revalidate');
+    header('Pragma: no-cache');
+    echo $xlsx;
+    exit;
 }
 
 /** @return array<string, int> */
@@ -2528,6 +2961,15 @@ function org_echo_year_month(
     echo '</tbody></table></div>';
 }
 
+function org_echo_export_link(int $eventId): void
+{
+    if ($eventId <= 0) {
+        return;
+    }
+    echo '<p class="org-export-row"><a class="org-export-btn" href="'
+        . h(org_event_export_url($eventId)) . '">Скачать Excel для Бипиума</a></p>';
+}
+
 function org_echo_attrs_read(mysqli $db, array $ev): void
 {
     $zoom = portal_zoom_short_url($ev);
@@ -2563,6 +3005,7 @@ function org_echo_attrs_read(mysqli $db, array $ev): void
     $orgPool = org_event_orgs_map($db, array_values($roleMap));
     $refPool = org_referees_map($db, $ref, $evType);
     org_echo_staff_table($roleMap, $ref, $orgPool, $refPool, false, (string)($ev['referee_name'] ?? ''), $evType);
+    org_echo_export_link((int)$ev['id']);
     if (($ev['status'] ?? '') === 'Отменено') {
         echo '<form method="post" class="org-attrs-actions" onsubmit="return confirm(\'Восстановить мероприятие?\');">';
         portal_csrf_field();
@@ -2690,6 +3133,9 @@ function org_echo_attrs_form(?array $ev, array $people, mysqli $db, ?string $pre
     org_echo_staff_table($roleMap, $ref, $orgPool, $referees, true, '', $type, $refereeAttrs);
     echo '<p class="org-attrs-actions"><button type="submit">' . ($isNew ? 'Создать' : 'Сохранить') . '</button></p>';
     echo '</form>';
+    if (!$isNew && $ev) {
+        org_echo_export_link((int)$ev['id']);
+    }
     org_echo_test_actions($ev, $isNew);
     echo '</section>';
 }

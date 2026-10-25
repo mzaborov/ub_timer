@@ -185,6 +185,9 @@ if ($page === 'org' && $orgSection === 'outreach') {
 if ($page === 'org' && $orgSection === 'events') {
     require __DIR__ . '/inc/home_data.php';
     require __DIR__ . '/inc/org_events.php';
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['export'] ?? '') === 'xlsx') {
+        org_event_export_download($db, (int)($_GET['id'] ?? 0));
+    }
     if (!empty($_SESSION['org_flash'])) {
         $orgFlash = (string)$_SESSION['org_flash'];
         unset($_SESSION['org_flash']);
@@ -266,7 +269,7 @@ if ($page !== 'org') {
     <link rel="stylesheet" href="css/portal.css?v=85">
     <link rel="stylesheet" href="css/org.css?v=7">
     <?php if ($page === 'org' && $orgSection === 'events') { ?>
-    <link rel="stylesheet" href="css/org-events.css?v=63">
+    <link rel="stylesheet" href="css/org-events.css?v=64">
     <link rel="stylesheet" href="fontawesome/css/all.min.css">
     <?php } ?>
     <?php if ($page === 'org' && $orgSection === 'people') { ?>

@@ -692,6 +692,119 @@ function dbj_write($link) {
     dbj_out(array('ok' => true, 'applied' => $applied, 'results' => $results, 'added' => $added));
 }
 
+function dbj_name_key($name) {
+    $name = trim((string)$name);
+    if (function_exists('mb_strtolower')) {
+        $name = mb_strtolower($name, 'UTF-8');
+    } else {
+        $name = strtolower($name);
+    }
+    $name = str_replace('ё', 'е', $name);
+    $name = (string)preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $name);
+    $tokens = preg_split('/\s+/u', $name, -1, PREG_SPLIT_NO_EMPTY);
+    if (!$tokens) {
+        return '';
+    }
+    sort($tokens, SORT_STRING);
+    return implode(' ', $tokens);
+}
+
+function dbj_ensure_circle($link, $title) {
+    $title = trim((string)$title);
+    if ($title === '') {
+        return 0;
+    }
+    $esc = mysql_real_escape_string($title, $link);
+    $r = mysql_query("SELECT id FROM circles WHERE title = '" . $esc . "' LIMIT 1", $link);
+    if ($r && ($row = mysql_fetch_assoc($r))) {
+        return (int)$row['id'];
+    }
+    if (!mysql_query("INSERT INTO circles (title) VALUES ('" . $esc . "')", $link)) {
+        return 0;
+    }
+    return (int)mysql_insert_id($link);
+}
+
+function dbj_person_create($link) {
+    if (dbj_org_configured() && !dbj_is_org()) {
+        dbj_err('org_required', 403);
+    }
+    $raw = file_get_contents('php://input');
+    $in = json_decode($raw, true);
+    if (!is_array($in)) {
+        dbj_err('bad_json', 400);
+    }
+    $name = isset($in['full_name']) ? trim((string)$in['full_name']) : '';
+    if ($name === '') {
+        dbj_err('empty_name', 400);
+    }
+    if (function_exists('mb_substr')) {
+        $name = mb_substr($name, 0, 191, 'UTF-8');
+    } else {
+        $name = substr($name, 0, 191);
+    }
+    $key = dbj_name_key($name);
+    $r = mysql_query('SELECT id, full_name, is_active FROM people ORDER BY id', $link);
+    if ($r) {
+        while ($row = mysql_fetch_assoc($r)) {
+            if ($key !== '' && dbj_name_key((string)$row['full_name']) === $key) {
+                dbj_out(array(
+                    'ok' => true,
+                    'created' => false,
+                    'person' => array(
+                        'id' => (int)$row['id'],
+                        'full_name' => (string)$row['full_name'],
+                        'is_active' => ((int)$row['is_active'] === 1)
+                    )
+                ));
+            }
+        }
+    }
+    $esc = mysql_real_escape_string($name, $link);
+    if (!mysql_query("INSERT INTO people (full_name, is_active) VALUES ('" . $esc . "', 1)", $link)) {
+        dbj_err('create_failed', 500);
+    }
+    $pid = (int)mysql_insert_id($link);
+    if ($pid < 1) {
+        dbj_err('create_failed', 500);
+    }
+    $circle = 'Несортированные';
+    $involvement = 'новый';
+    $cid = dbj_ensure_circle($link, $circle);
+    $membershipOk = false;
+    if ($cid > 0) {
+        $chk = mysql_query(
+            'SELECT id FROM circle_memberships WHERE circle_id = ' . $cid . ' AND person_id = ' . $pid . ' LIMIT 1',
+            $link
+        );
+        if (!$chk || !mysql_fetch_assoc($chk)) {
+            $involvementEsc = mysql_real_escape_string($involvement, $link);
+            $membershipOk = (bool)mysql_query(
+                'INSERT INTO circle_memberships (circle_id, person_id, involvement) VALUES ('
+                . $cid . ', ' . $pid . ", '" . $involvementEsc . "')",
+                $link
+            );
+        } else {
+            $membershipOk = true;
+        }
+    }
+    if (!$membershipOk) {
+        mysql_query('DELETE FROM people WHERE id = ' . $pid, $link);
+        dbj_err('circle_attach_failed', 500);
+    }
+    dbj_out(array(
+        'ok' => true,
+        'created' => true,
+        'person' => array(
+            'id' => $pid,
+            'full_name' => $name,
+            'is_active' => true
+        ),
+        'circle' => $circle,
+        'involvement' => $involvement,
+        'membership_ok' => $membershipOk
+    ));
+}
 function dbj_has_column($link, $table, $col) {
     static $cache = array();
     $key = $table . '.' . $col;
@@ -726,6 +839,8 @@ if ($action === 'events') {
     dbj_protocol_events($link);
 } elseif ($action === 'situations') {
     dbj_situations($link);
+} elseif ($action === 'person_create') {
+    dbj_person_create($link);
 } elseif ($action === 'write') {
     dbj_write($link);
 } elseif ($action === 'org_status') {

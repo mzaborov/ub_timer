@@ -189,6 +189,27 @@ body.org-resizing {
 }
 .org-test-actions { margin: 0.65rem 0 0; }
 .org-test-actions button { width: 100%; }
+.org-export-row { margin: 0.65rem 0 0; }
+.org-export-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+.org-export-btn:hover {
+  border-color: var(--orange);
+  color: var(--orange);
+}
 .org-test-delete { background: #ad1457; border-color: #880e4f; color: #fff; }
 .org-attrs h2,
 .org-gg-wrap h2,

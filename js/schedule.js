@@ -1011,6 +1011,31 @@ function applyPauseModalLabel(playerNum) {
         row.textContent = line;
         titleEl.appendChild(row);
     });
+    applyPauseSituationText_();
+}
+
+function applyPauseSituationText_() {
+    var box = document.getElementById("pause_situation_text");
+    if (!box) return;
+    var duel = (typeof duelsList !== "undefined" && duelsList && typeof currentDuel !== "undefined") ? duelsList[currentDuel] : null;
+    var desc = (duel && duel.SituationDescription != null) ? String(duel.SituationDescription).trim() : "";
+    if (!desc) {
+        box.innerHTML = "";
+        box.style.display = "none";
+        return;
+    }
+    var num = (duel && duel.SituationNum != null && String(duel.SituationNum) !== "") ? ("Ситуация №" + duel.SituationNum) : "Ситуация";
+    var name = (duel && duel.SituationName != null) ? String(duel.SituationName).trim() : "";
+    var head = document.createElement("div");
+    head.className = "pause-situation-title";
+    head.textContent = name ? (num + ". " + name) : num;
+    var body = document.createElement("div");
+    body.className = "pause-situation-body";
+    body.innerHTML = desc;
+    box.innerHTML = "";
+    box.appendChild(head);
+    box.appendChild(body);
+    box.style.display = "";
 }
 
 function initDuelAssignmentsFromDuels() {
@@ -1182,16 +1207,66 @@ function addParticipantFromModal() {
             var dp = peopleDirectory[di];
             if (dp && (dp.full_name || dp.fullName) === name && dp.id != null) {
                 existing = String(dp.id);
-                people[existing] = {
-                    id: existing,
-                    fullName: name,
-                    isActive: true,
-                    experience: "none",
-                    notes: ""
-                };
+                if (!people[existing]) {
+                    people[existing] = {
+                        id: existing,
+                        fullName: name,
+                        isActive: true,
+                        experience: "none",
+                        notes: ""
+                    };
+                }
                 break;
             }
         }
+    }
+    if (existing) {
+        getOrCreatePersonId(name);
+        if (input) input.value = "";
+        saveProtocolStateToLocalStorage();
+        renderParticipantsTab();
+        return;
+    }
+    if (typeof scheduleSource !== "undefined" && scheduleSource === "db" && typeof postDatabaseJson_ === "function") {
+        postDatabaseJson_("?action=person_create", { full_name: name }, "создание участника")
+            .then(function (data) {
+                var p = data && data.person ? data.person : null;
+                if (!p || p.id == null) throw new Error("сервер не вернул участника");
+                var pid = String(p.id);
+                var full = String(p.full_name || name).trim();
+                if (people[pid]) {
+                    people[pid].fullName = full;
+                    people[pid].isActive = p.is_active !== false;
+                } else {
+                    people[pid] = {
+                        id: pid,
+                        fullName: full,
+                        isActive: p.is_active !== false,
+                        experience: "none",
+                        notes: ""
+                    };
+                }
+                if (typeof peopleDirectory === "undefined" || !peopleDirectory) peopleDirectory = [];
+                var found = false;
+                for (var pi = 0; pi < peopleDirectory.length; pi++) {
+                    if (peopleDirectory[pi] && String(peopleDirectory[pi].id) === pid) { found = true; break; }
+                }
+                if (!found) peopleDirectory.push({ id: Number(pid), full_name: full });
+                if (input) input.value = "";
+                saveProtocolStateToLocalStorage();
+                renderParticipantsTab();
+                if (typeof renderJudgesLayoutTab === "function") renderJudgesLayoutTab();
+                var hint = document.getElementById("participants-filter-hint");
+                if (hint) {
+                    hint.textContent = (data.created === false)
+                        ? ("Уже в справочнике: " + full)
+                        : ("Добавлен в справочник: " + full);
+                }
+            })
+            .catch(function (err) {
+                alert("Не удалось создать участника:\n" + ((err && err.message) ? err.message : String(err)));
+            });
+        return;
     }
     getOrCreatePersonId(name);
     if (input) input.value = "";

@@ -572,6 +572,25 @@ body.dice-blink-active #Player2Label {
 #pauseModal .pause-modal-title-line {
   line-height: 1.45;
 }
+#pause_situation_text {
+  max-height: 30vh;
+  overflow-y: auto;
+  border-top: 1px solid #e9ecef;
+}
+#pause_situation_text .pause-situation-title {
+  font-size: .85rem;
+  font-weight: 600;
+  color: #6c757d;
+  margin-bottom: .35rem;
+}
+#pause_situation_text .pause-situation-body {
+  font-size: .9rem;
+  line-height: 1.4;
+}
+#pause_situation_text .pause-situation-body p:last-child,
+#pause_situation_text .pause-situation-body ul:last-child {
+  margin-bottom: 0;
+}
 
 /* Режим «Поменять местами»: подсветка ячеек */
 #judges-layout-table .judges-swap-source {
