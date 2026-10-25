@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Расписание — только чтение</title>
+<style>
+:root {
+    --bg: #f4f6f9;
+    --card: #fff;
+    --ink: #17202a;
+    --muted: #667085;
+    --line: #e3e8ef;
+    --accent: #1f6feb;
+    --accent-soft: #eaf2ff;
+    --warn: #b54708;
+    --warn-soft: #fff4e5;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+.wrap { max-width: 1500px; margin: 0 auto; padding: 20px 18px 40px; }
+.head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+h1 { margin: 0 0 4px; font-size: clamp(20px, 2.2vw, 28px); line-height: 1.2; }
+.meta { color: var(--muted); font-size: 14px; }
+.meta span + span::before { content: " · "; color: #b6bfcc; }
+.ro { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 700; vertical-align: 2px; white-space: nowrap; }
+.tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.updated { color: var(--muted); font-size: 13px; white-space: nowrap; }
+button { font: inherit; border: 1px solid #cbd5e1; border-radius: 9px; background: var(--card); color: var(--ink); padding: 8px 14px; cursor: pointer; }
+button:hover { border-color: var(--accent); color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 8px 30px rgba(15, 23, 42, 0.06); overflow: hidden; }
+.table-scroll { overflow: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 1100px; }
+th, td { padding: 11px 12px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
+th { position: sticky; top: 0; z-index: 1; background: #f8fafc; color: #475467; font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover td { background: #fbfdff; }
+.num { width: 44px; color: var(--muted); font-weight: 700; }
+.type { white-space: nowrap; }
+.type-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #f2f4f7; color: #344054; font-size: 12px; font-weight: 600; }
+.type-badge.express { background: #fff7e8; color: #9a4b00; }
+.type-badge.pair { background: #eefbf3; color: #17663a; }
+.sit { min-width: 210px; max-width: 320px; }
+.sit-code { font-weight: 650; }
+.sit-desc { margin-top: 3px; color: var(--muted); font-size: 12px; max-width: 320px; }
+.people { min-width: 190px; }
+.person { font-weight: 550; }
+.second { margin-top: 3px; color: var(--muted); font-size: 12px; }
+.judges { min-width: 240px; }
+.judge { display: inline-block; margin: 0 4px 4px 0; padding: 2px 7px; border-radius: 7px; background: #f8fafc; border: 1px solid var(--line); font-size: 12px; white-space: nowrap; }
+.empty { color: #98a2b3; }
+.notice { padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--muted); }
+.notice.error { border-color: #f5c2c7; background: #fff5f5; color: #b42318; }
+.notice.warn { border-color: #fed7aa; background: var(--warn-soft); color: var(--warn); }
+.notice code { padding: 1px 5px; border-radius: 5px; background: #f2f4f7; color: var(--ink); }
+.summary { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
+@media (max-width: 720px) {
+    .wrap { padding: 14px 12px 28px; }
+    .head { flex-direction: column; }
+    .tools { width: 100%; justify-content: space-between; }
+}
+@media print {
+    body { background: #fff; }
+    .wrap { max-width: none; padding: 0; }
+    .tools, .ro { display: none; }
+    .card { border: 0; box-shadow: none; }
+    th { position: static; }
+    table { min-width: 0; font-size: 11px; }
+    th, td { padding: 6px 7px; }
+    .sit-desc { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+    <header class="head">
+        <div>
+            <h1 id="title">Расписание<span class="ro">только чтение</span></h1>
+            <div class="meta" id="meta"></div>
+        </div>
+        <div class="tools">
+            <span class="updated" id="updated"></span>
+            <button type="button" id="refresh">Обновить</button>
+        </div>
+    </header>
+    <main id="content"><div class="notice">Загрузка расписания…</div></main>
+</div>
+<script>
+(function () {
+    "use strict";
+
+    var content = document.getElementById("content");
+    var titleEl = document.getElementById("title");
+    var metaEl = document.getElementById("meta");
+    var updatedEl = document.getElementById("updated");
+    var refreshBtn = document.getElementById("refresh");
+    var eventId = new URLSearchParams(window.location.search).get("event") || "";
+
+    function esc(value) {
+        return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
+            return {"&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"}[ch];
+        });
+    }
+
+    function plain(value) {
+        var box = document.createElement("div");
+        box.innerHTML = String(value == null ? "" : value);
+        return (box.textContent || "").replace(/\s+/g, " ").trim();
+    }
+
+    function fmtDate(value) {
+        var m = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        return m ? m[3] + "." + m[2] + "." + m[1] : "";
+    }
+
+    function fmtTime(value) {
+        var m = String(value || "").match(/^(\d{2}):(\d{2})/);
+        return m ? m[1] + ":" + m[2] : "";
+    }
+
+    function typeLabel(type) {
+        return type === "экспресс" ? "Экспресс" : type === "парный" ? "Парный" : "Классика";
+    }
+
+    function typeClass(type) {
+        return type === "экспресс" ? "express" : type === "парный" ? "pair" : "";
+    }
+
+    function personName(people, obj) {
+        if (obj && obj.full_name) return obj.full_name;
+        if (obj && obj.name) return obj.name;
+        return "";
+    }
+
+    function judgeNames(duel, people) {
+        var out = [];
+        (duel.judges || []).forEach(function (j) {
+            var id = j && j.person_id != null ? String(j.person_id) : "";
+            if (id && people[id] && people[id].full_name) out.push(people[id].full_name);
+        });
+        return out;
+    }
+
+    function renderEvent(data) {
+        var ev = data.event || {};
+        var duels = Array.isArray(data.duels) ? data.duels.slice() : [];
+        var people = {};
+        (data.people || []).forEach(function (p) {
+            if (p && p.id != null) people[String(p.id)] = p;
+        });
+        duels.sort(function (a, b) {
+            return (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || (Number(a.id) || 0) - (Number(b.id) || 0);
+        });
+
+        titleEl.innerHTML = esc(ev.title || "Расписание") + '<span class="ro">только чтение</span>';
+        document.title = (ev.title || "Расписание") + " — только чтение";
+
+        var meta = [];
+        if (ev.starts_on) meta.push(fmtDate(ev.starts_on));
+        if (ev.starts_at || ev.ends_at) {
+            meta.push([fmtTime(ev.starts_at), fmtTime(ev.ends_at)].filter(Boolean).join("–"));
+        }
+        if (ev.event_type) meta.push(ev.event_type);
+        if (ev.status) meta.push(ev.status);
+        metaEl.innerHTML = meta.map(function (x) { return "<span>" + esc(x) + "</span>"; }).join("");
+
+        if (!duels.length) {
+            content.innerHTML = '<div class="notice warn">В мероприятии пока нет поединков.</div>';
+            return;
+        }
+
+        var rows = duels.map(function (d, i) {
+            var s = d.situation || null;
+            var sitCode = s ? (s.code || ("№" + (s.num == null ? "" : s.num))) : "—";
+            var sitDesc = s && s.description ? plain(s.description) : "";
+            var p1 = personName(people, d.player1) || "—";
+            var p2 = personName(people, d.player2) || "—";
+            var s1 = personName(people, d.second1);
+            var s2 = personName(people, d.second2);
+            var judges = judgeNames(d, people);
+            var type = d.duel_type || "";
+            var num = Number(d.sort_order) || (i + 1);
+            return "<tr>" +
+                '<td class="num">' + esc(num) + "</td>" +
+                '<td class="type"><span class="type-badge ' + typeClass(type) + '">' + esc(typeLabel(type)) + "</span></td>" +
+                '<td class="sit"><div class="sit-code">' + esc(sitCode) + "</div>" +
+                    (sitDesc ? '<div class="sit-desc" title="' + esc(sitDesc) + '">' + esc(sitDesc) + "</div>" : "") + "</td>" +
+                '<td class="people"><div class="person">' + esc(p1) + "</div></td>" +
+                '<td class="people">' + (s1 ? '<div class="second">' + esc(s1) + "</div>" : '<span class="empty">—</span>') + "</td>" +
+                '<td class="people"><div class="person">' + esc(p2) + "</div></td>" +
+                '<td class="people">' + (s2 ? '<div class="second">' + esc(s2) + "</div>" : '<span class="empty">—</span>') + "</td>" +
+                '<td class="judges">' + (judges.length ? judges.map(function (n) { return '<span class="judge">' + esc(n) + "</span>"; }).join("") : '<span class="empty">—</span>') + "</td>" +
+                "</tr>";
+        }).join("");
+
+        content.innerHTML = '<p class="summary">Поединков: ' + duels.length + "</p>" +
+            '<div class="card"><div class="table-scroll"><table>' +
+            "<thead><tr><th>№</th><th>Тип</th><th>Ситуация</th><th>Игрок 1</th><th>Секундант 1</th><th>Игрок 2</th><th>Секундант 2</th><th>Судьи</th></tr></thead>" +
+            "<tbody>" + rows + "</tbody></table></div></div>";
+    }
+
+    function errorHtml(message, eventId) {
+        if (message === "org_only") {
+            return '<div class="notice warn">Расписание ещё не опубликовано для участников.</div>';
+        }
+        if (message === "event_not_found" || message === "bad_id") {
+            return '<div class="notice error">Мероприятие не найдено. Проверь ссылку <code>?event=...</code>.</div>';
+        }
+        return '<div class="notice error">Не удалось загрузить расписание: ' + esc(message || "неизвестная ошибка") + "</div>";
+    }
+
+    function load() {
+        if (!eventId) {
+            content.innerHTML = '<div class="notice warn">Укажи мероприятие в ссылке: <code>?event=55</code>.</div>';
+            return;
+        }
+        refreshBtn.disabled = true;
+        fetch("db.php?action=event&id=" + encodeURIComponent(eventId), {cache: "no-store", credentials: "same-origin"})
+            .then(function (response) {
+                return response.json().catch(function () { return {ok: false, error: "HTTP " + response.status}; })
+                    .then(function (data) { return {response: response, data: data}; });
+            })
+            .then(function (result) {
+                if (!result.response.ok || !result.data || !result.data.ok) {
+                    throw new Error((result.data && result.data.error) || ("HTTP " + result.response.status));
+                }
+                renderEvent(result.data);
+                updatedEl.textContent = "обновлено " + new Date().toLocaleTimeString("ru-RU");
+            })
+            .catch(function (error) {
+                content.innerHTML = errorHtml(error && error.message ? error.message : "network_error", eventId);
+            })
+            .finally(function () { refreshBtn.disabled = false; });
+    }
+
+    refreshBtn.addEventListener("click", load);
+    load();
+    setInterval(function () {
+        if (!document.hidden) load();
+    }, 30000);
+})();
+</script>
+</body>
+</html>
