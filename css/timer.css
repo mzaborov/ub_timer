@@ -1,4 +1,4 @@
-/* deploy-version: 134 */
+/* deploy-version: 135 */
 @keyframes pulse {
   0%  { opacity: 0;  transform: scale(0.2);}
   20% { opacity: 0.3; transform: scale(0.4);}
@@ -418,7 +418,8 @@ body.dice-blink-active #Player2Label {
   align-items: center;
 }
 #finishDuelModal .referee-category .btn-group {
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  width: 100%;
 }
 #finishDuelModal .referee-categories-row:not(.referee-categories-express) .referee-category .btn-group {
   justify-content: center;
@@ -426,13 +427,14 @@ body.dice-blink-active #Player2Label {
 #finishDuelModal .referee-category .btn-group .btn {
   min-width: 0;
   flex: 0 1 auto;
-  max-width: 8.5rem;
+  max-width: 100%;
   min-height: 2.35rem;
-  height: 2.35rem;
+  height: auto;
   padding: 0.35rem 0.55rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.15;
 }
 #finishDuelModal .referee-categories-row.referee-categories-express {
   flex-wrap: nowrap;
@@ -453,7 +455,7 @@ body.dice-blink-active #Player2Label {
 }
 #finishDuelModal .referee-categories-express .referee-category .btn-group .btn {
   flex: 0 1 auto;
-  max-width: 8.5rem;
+  max-width: 100%;
 }
 #finishDuelModal .modal-footer .btn {
   min-height: 2.25rem;

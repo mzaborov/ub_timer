@@ -254,6 +254,7 @@ function applyDatabaseEvent_(payload) {
 
     people = {};
     peopleNextId = 1;
+    peopleDirectory = Array.isArray(payload.people_directory) ? payload.people_directory : [];
     var pmap = payload.people || [];
     for (var i = 0; i < pmap.length; i++) {
         var p = pmap[i];

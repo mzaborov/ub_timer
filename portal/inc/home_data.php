@@ -1268,7 +1268,8 @@ function portal_duels_by_event(mysqli $db, array $eventIds): array
     $in = implode(',', $eventIds);
     $r = $db->query(
         "SELECT d.id, d.event_id, d.sort_order, d.duel_date, d.duel_type, d.prep_mode,
-                d.situation_id, d.notes, d.player1_id, d.second1_id, d.player2_id, d.second2_id,
+                d.situation_id, d.notes, d.round_minutes,
+                d.player1_id, d.second1_id, d.player2_id, d.second2_id,
                 d.gen_locked,
                 s.code AS sit_code, s.num AS sit_num,
                 p1.full_name AS p1_name, s1.full_name AS s1_name,
@@ -1307,6 +1308,7 @@ function portal_duels_by_event(mysqli $db, array $eventIds): array
             'sit' => $sit,
             'sit_url' => portal_sit_bank_url($row['sit_code'] ?? null, $sit),
             'situation_id' => (int)($row['situation_id'] ?? 0),
+            'minutes' => (int)($row['round_minutes'] ?? 5),
             'notes' => trim((string)($row['notes'] ?? '')),
             'p1' => portal_name_or_empty($row['p1_name'] ?? null),
             's1' => $express ? '' : portal_name_or_empty($row['s1_name'] ?? null),

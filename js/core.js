@@ -213,20 +213,6 @@ function setDiceBlinkHighlight(playerNum) {
 }
 
 function blinkingIntroStep(qty) {
-    if (duelsList && duelsList[currentDuel]) {
-        var duel = duelsList[currentDuel];
-        var tp = duel.Player1, tsp = duel.Player2, ts1 = duel.Second1, ts2 = duel.Second2;
-        duel.Player1 = tsp;
-        duel.Player2 = tp;
-        duel.Second1 = ts2;
-        duel.Second2 = ts1;
-        applyPlayerNameFieldsFromDuel(duel);
-    } else {
-        var a = document.getElementById("Player1Name").value;
-        var b = document.getElementById("Player2Name").value;
-        document.getElementById("Player1Name").value = b;
-        document.getElementById("Player2Name").value = a;
-    }
     var newPlayer = (qty % 2) + 1;
     setDiceBlinkHighlight(newPlayer);
     introBlinkTimeoutId = setTimeout(function() { blinkingIntroStep(qty + 1); }, 200);

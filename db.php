@@ -331,11 +331,15 @@ function dbj_event($link) {
 
     $names = array();
     $active = array();
-    $r = mysql_query('SELECT id, full_name, is_active FROM people', $link);
+    $directory = array();
+    $r = mysql_query('SELECT id, full_name, is_active FROM people ORDER BY full_name', $link);
     while ($row = mysql_fetch_assoc($r)) {
         $pid = (int)$row['id'];
         $names[$pid] = (string)$row['full_name'];
         $active[$pid] = ((int)$row['is_active'] === 1);
+        if ($active[$pid] && trim((string)$row['full_name']) !== '') {
+            $directory[] = array('id' => $pid, 'full_name' => (string)$row['full_name']);
+        }
     }
 
     $used = array();
@@ -433,7 +437,8 @@ function dbj_event($link) {
             'referee_person_id' => ($ev['referee_person_id'] === null ? null : (int)$ev['referee_person_id'])
         ),
         'duels' => $duels,
-        'people' => $peopleOut
+        'people' => $peopleOut,
+        'people_directory' => $directory
     ));
 }
 

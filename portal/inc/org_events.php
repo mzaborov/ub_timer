@@ -1206,6 +1206,12 @@ function org_events_handle_post(mysqli $db): array
     if ($action === 'org_event_restore') {
         return org_event_restore($db);
     }
+    if ($action === 'org_event_finish') {
+        return org_event_finish($db);
+    }
+    if ($action === 'org_event_reopen') {
+        return org_event_reopen($db);
+    }
     if ($action === 'org_event_test_create') {
         return org_event_test_create($db);
     }
@@ -1328,10 +1334,10 @@ function org_insert_empty_slots(mysqli $db, int $eventId, ?string $date, int $co
 {
     $type = 'классика';
     $prep = 'обычный';
-    $mins = 5;
+    $mins = 4;
     $st = $db->prepare(
-        'INSERT INTO duels (event_id, sort_order, duel_date, duel_type, prep_mode, round_minutes)
-         VALUES (?, ?, ?, ?, ?, ?)'
+        'INSERT INTO duels (event_id, sort_order, duel_date, duel_type, prep_mode, round_minutes, referee_qty)
+         VALUES (?, ?, ?, ?, ?, ?, 7)'
     );
     for ($i = 0; $i < $count; $i++) {
         $order = $fromOrder + $i;
@@ -1431,6 +1437,45 @@ function org_event_restore(mysqli $db): array
     $st->execute();
     $st->close();
     $_SESSION['org_flash'] = 'Мероприятие восстановлено';
+    return ['redirect' => org_event_url($id)];
+}
+
+function org_event_finish(mysqli $db): array
+{
+    $id = (int)($_POST['event_id'] ?? 0);
+    $ev = org_event_load($db, $id);
+    if (!$ev) {
+        return ['error' => 'Мероприятие не найдено'];
+    }
+    if (($ev['event_type'] ?? '') !== 'онлайн') {
+        return ['error' => 'Завершить можно только онлайн'];
+    }
+    if (($ev['status'] ?? '') === 'Отменено') {
+        return ['error' => 'Мероприятие отменено'];
+    }
+    $st = $db->prepare("UPDATE events SET status = 'Проведено' WHERE id = ?");
+    $st->bind_param('i', $id);
+    $st->execute();
+    $st->close();
+    $_SESSION['org_flash'] = 'Онлайн завершён';
+    return ['redirect' => org_event_url($id)];
+}
+
+function org_event_reopen(mysqli $db): array
+{
+    $id = (int)($_POST['event_id'] ?? 0);
+    $ev = org_event_load($db, $id);
+    if (!$ev) {
+        return ['error' => 'Мероприятие не найдено'];
+    }
+    if (($ev['status'] ?? '') !== 'Проведено') {
+        return ['error' => 'Мероприятие не завершено'];
+    }
+    $st = $db->prepare("UPDATE events SET status = 'Запланировано' WHERE id = ?");
+    $st->bind_param('i', $id);
+    $st->execute();
+    $st->close();
+    $_SESSION['org_flash'] = 'Онлайн возвращён в план';
     return ['redirect' => org_event_url($id)];
 }
 
@@ -1614,6 +1659,7 @@ function org_slots_save(mysqli $db): array
     $ids = $_POST['duel_id'] ?? [];
     $dates = $_POST['duel_date'] ?? [];
     $types = $_POST['duel_type'] ?? [];
+    $minutes = $_POST['duel_minutes'] ?? [];
     $sits = $_POST['situation_id'] ?? [];
     $labels = $_POST['sit_label'] ?? [];
     $p1s = $_POST['p1'] ?? [];
@@ -1649,7 +1695,13 @@ function org_slots_save(mysqli $db): array
             $type = 'классика';
         }
         $date = org_norm_date($dates[$i] ?? null);
-        $mins = $type === 'экспресс' ? 1 : 5;
+        $mins = 1;
+        if ($type !== 'экспресс') {
+            $mins = (int)($minutes[$i] ?? 4);
+            if ($mins !== 4 && $mins !== 5) {
+                $mins = 4;
+            }
+        }
         $prep = 'обычный';
         $sid = (int)($sits[$i] ?? 0);
         if ($sid > 0 && !isset($validSit[$sid])) {
@@ -2519,6 +2571,23 @@ function org_echo_attrs_read(mysqli $db, array $ev): void
         echo '<button type="submit">Восстановить мероприятие</button>';
         echo '</form>';
     }
+    if (($ev['event_type'] ?? '') === 'онлайн') {
+        if (($ev['status'] ?? '') === 'Проведено') {
+            echo '<form method="post" class="org-attrs-actions" onsubmit="return confirm(\'Вернуть онлайн в план? Статус снова станет «Запланировано». \');">';
+            portal_csrf_field();
+            echo '<input type="hidden" name="action" value="org_event_reopen">';
+            echo '<input type="hidden" name="event_id" value="' . (int)$ev['id'] . '">';
+            echo '<button type="submit">Вернуть в план</button>';
+            echo '</form>';
+        } elseif (($ev['status'] ?? '') !== 'Отменено') {
+            echo '<form method="post" class="org-attrs-actions" onsubmit="return confirm(\'Завершить онлайн? Статус станет «Проведено», результаты попадут в банк ситуаций. \');">';
+            portal_csrf_field();
+            echo '<input type="hidden" name="action" value="org_event_finish">';
+            echo '<input type="hidden" name="event_id" value="' . (int)$ev['id'] . '">';
+            echo '<button type="submit">Завершить онлайн</button>';
+            echo '</form>';
+        }
+    }
     org_echo_test_actions($ev);
     echo '</section>';
 }
@@ -2985,7 +3054,7 @@ function org_echo_slots_card(
     echo '<div class="org-slots-scroll"><table class="org-slots">';
     echo '<thead><tr><th>#</th>'
         . ($multiDay ? '<th>Дата</th>' : '')
-        . '<th>Тип</th><th>Ситуация</th>'
+        . '<th>Тип</th><th title="Длительность классики/парного, минут">Длит.</th><th>Ситуация</th>'
         . '<th>Игрок 1</th><th>Секундант 1</th><th>Игрок 2</th><th>Секундант 2</th>'
         . '<th title="Зафиксировать слот: при генерации пар он не меняется">Фикс.</th><th></th></tr></thead><tbody>';
     foreach ($duels as $i => $d) {
@@ -3050,6 +3119,15 @@ function org_echo_slots_card(
                 . '<span>' . h($typeLabel($t)) . '</span></button></li>';
         }
         echo '</ul><input type="hidden" name="duel_type[]" value="' . h($curType) . '"></div></td>';
+        $curMins = $isExpress ? 1 : (int)($d['minutes'] ?? 4);
+        if ($curMins !== 4 && $curMins !== 5 && $curMins !== 1) {
+            $curMins = 4;
+        }
+        echo '<td class="org-slot-minutes"><select name="duel_minutes[]" aria-label="Длительность поединка">';
+        foreach ([4 => '4 мин', 5 => '5 мин', 1 => '1 мин'] as $mv => $ml) {
+            echo '<option value="' . $mv . '"' . ($curMins === $mv ? ' selected' : '') . '>' . $ml . '</option>';
+        }
+        echo '</select></td>';
         echo '<td class="org-slot-sit">';
         org_echo_combo('situation_id[]', (int)($d['situation_id'] ?? 0), org_sit_cell_label($d), 'sit', 'sit_label[]', (string)($d['sit_url'] ?? ''));
         echo '</td><td class="org-slot-p1"><div class="org-player-cell">';

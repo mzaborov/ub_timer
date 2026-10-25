@@ -424,22 +424,25 @@
     align-items: center;
     text-align: center;
   }
-  /* Кнопки судей в одну линию, при нехватке места обрезаем с … */
+  /* Кнопки судей: переносим строки, чтобы ФИО не обрезались */
   #finishDuelModal .referee-category .btn-group {
     min-width: 0;
     flex: 1 1 0;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+    width: 100%;
   }
   #finishDuelModal .referee-category .btn-group .btn {
     min-width: 0;
     min-height: 2rem;
-    height: 2rem;
-    flex: 1 1 auto;
+    height: auto;
+    flex: 0 1 auto;
+    max-width: 100%;
     padding: 0.25rem 0.35rem;
     font-size: 0.7rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    line-height: 1.15;
   }
   #finishDuelModal .modal-footer .btn {
     min-height: 2rem;

@@ -572,6 +572,16 @@ function updateDuelScheduleEditNote_() {
         (used ? " — уже используется в этом онлайне." : "");
 }
 
+function updateDuelScheduleEditMinutes_() {
+    var typeEl = document.getElementById("duel-schedule-edit-type");
+    var minEl = document.getElementById("duel-schedule-edit-minutes");
+    if (!typeEl || !minEl) return;
+    var express = typeEl.value === "экспресс";
+    minEl.disabled = express;
+    if (express) minEl.value = "1";
+    else if (minEl.value === "1") minEl.value = typeEl.value === "парный" ? "5" : "4";
+}
+
 function renderDuelScheduleEditSituations_() {
     var typeEl = document.getElementById("duel-schedule-edit-type");
     var sitEl = document.getElementById("duel-schedule-edit-situation");
@@ -637,14 +647,20 @@ function openDuelScheduleEditor_(idx, opts) {
     if (titleEl) titleEl.textContent = "Поединок " + (duel.DuelNum != null ? duel.DuelNum : (idx + 1));
     var typeEl = document.getElementById("duel-schedule-edit-type");
     var sitEl = document.getElementById("duel-schedule-edit-situation");
+    var minEl = document.getElementById("duel-schedule-edit-minutes");
     var noteEl = document.getElementById("duel-schedule-edit-note");
     if (typeEl) typeEl.value = duelTypeValueForLabel_(duel.Type);
+    if (minEl) minEl.value = String(duel.DuelMinutesLength || (normalizeDuelTypeStr(duel.Type) === "express" ? 1 : 4));
+    updateDuelScheduleEditMinutes_();
     if (sitEl) {
         sitEl.innerHTML = '<option value="__random__">Загрузка списка ситуаций…</option>';
         sitEl.disabled = true;
     }
     if (noteEl) noteEl.textContent = duelScheduleEditNotice_;
-    if (typeEl) typeEl.onchange = renderDuelScheduleEditSituations_;
+    if (typeEl) typeEl.onchange = function () {
+        updateDuelScheduleEditMinutes_();
+        renderDuelScheduleEditSituations_();
+    };
     if (sitEl) sitEl.onchange = updateDuelScheduleEditNote_;
     var modalEl = document.getElementById("duelScheduleEditModal");
     if (modalEl && typeof bootstrap !== "undefined") {
@@ -674,10 +690,12 @@ function saveDuelScheduleEdit_() {
     var duel = duelsList[idx];
     var typeEl = document.getElementById("duel-schedule-edit-type");
     var sitEl = document.getElementById("duel-schedule-edit-situation");
+    var minEl = document.getElementById("duel-schedule-edit-minutes");
     if (!typeEl || !sitEl) return;
     var typeValue = typeEl.value;
     var typeKey = duelTypeKeyFromValue_(typeValue);
     var oldType = duel.Type;
+    var oldMinutes = duel.DuelMinutesLength;
     var oldSituation = (duel.SituationNum ? "№" + duel.SituationNum + " " : "") + (duel.SituationName || "");
     if (sitEl.value === "__random__") {
         applyRandomPlaceholderToDuel_(duel, typeKey);
@@ -695,6 +713,11 @@ function saveDuelScheduleEdit_() {
         }
         applyDbSituationToDuel_(duel, sit, typeKey);
     }
+    if (typeValue === "экспресс") duel.DuelMinutesLength = 1;
+    else if (minEl) {
+        var mins = parseInt(minEl.value, 10);
+        if (mins === 4 || mins === 5) duel.DuelMinutesLength = mins;
+    }
     clearInactiveJudgeAssignments_(idx);
     var newSituation = (duel.SituationNum ? "№" + duel.SituationNum + " " : "") + (duel.SituationName || "");
     var fields = {
@@ -706,6 +729,7 @@ function saveDuelScheduleEdit_() {
     };
     var changes = [
         { field: "Тип", old: oldType, new: duel.Type },
+        { field: "Длительность", old: oldMinutes + " мин", new: duel.DuelMinutesLength + " мин" },
         { field: "Ситуация", old: oldSituation, new: newSituation }
     ];
     if (typeof dbSaveComposition_ === "function") dbSaveComposition_(idx, fields, changes);
@@ -1055,16 +1079,40 @@ function getSlotCategory(duelIdx, slotKey) {
     return i < 1 ? "hiring" : i < 4 ? "negotiators" : "owners";
 }
 
+function renderParticipantsDirectory_() {
+    var dl = document.getElementById("participants-people-list");
+    if (!dl) return;
+    var names = [];
+    var seen = {};
+    var source = (typeof peopleDirectory !== "undefined" && peopleDirectory && peopleDirectory.length) ? peopleDirectory : [];
+    if (source.length) {
+        for (var i = 0; i < source.length; i++) {
+            var n = source[i] && (source[i].full_name || source[i].fullName);
+            if (n && !seen[n]) { seen[n] = true; names.push(n); }
+        }
+    } else {
+        for (var id in people) {
+            var pn = people[id] && people[id].fullName;
+            if (pn && !seen[pn]) { seen[pn] = true; names.push(pn); }
+        }
+    }
+    names.sort(function (a, b) { return a.localeCompare(b); });
+    dl.innerHTML = names.map(function (name) {
+        return '<option value="' + escapeHtmlForChooser(name) + '"></option>';
+    }).join("");
+}
+
 function renderParticipantsTab() {
     var tbody = document.getElementById("participants-tbody");
     if (!tbody) return;
+    renderParticipantsDirectory_();
     var list = [];
     for (var id in people) list.push(people[id]);
     list.sort(function (a, b) { return (a.fullName || "").localeCompare(b.fullName || ""); });
     tbody.innerHTML = "";
     if (list.length === 0) {
         var tr = document.createElement("tr");
-        tr.innerHTML = "<td colspan=\"7\" class=\"text-muted text-center py-3\">Нет участников. Загрузите расписание с именами игроков/секундантов или введите ФИО выше и нажмите «Добавить участника».</td>";
+        tr.innerHTML = "<td colspan=\"8\" class=\"text-muted text-center py-3\">Нет участников. Загрузите расписание с именами игроков/секундантов или введите ФИО выше и нажмите «Добавить участника».</td>";
         tbody.appendChild(tr);
         return;
     }
@@ -1091,10 +1139,16 @@ function renderParticipantsTab() {
             "<div class=\"form-check form-check-inline mb-0\"><input class=\"form-check-input\" type=\"radio\" name=\"" + expName + "\" value=\"expert\"" + (expVal === "expert" ? " checked" : "") + " onchange=\"setPersonExperience('" + p.id.replace(/'/g, "\\'") + "', this.value);\"><label class=\"form-check-label small\">судья ФУБ</label></div>" +
             "<div class=\"form-check form-check-inline mb-0\"><input class=\"form-check-input\" type=\"radio\" name=\"" + expName + "\" value=\"org\"" + (expVal === "org" ? " checked" : "") + " onchange=\"setPersonExperience('" + p.id.replace(/'/g, "\\'") + "', this.value);\"><label class=\"form-check-label small\">орг</label></div>";
         }
+        var isLocal = String(p.id).indexOf("p_") === 0;
+        var actions = isLocal
+            ? "<button type=\"button\" class=\"btn btn-sm btn-outline-secondary me-1\" title=\"Переименовать\" onclick=\"event.stopPropagation(); renameLocalPerson('" + p.id + "')\">✎</button>" +
+              "<button type=\"button\" class=\"btn btn-sm btn-outline-danger\" title=\"Удалить\" onclick=\"event.stopPropagation(); deleteLocalPerson('" + p.id + "')\">×</button>"
+            : "<span class=\"text-muted small\" title=\"Справочник портала\">справочник</span>";
         tr.innerHTML = "<td class=\"text-nowrap\">" + (index + 1) + "</td><td>" + (p.fullName || "") + "</td>" +
             "<td><button type=\"button\" class=\"btn btn-sm btn-outline-secondary\" onclick=\"setPersonActive('" + p.id + "', " + (p.isActive === false ? "true" : "false") + "); renderParticipantsTab();\">" + statusLabel + "</button></td>" +
             "<td onclick=\"event.stopPropagation();\">" + expCell + "</td>" +
-            "<td>" + judged + "</td><td>" + played + "</td><td>" + seconded + "</td>";
+            "<td>" + judged + "</td><td>" + played + "</td><td>" + seconded + "</td>" +
+            "<td class=\"text-nowrap\" onclick=\"event.stopPropagation();\">" + actions + "</td>";
         tbody.appendChild(tr);
     });
 }
@@ -1119,8 +1173,74 @@ function addParticipantFromModal() {
         if (input) input.focus();
         return;
     }
+    var existing = null;
+    for (var id in people) {
+        if (people[id] && people[id].fullName === name) { existing = id; break; }
+    }
+    if (!existing && typeof peopleDirectory !== "undefined" && peopleDirectory && peopleDirectory.length) {
+        for (var di = 0; di < peopleDirectory.length; di++) {
+            var dp = peopleDirectory[di];
+            if (dp && (dp.full_name || dp.fullName) === name && dp.id != null) {
+                existing = String(dp.id);
+                people[existing] = {
+                    id: existing,
+                    fullName: name,
+                    isActive: true,
+                    experience: "none",
+                    notes: ""
+                };
+                break;
+            }
+        }
+    }
     getOrCreatePersonId(name);
     if (input) input.value = "";
+    saveProtocolStateToLocalStorage();
+    renderParticipantsTab();
+}
+
+function renameLocalPerson(personId) {
+    if (!personId || String(personId).indexOf("p_") !== 0 || !people[personId]) return;
+    var p = people[personId];
+    var name = prompt("ФИО участника", p.fullName || "");
+    if (name === null) return;
+    name = String(name).trim();
+    if (!name) return;
+    for (var id in people) {
+        if (id !== personId && people[id] && people[id].fullName === name) {
+            alert("Участник с таким ФИО уже есть в списке.");
+            return;
+        }
+    }
+    var oldName = p.fullName || "";
+    p.fullName = name;
+    if (duelsList) {
+        for (var i = 0; i < duelsList.length; i++) {
+            var d = duelsList[i];
+            if (d.Player1 === oldName) d.Player1 = name;
+            if (d.Player2 === oldName) d.Player2 = name;
+            if (d.Second1 === oldName) d.Second1 = name;
+            if (d.Second2 === oldName) d.Second2 = name;
+        }
+    }
+    if (typeof applyPlayerNameFieldsFromDuel === "function" && duelsList && currentDuel != null && duelsList[currentDuel]) {
+        applyPlayerNameFieldsFromDuel(duelsList[currentDuel]);
+    }
+    saveProtocolStateToLocalStorage();
+    renderParticipantsTab();
+    if (typeof renderJudgesLayoutTab === "function") renderJudgesLayoutTab();
+}
+
+function deleteLocalPerson(personId) {
+    if (!personId || String(personId).indexOf("p_") !== 0 || !people[personId]) return;
+    var used = countTimesPlayed(personId) + countTimesSeconded(personId) + countTimesJudged(personId);
+    if (used > 0) {
+        alert("Участник используется в расписании. Сначала уберите его из поединков/судейства.");
+        return;
+    }
+    var p = people[personId];
+    if (!confirm("Удалить участника «" + (p.fullName || personId) + "»?")) return;
+    delete people[personId];
     saveProtocolStateToLocalStorage();
     renderParticipantsTab();
 }
@@ -2481,7 +2601,7 @@ function googleScheduleDefaultsForType_(typeStr) {
     var kind = normalizeDuelTypeStr(typeStr);
     if (kind === "express") return { refereeQty: 5, minutes: 1, typeLabel: "Экспресс" };
     if (kind === "pair") return { refereeQty: 9, minutes: 5, typeLabel: "Парный" };
-    return { refereeQty: 9, minutes: 5, typeLabel: typeStr && String(typeStr).trim() ? String(typeStr).trim() : "Классика" };
+    return { refereeQty: 7, minutes: 4, typeLabel: typeStr && String(typeStr).trim() ? String(typeStr).trim() : "Классика" };
 }
 
 /** Слепок ячеек протокола из CSV-матрицы (для «Очистить Google»). Колонки — 0-based. */

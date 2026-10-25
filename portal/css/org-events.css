@@ -357,7 +357,9 @@ body.org-resizing {
   white-space: nowrap;
 }
 .org-slots .org-slot-date,
-.org-slots .org-slot-type { width: 1%; white-space: nowrap; }
+.org-slots .org-slot-type,
+.org-slots .org-slot-minutes { width: 1%; white-space: nowrap; }
+.org-slots .org-slot-minutes select { width: 4.8rem; }
 .org-slots .org-slot-sit { width: 11rem; min-width: 9rem; max-width: 12rem; }
 .org-slots .org-slot-sit .org-combo { min-width: 0; }
 .org-slots .org-combo { min-width: 6.5rem; }
