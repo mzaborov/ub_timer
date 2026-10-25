@@ -1087,11 +1087,10 @@ function org_event_export_rows(
         $type = (string)($d['type'] ?? '');
         $playerEvent = $type === 'экспресс' ? 'Играл экспресс' : 'Играл Классику';
         $meeting = (string)($d['meeting'] ?? ($primary['title'] ?? ''));
-        $winner = (int)($d['winner'] ?? 0);
 
         $sides = [
-            ['p' => 'p1', 'pid' => 'p1_id', 's' => 's1', 'sid' => 's1_id', 'side' => 1],
-            ['p' => 'p2', 'pid' => 'p2_id', 's' => 's2', 'sid' => 's2_id', 'side' => 2],
+            ['p' => 'p1', 'pid' => 'p1_id', 's' => 's1', 'sid' => 's1_id'],
+            ['p' => 'p2', 'pid' => 'p2_id', 's' => 's2', 'sid' => 's2_id'],
         ];
         foreach ($sides as $side) {
             $playerName = trim((string)($d[$side['p']] ?? ''));
@@ -1111,18 +1110,11 @@ function org_event_export_rows(
             $secondName = trim((string)($d[$side['s']] ?? ''));
             $secondId = (int)($d[$side['sid']] ?? 0);
             if ($secondName !== '') {
-                if ($winner === 0) {
-                    $secondEvent = 'Секундант';
-                } elseif ($winner === $side['side']) {
-                    $secondEvent = 'Секундант выиграл';
-                } else {
-                    $secondEvent = 'Секундант проиграл';
-                }
                 $rows[] = [
                     $num,
                     $secondName,
                     '',
-                    $secondEvent,
+                    'Секундировал',
                     $meeting,
                     org_event_export_novice($career, $secondId, 'second'),
                     '',
