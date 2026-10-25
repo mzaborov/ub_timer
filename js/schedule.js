@@ -1019,22 +1019,68 @@ function applyPauseSituationText_() {
     if (!box) return;
     var duel = (typeof duelsList !== "undefined" && duelsList && typeof currentDuel !== "undefined") ? duelsList[currentDuel] : null;
     var desc = (duel && duel.SituationDescription != null) ? String(duel.SituationDescription).trim() : "";
-    if (!desc) {
+    var roles = [];
+    if (duel && Array.isArray(duel.SituationRoles)) {
+        roles = duel.SituationRoles;
+    } else if (duel && typeof duel.SituationRoles === "string" && typeof parseSituationRoles_ === "function") {
+        roles = parseSituationRoles_(duel.SituationRoles);
+    }
+    if (!desc && !roles.length) {
         box.innerHTML = "";
         box.style.display = "none";
         return;
     }
     var num = (duel && duel.SituationNum != null && String(duel.SituationNum) !== "") ? ("Ситуация №" + duel.SituationNum) : "Ситуация";
     var name = (duel && duel.SituationName != null) ? String(duel.SituationName).trim() : "";
+    var isExpress = (typeof normalizeDuelTypeStr === "function" && normalizeDuelTypeStr(duel && duel.Type) === "express");
+
+    var content = document.createElement("div");
+    content.className = "pause-situation-content";
+
+    var main = document.createElement("div");
+    main.className = "pause-situation-main";
     var head = document.createElement("div");
     head.className = "pause-situation-title";
     head.textContent = name ? (num + ". " + name) : num;
-    var body = document.createElement("div");
-    body.className = "pause-situation-body";
-    body.innerHTML = desc;
+    main.appendChild(head);
+    if (desc) {
+        var body = document.createElement("div");
+        body.className = "pause-situation-body";
+        body.innerHTML = desc;
+        main.appendChild(body);
+    }
+    content.appendChild(main);
+
+    if (roles.length) {
+        var rolesBox = document.createElement("div");
+        rolesBox.className = "pause-situation-roles";
+        var rolesTitle = document.createElement("div");
+        rolesTitle.className = "pause-situation-roles-title";
+        rolesTitle.textContent = isExpress ? "Роли и фразы" : "Роли и интересы";
+        rolesBox.appendChild(rolesTitle);
+        roles.forEach(function (role) {
+            if (!role) return;
+            var item = document.createElement("div");
+            item.className = "pause-situation-role";
+            var roleName = document.createElement("div");
+            roleName.className = "pause-situation-role-name";
+            roleName.textContent = String(role.Role || "—");
+            var roleGoal = document.createElement("div");
+            roleGoal.className = "pause-situation-role-goal";
+            var goalLabel = document.createElement("span");
+            goalLabel.className = "pause-situation-role-goal-label";
+            goalLabel.textContent = role.Goals ? "Интересы: " : "Фраза: ";
+            roleGoal.appendChild(goalLabel);
+            roleGoal.insertAdjacentHTML("beforeend", String(role.Goals || role.Phrase || ""));
+            item.appendChild(roleName);
+            item.appendChild(roleGoal);
+            rolesBox.appendChild(item);
+        });
+        content.appendChild(rolesBox);
+    }
+
     box.innerHTML = "";
-    box.appendChild(head);
-    box.appendChild(body);
+    box.appendChild(content);
     box.style.display = "";
 }
 

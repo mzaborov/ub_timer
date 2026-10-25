@@ -573,23 +573,89 @@ body.dice-blink-active #Player2Label {
   line-height: 1.45;
 }
 #pause_situation_text {
-  max-height: 30vh;
+  max-height: 52vh;
   overflow-y: auto;
   border-top: 1px solid #e9ecef;
+  padding: 1rem 1.5rem 1.25rem;
+}
+#pauseModal .pause-modal-dialog {
+  max-width: min(1240px, 96vw);
+}
+#pauseModal .modal-content {
+  width: 100%;
+}
+#pause_situation_text .pause-situation-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.9fr);
+  gap: 1.5rem;
+  align-items: start;
 }
 #pause_situation_text .pause-situation-title {
-  font-size: .85rem;
-  font-weight: 600;
-  color: #6c757d;
-  margin-bottom: .35rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #495057;
+  margin-bottom: 0.5rem;
 }
 #pause_situation_text .pause-situation-body {
-  font-size: .9rem;
-  line-height: 1.4;
+  font-size: 1.05rem;
+  line-height: 1.55;
+}
+#pause_situation_text .pause-situation-body strong {
+  font-weight: 700;
+  color: #0f766e;
 }
 #pause_situation_text .pause-situation-body p:last-child,
 #pause_situation_text .pause-situation-body ul:last-child {
   margin-bottom: 0;
+}
+#pause_situation_text .pause-situation-roles {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+}
+#pause_situation_text .pause-situation-roles-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6c757d;
+  margin-bottom: 0.75rem;
+}
+#pause_situation_text .pause-situation-role + .pause-situation-role {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid #e9ecef;
+}
+#pause_situation_text .pause-situation-role-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f766e;
+  margin-bottom: 0.2rem;
+}
+#pause_situation_text .pause-situation-role-goal {
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+#pause_situation_text .pause-situation-role-goal-label {
+  font-weight: 600;
+  color: #6c757d;
+}
+#pause_situation_text .pause-situation-main {
+  min-width: 0;
+}
+@media (max-width: 991.98px) {
+  #pauseModal .pause-modal-dialog {
+    max-width: 96vw;
+  }
+  #pause_situation_text {
+    max-height: 45vh;
+    padding: 0.85rem 1rem 1rem;
+  }
+  #pause_situation_text .pause-situation-content {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
 }
 
 /* Режим «Поменять местами»: подсветка ячеек */
