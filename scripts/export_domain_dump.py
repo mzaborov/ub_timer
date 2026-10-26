@@ -976,8 +976,9 @@ def google_file_id(url: str) -> str | None:
     return None
 
 
-# Публичный ключ вьюера Drive (лежит в HTML file/d/…/view). Не секрет проекта.
-_DRIVE_VIEWER_KEY = "***REMOVED***"
+# Необязательный ключ вьюера Drive. Задаётся через GOOGLE_DRIVE_VIEWER_KEY;
+# если пуст, ключ извлекается из HTML file/d/…/view.
+_DRIVE_VIEWER_KEY = os.environ.get("GOOGLE_DRIVE_VIEWER_KEY", "")
 _DRIVE_CREATED_CACHE: dict[str, str | None] = {}
 _DRIVE_API_KEYS: list[str] | None = None
 
@@ -986,7 +987,7 @@ def _drive_api_keys(fid: str) -> list[str]:
     global _DRIVE_API_KEYS
     if _DRIVE_API_KEYS is not None:
         return _DRIVE_API_KEYS
-    keys = [_DRIVE_VIEWER_KEY]
+    keys = [k for k in [_DRIVE_VIEWER_KEY] if k]
     try:
         html = fetch_text(f"https://drive.google.com/file/d/{fid}/view", timeout=40)
         for k in re.findall(r"AIza[0-9A-Za-z_-]{30,}", html):
