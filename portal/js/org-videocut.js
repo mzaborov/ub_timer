@@ -1540,6 +1540,11 @@
     el.file.addEventListener('change', function () {
       var file = el.file.files && el.file.files[0];
       if (!file) return;
+      if (state.fileName && state.recStartSource !== 'manual'
+          && (state.fileName !== file.name || state.fileSize !== file.size)) {
+        /* Другая запись: прежняя калибровка (QR/авто) к ней не относится. */
+        state.recStartSource = 'event';
+      }
       state.qrScanToken++;
       setCalNote_('', '');
       if (state.fileUrl) {
