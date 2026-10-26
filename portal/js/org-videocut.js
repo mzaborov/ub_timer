@@ -447,7 +447,7 @@
           break;
         }
       }
-      d.baseStart = round3(Math.max(0, start));
+      d.baseStart = round3(Math.max(0, snapLeftFrame(start)));
       d.baseEnd = round3(Math.max(d.baseStart + MIN_LEN, end));
       cursor = d.baseEnd + state.gapSec;
     }
@@ -735,6 +735,11 @@
     return 0.5 / fps;
   }
 
+  function ceilFrame(t) {
+    var fps = state.fps > 0 ? state.fps : 25;
+    return Math.ceil(t * fps - 1e-6) / fps;
+  }
+
   function setStartAtPlayhead(i) {
     var d = state.duels[i];
     if (!d || !state.hasFile) return;
@@ -782,6 +787,9 @@
       var minStart = prev ? dispEnd(prev) + 0.01 : 0;
       var maxStart = dispEnd(d) - MIN_LEN;
       t = clamp(t, minStart, Math.max(minStart, maxStart));
+      t = snapLeftFrame(t);
+      if (t < minStart) t = ceilFrame(minStart);
+      if (t > maxStart) t = snapLeftFrame(maxStart);
       d.baseStart = round3(t - state.shiftSec);
     } else {
       var minEnd = dispStart(d) + MIN_LEN;
