@@ -452,6 +452,7 @@
     ensureView(true);
     draw();
     renderListValues();
+    renderSelected();
     computeIssues();
     updateSteps();
     scheduleSave();
@@ -1285,13 +1286,16 @@
   if (el.exportBtn) {
     el.exportBtn.addEventListener('click', function () {
       var ev = DATA.event || {};
+      var recEff = state.recordingStartMs
+        ? state.recordingStartMs - state.shiftSec * 1000
+        : 0;
       var out = {
         v: 1,
         eventId: state.eventId,
         event: ev.title || '',
         date: ev.startsOn || '',
-        recordingStartMs: state.recordingStartMs,
-        recordingStart: state.recordingStartMs ? new Date(state.recordingStartMs).toISOString() : null,
+        recordingStartMs: recEff,
+        recordingStart: recEff ? new Date(recEff).toISOString() : null,
         fileName: state.fileName,
         duration: state.duration,
         shiftSec: state.shiftSec,
@@ -1309,8 +1313,8 @@
           start: round3(s),
           end: round3(e),
           duration: round3(e - s),
-          startAbs: state.recordingStartMs ? new Date(state.recordingStartMs + s * 1000).toISOString() : null,
-          endAbs: state.recordingStartMs ? new Date(state.recordingStartMs + e * 1000).toISOString() : null,
+          startAbs: recEff ? new Date(recEff + s * 1000).toISOString() : null,
+          endAbs: recEff ? new Date(recEff + e * 1000).toISOString() : null,
           filename: buildFilename(d)
         });
       });
