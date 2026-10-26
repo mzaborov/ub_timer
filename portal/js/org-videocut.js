@@ -525,13 +525,30 @@
         if (code && code.data) {
           var cal = parseCalibrationPayload_(code.data);
           if (cal) {
-            found = { cal: cal, t: samples[i] };
+            found = { cal: cal, t: samples[i], raw: code.data };
             break;
           }
         }
       } catch (e) {}
       if (i % 20 === 0) {
         setCalNote_('Ищу QR-маркер… ' + fmtClock(samples[i]) + ' / ' + fmtClock(maxT), '');
+      }
+    }
+    if (found) {
+      /* Уточняем момент появления маркера: шаг 0,1 с назад от найденного кадра. */
+      var from = Math.max(0.1, found.t - 1.2);
+      for (var rt = from; rt < found.t; rt += 0.1) {
+        if (myToken !== state.qrScanToken || src !== state.fileUrl) break;
+        await waitSeek_(probe, rt);
+        try {
+          ctx.drawImage(probe, 0, 0, w, h);
+          var rimg = ctx.getImageData(0, 0, w, h);
+          var rcode = jsQR(rimg.data, rimg.width, rimg.height, { inversionAttempts: 'dontInvert' });
+          if (rcode && rcode.data === found.raw) {
+            found.t = Math.round(rt * 10) / 10;
+            break;
+          }
+        } catch (e) {}
       }
     }
     cleanupProbe_();
