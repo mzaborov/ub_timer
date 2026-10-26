@@ -8,7 +8,7 @@ function portal_norm_page(string $p): string
 
 function portal_org_section(string $s): string
 {
-    return in_array($s, ['people', 'situations', 'events', 'materials', 'outreach'], true) ? $s : '';
+    return in_array($s, ['people', 'situations', 'events', 'videocut', 'materials', 'outreach'], true) ? $s : '';
 }
 
 function portal_org_url(string $s = ''): string
@@ -23,6 +23,7 @@ function portal_org_nav_items(): array
         ['id' => 'people', 'org' => true, 'label' => 'Люди', 'icon' => 'user', 'href' => portal_org_url('people')],
         ['id' => 'situations', 'org' => true, 'label' => 'Ситуации', 'icon' => 'book', 'href' => portal_org_url('situations')],
         ['id' => 'events', 'org' => true, 'label' => 'Мероприятия', 'icon' => 'calendar', 'href' => portal_org_url('events')],
+        ['id' => 'videocut', 'org' => true, 'label' => 'Нарезка видео', 'icon' => 'video', 'href' => portal_org_url('videocut')],
         ['id' => 'outreach', 'org' => true, 'label' => 'Опрос', 'icon' => 'send', 'href' => portal_org_url('outreach')],
         ['id' => 'materials', 'org' => true, 'label' => 'Материалы', 'icon' => 'folder', 'href' => portal_org_url('materials')],
     ];

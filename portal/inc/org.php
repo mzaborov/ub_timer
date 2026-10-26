@@ -38,7 +38,7 @@ function portal_echo_org_hub(): void
 
 function portal_echo_org_section(string $s): void
 {
-    if ($s === 'events' || $s === 'people' || $s === 'situations' || $s === 'materials') {
+    if ($s === 'events' || $s === 'people' || $s === 'situations' || $s === 'materials' || $s === 'videocut') {
         return;
     }
     $title = portal_org_section_title($s);

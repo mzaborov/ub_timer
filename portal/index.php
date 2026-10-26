@@ -122,6 +122,7 @@ $orgFlash = '';
 $orgEventError = '';
 $orgPeopleError = '';
 $orgOutreachError = '';
+$orgVideoError = '';
 if ($page === 'org' && $orgSection === 'people') {
     require __DIR__ . '/inc/org_people.php';
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -161,6 +162,18 @@ if ($page === 'org' && $orgSection === 'materials') {
             echo json_encode($res, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             exit;
         }
+    }
+}
+if ($page === 'org' && $orgSection === 'videocut') {
+    require_once __DIR__ . '/inc/org_videocut.php';
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $res = org_vc_handle_post($db);
+        if (!empty($_POST['ajax'])) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($res, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+        $orgVideoError = (string)($res['error'] ?? '');
     }
 }
 if ($page === 'org' && $orgSection === 'outreach') {
@@ -292,6 +305,9 @@ if ($page !== 'org') {
     <?php if ($page === 'org' && $orgSection === 'outreach') { ?>
     <link rel="stylesheet" href="css/org-outreach.css?v=6">
     <?php } ?>
+    <?php if ($page === 'org' && $orgSection === 'videocut') { ?>
+    <link rel="stylesheet" href="css/org-videocut.css?v=1">
+    <?php } ?>
 </head>
 <body class="page-<?php echo h($bodyPage); ?><?php echo $page === 'org' ? ' page-org' : ''; ?><?php echo $me ? '' : ' is-guest'; ?>">
 <?php portal_icon_sprite(); ?>
@@ -395,6 +411,8 @@ if ($page !== 'org') {
       portal_echo_org_materials($db);
   } elseif ($page === 'org' && $orgSection === 'outreach') {
       portal_echo_org_outreach($db, $orgOutreachError);
+  } elseif ($page === 'org' && $orgSection === 'videocut') {
+      portal_echo_org_videocut($db, $orgVideoError);
   } elseif ($page === 'org') {
       portal_echo_org_main($orgSection);
   } else {
@@ -636,6 +654,9 @@ if (document.readyState === "loading") {
 <?php } ?>
 <?php if ($page === 'org' && $orgSection === 'outreach') { ?>
 <script src="js/org-outreach.js?v=3"></script>
+<?php } ?>
+<?php if ($page === 'org' && $orgSection === 'videocut') { ?>
+<script src="js/org-videocut.js?v=1"></script>
 <?php } ?>
 </body>
 </html>
