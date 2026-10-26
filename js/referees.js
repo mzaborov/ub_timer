@@ -51,6 +51,13 @@ function shortNameForPerson(fullName) {
     return (initials + " " + last).trim();
 }
 
+function judgeCaptionFromFullName(fullName) {
+    if (!fullName || typeof fullName !== "string") return "";
+    var parts = fullName.trim().split(/\s+/).filter(Boolean);
+    if (parts.length <= 2) return parts.join(" ");
+    return parts[0] + " " + parts[1];
+}
+
 function applyJudgesNamesFromAssignments() {
     var cd = (currentDuel != null && currentDuel !== "-1") ? (typeof currentDuel === "string" ? parseInt(currentDuel, 10) : currentDuel) : 0;
     if (isNaN(cd) || cd < 0 || !duelAssignments[cd] || !duelAssignments[cd].judges) return;
@@ -61,7 +68,7 @@ function applyJudgesNamesFromAssignments() {
         var slotKey = (k < slots.length) ? slots[k] : null;
         var pid = slotKey ? getAssignmentSlot(cd, slotKey) : null;
         var full = pid && people[pid] ? people[pid].fullName : "";
-        refereeList[vis[k]].Caption = full ? full.trim() : ("Судья " + (k + 1));
+        refereeList[vis[k]].Caption = full ? judgeCaptionFromFullName(full) : ("Судья " + (k + 1));
         refereeList[vis[k]]._fullName = full;
     }
 }
@@ -283,14 +290,16 @@ function updateRefereeCategoryColumns() {
     var row = document.querySelector("#finishDuelModal .referee-categories-row");
     groups.forEach(function (indices) {
         var anyVisible = false;
+        var visibleCount = 0;
         for (var gi = 0; gi < indices.length; gi++) {
-            if (refereeList[indices[gi]].visible) { anyVisible = true; break; }
+            if (refereeList[indices[gi]].visible) { anyVisible = true; visibleCount++; }
         }
         var btn = document.getElementById("refBut" + indices[0]);
         if (!btn) return;
         var col = btn.closest(".referee-category");
         if (!col) return;
         col.style.display = anyVisible ? "" : "none";
+        col.style.flexGrow = anyVisible ? String(visibleCount) : "1";
         col.classList.remove("referee-category-full");
     });
     if (row) {
@@ -312,13 +321,15 @@ function highlightReferee ()
         {
          var but = document.getElementById("refBut"+i);
          but.style.visibility = "visible";
+         but.style.display = "";
          but.innerHTML = refereeList[i].Caption || refereeList[i].Сaption || "";
          but.title = refereeList[i]._fullName || refereeList[i].Caption || refereeList[i].Сaption || "";
-         but.style.fontSize = (refereeList[i]._fullName ? "0.85em" : "");
+         but.style.fontSize = (refereeList[i]._fullName ? "0.75rem" : "");
         }
-      else
-       {
-        document.getElementById("refBut"+i).style.visibility = "hidden";        
+       else
+        {
+        document.getElementById("refBut"+i).style.visibility = "hidden";
+        document.getElementById("refBut"+i).style.display = "none";
        }  
 
        document.getElementById("refBut"+i).classList.remove("btn-dark", 
