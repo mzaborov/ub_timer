@@ -789,8 +789,9 @@
         + '<button type="button" data-act="seek-end" title="Перейти к концу (последний кадр)">конец &#9654;</button>'
         + '<button type="button" data-act="set-start" title="Начало только этого поединка в позиции плеера (по левому полному кадру)">[ в точке</button>'
         + '<button type="button" data-act="set-end" title="Конец в позиции плеера">] в точке</button>'
-        + '<button type="button" data-act="prev" title="Предыдущий поединок">&#8592;</button>'
-        + '<button type="button" data-act="next" title="Следующий поединок">&#8594;</button>'
+        + '<span class="org-vc-step-edge" data-role="step-edge" title="Кнопки «кадр» двигают границу, которую вы редактировали последней">шаг: конец</span>'
+        + '<button type="button" data-act="frame-prev" title="Предыдущий кадр активной границы">&#9668; кадр</button>'
+        + '<button type="button" data-act="frame-next" title="Следующий кадр активной границы">кадр &#9658;</button>'
         + '<label class="org-vc-include"><input type="checkbox" data-act="include"> в нарезку</label>'
         + '</div>'
         + '</article>';
@@ -812,6 +813,7 @@
       var endInput = card.querySelector('[data-f="end"]');
       var thumbStartT = card.querySelector('[data-role="thumb-start-t"]');
       var thumbEndT = card.querySelector('[data-role="thumb-end-t"]');
+      var stepEdgeEl = card.querySelector('[data-role="step-edge"]');
       var chk = card.querySelector('[data-act="include"]');
       var badge = warnings[i] ? 'warn' : d.source;
       var badgeText = warnings[i] ? 'проверить' : (d.source === 'proto' ? 'протокол' : d.source === 'manual' ? 'вручную' : 'расчёт');
@@ -826,6 +828,7 @@
       if (durEl) durEl.textContent = fmtDur(d.baseEnd - d.baseStart);
       if (thumbStartT) thumbStartT.textContent = fmtClock(dispStart(d));
       if (thumbEndT) thumbEndT.textContent = fmtClock(dispEnd(d));
+      if (stepEdgeEl) stepEdgeEl.textContent = 'шаг: ' + ((d.stepEdge || 'end') === 'start' ? 'начало' : 'конец');
       if (startInput && (force || document.activeElement !== startInput)) {
         startInput.value = round3(dispStart(d)).toFixed(3);
       }
@@ -1237,6 +1240,25 @@
   function ceilFrame(t) {
     var fps = state.fps > 0 ? state.fps : 25;
     return Math.ceil(t * fps - 1e-6) / fps;
+  }
+
+  function setStepEdge(i, edge) {
+    var d = state.duels[i];
+    if (!d) return;
+    d.stepEdge = edge === 'start' ? 'start' : 'end';
+    var card = el.list ? el.list.querySelector('.org-vc-duel[data-i="' + i + '"]') : null;
+    var label = card ? card.querySelector('[data-role="step-edge"]') : null;
+    if (label) label.textContent = 'шаг: ' + (d.stepEdge === 'start' ? 'начало' : 'конец');
+  }
+
+  function stepBoundaryFrame(i, dir) {
+    var d = state.duels[i];
+    if (!d || !state.hasFile) return;
+    var which = d.stepEdge === 'start' ? 'start' : 'end';
+    var fps = state.fps > 0 ? state.fps : 25;
+    var cur = which === 'start' ? dispStart(d) : dispEnd(d);
+    var frame = Math.round(cur * fps) + dir;
+    setBoundary(i, which, frame / fps);
   }
 
   function setStartAtPlayhead(i) {
@@ -1867,12 +1889,12 @@
         var act = actEl.getAttribute('data-act');
         var d = state.duels[i];
         if (!d) return;
-        if (act === 'seek-start') { selectDuel(i, false); seekTo(dispStart(d) + frameEps()); }
-        else if (act === 'seek-end') { selectDuel(i, false); seekTo(dispEnd(d) - frameEps()); }
-        else if (act === 'set-start') { setStartAtPlayhead(i); }
-        else if (act === 'set-end') { setBoundary(i, 'end', (state.hasFile ? el.video.currentTime : dispEnd(d))); selectDuel(i, false); }
-        else if (act === 'prev') selectDuel(i - 1, true);
-        else if (act === 'next') selectDuel(i + 1, true);
+        if (act === 'seek-start') { setStepEdge(i, 'start'); selectDuel(i, false); seekTo(dispStart(d) + frameEps()); }
+        else if (act === 'seek-end') { setStepEdge(i, 'end'); selectDuel(i, false); seekTo(dispEnd(d) - frameEps()); }
+        else if (act === 'set-start') { setStepEdge(i, 'start'); setStartAtPlayhead(i); }
+        else if (act === 'set-end') { setStepEdge(i, 'end'); setBoundary(i, 'end', (state.hasFile ? el.video.currentTime : dispEnd(d))); selectDuel(i, false); }
+        else if (act === 'frame-prev') { stepBoundaryFrame(i, -1); }
+        else if (act === 'frame-next') { stepBoundaryFrame(i, 1); }
         return;
       }
       if (e.target.closest('input,label,button')) return;
@@ -1884,6 +1906,8 @@
       var card = e.target.closest('.org-vc-duel');
       if (!card) return;
       var i = parseInt(card.getAttribute('data-i'), 10);
+      if (e.target.matches('[data-f="start"]')) setStepEdge(i, 'start');
+      else if (e.target.matches('[data-f="end"]')) setStepEdge(i, 'end');
       if (i !== state.selected) selectDuel(i, false);
     });
     el.list.addEventListener('change', function (e) {
@@ -1893,8 +1917,10 @@
       var d = state.duels[i];
       if (!d) return;
       if (e.target.matches('[data-f="start"]')) {
+        setStepEdge(i, 'start');
         setBoundary(i, 'start', parseFloat(e.target.value));
       } else if (e.target.matches('[data-f="end"]')) {
+        setStepEdge(i, 'end');
         setBoundary(i, 'end', parseFloat(e.target.value));
       } else if (e.target.matches('[data-act="include"]')) {
         d.include = !!e.target.checked;

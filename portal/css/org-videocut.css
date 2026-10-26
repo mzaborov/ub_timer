@@ -507,6 +507,14 @@ body.page-org-videocut {
   cursor: pointer;
 }
 .org-vc-duel-actions button:hover { background: var(--org-soft); border-color: var(--org-edge); color: var(--org-dark); }
+.org-vc-step-edge {
+  align-self: center;
+  padding: 0 0.15rem;
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: #78909c;
+  white-space: nowrap;
+}
 .org-vc-include {
   display: inline-flex;
   align-items: center;
