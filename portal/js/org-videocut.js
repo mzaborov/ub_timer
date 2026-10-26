@@ -1207,6 +1207,7 @@
       fileSize: state.fileSize,
       duration: state.duration,
       recordingStartMs: state.recordingStartMs,
+      recStartManual: state.recStartTouched,
       shiftSec: state.shiftSec,
       gapSec: state.gapSec,
       tailSec: state.tailSec,
@@ -1253,7 +1254,13 @@
     state.fileSize = (obj.fileSize || 0);
     state.duration = (obj.duration || 0);
     state.recordingStartMs = obj.recordingStartMs || 0;
-    state.recStartTouched = !!obj.recordingStartMs;
+    state.recStartTouched = obj.recStartManual === true;
+    if (obj.recStartManual === undefined && obj.recordingStartMs
+        && DATA.recordingStartMs
+        && Math.abs(Number(obj.recordingStartMs) - Number(DATA.recordingStartMs)) > 1000) {
+      /* Старый черновик: старт отличается от времени мероприятия — значит, его задавали вручную. */
+      state.recStartTouched = true;
+    }
     state.shiftSec = Number(obj.shiftSec) || 0;
     state.gapSec = obj.gapSec != null ? Number(obj.gapSec) : 2;
     state.tailSec = obj.tailSec != null ? Number(obj.tailSec) : 5;
