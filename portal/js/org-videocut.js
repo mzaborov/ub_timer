@@ -63,11 +63,11 @@
   thumbProbe.muted = true;
   thumbProbe.playsInline = true;
   thumbProbe.preload = 'auto';
-  /* Detached <video> в Chromium ищет кадры в разы медленнее; держим пробники в DOM. */
   var probeHost = document.createElement('div');
   probeHost.id = 'org-vc-probe-host';
   probeHost.setAttribute('aria-hidden', 'true');
-  probeHost.style.cssText = 'position:absolute;left:-9999px;top:0;width:2px;height:2px;overflow:hidden;opacity:0.01;pointer-events:none';
+  /* Держим пробники в пределах вьюпорта: offscreen/detached видео Chromium декодирует медленно. */
+  probeHost.style.cssText = 'position:fixed;left:0;top:0;width:320px;height:180px;overflow:hidden;opacity:0.001;pointer-events:none;z-index:-1';
   document.body.appendChild(probeHost);
   probeHost.appendChild(probes.start);
   probeHost.appendChild(probes.end);
