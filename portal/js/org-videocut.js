@@ -57,6 +57,16 @@
   var MIN_LEN = 0.5;
   var ctx = el.canvas.getContext('2d');
   var probes = { start: document.createElement('video'), end: document.createElement('video') };
+  var thumbProbe = document.createElement('video');
+  thumbProbe.muted = true;
+  thumbProbe.playsInline = true;
+  thumbProbe.preload = 'auto';
+  var thumbQueue = [];
+  var thumbBusy = false;
+  var thumbCurrent = null;
+  var thumbTimer = 0;
+  var thumbToken = 0;
+  var thumbWaiting = false;
   var frameToken = { start: 0, end: 0 };
   var saveTimer = 0;
   var previewTimer = 0;
@@ -552,6 +562,12 @@
         + '<span class="org-vc-badge" data-role="badge"></span>'
         + (d.video ? '<span class="org-vc-video-mark" title="Видео уже привязано">&#9679;</span>' : '')
         + '</div>'
+        + '<div class="org-vc-frames org-vc-duel-frames">'
+        + '<figure><canvas width="320" height="180" data-frame="start"></canvas>'
+        + '<figcaption>1-й кадр <b data-role="thumb-start-t">—</b></figcaption></figure>'
+        + '<figure><canvas width="320" height="180" data-frame="end"></canvas>'
+        + '<figcaption>последний <b data-role="thumb-end-t">—</b></figcaption></figure>'
+        + '</div>'
         + '<div class="org-vc-duel-times">'
         + '<label class="org-vc-field">Начало <input type="number" step="0.001" data-f="start"></label>'
         + '<label class="org-vc-field">Конец <input type="number" step="0.001" data-f="end"></label>'
@@ -560,7 +576,7 @@
         + '<div class="org-vc-duel-actions">'
         + '<button type="button" data-act="seek-start" title="Перейти к началу (первый кадр)">&#9654; начало</button>'
         + '<button type="button" data-act="seek-end" title="Перейти к концу (последний кадр)">конец &#9654;</button>'
-        + '<button type="button" data-act="set-start" title="Начало в позиции плеера (по левому полному кадру)">[ в точке</button>'
+        + '<button type="button" data-act="set-start" title="Начало только этого поединка в позиции плеера (по левому полному кадру)">[ в точке</button>'
         + '<button type="button" data-act="set-end" title="Конец в позиции плеера">] в точке</button>'
         + '<button type="button" data-act="prev" title="Предыдущий поединок">&#8592;</button>'
         + '<button type="button" data-act="next" title="Следующий поединок">&#8594;</button>'
@@ -583,6 +599,8 @@
       var durEl = card.querySelector('[data-role="dur"]');
       var startInput = card.querySelector('[data-f="start"]');
       var endInput = card.querySelector('[data-f="end"]');
+      var thumbStartT = card.querySelector('[data-role="thumb-start-t"]');
+      var thumbEndT = card.querySelector('[data-role="thumb-end-t"]');
       var chk = card.querySelector('[data-act="include"]');
       var badge = warnings[i] ? 'warn' : d.source;
       var badgeText = warnings[i] ? 'проверить' : (d.source === 'proto' ? 'протокол' : d.source === 'manual' ? 'вручную' : 'расчёт');
@@ -595,6 +613,8 @@
         prevBadge.textContent = badgeText;
       }
       if (durEl) durEl.textContent = fmtDur(d.baseEnd - d.baseStart);
+      if (thumbStartT) thumbStartT.textContent = fmtClock(dispStart(d));
+      if (thumbEndT) thumbEndT.textContent = fmtClock(dispEnd(d));
       if (startInput && (force || document.activeElement !== startInput)) {
         startInput.value = round3(dispStart(d)).toFixed(3);
       }
@@ -604,6 +624,7 @@
       if (chk) chk.checked = !!d.include;
       applyFilter(card, d);
     });
+    queueThumbs();
     updateCount();
   }
 
@@ -711,6 +732,162 @@
     }
   }
 
+  function thumbKey(i, kind, t) {
+    return i + ':' + kind + ':' + round3(t).toFixed(3);
+  }
+
+  function thumbCanvasTime(d, kind) {
+    var eps = frameEps();
+    if (kind === 'start') return dispStart(d) + eps;
+    return Math.max(dispStart(d) + eps, dispEnd(d) - eps);
+  }
+
+  function drawThumbPlaceholder(canvas, text) {
+    if (!canvas) return;
+    var c = canvas.getContext('2d');
+    c.fillStyle = '#101418';
+    c.fillRect(0, 0, canvas.width, canvas.height);
+    c.fillStyle = '#78909c';
+    c.font = '600 13px system-ui, sans-serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText(text, canvas.width / 2, canvas.height / 2);
+    canvas.removeAttribute('data-key');
+    canvas.removeAttribute('data-pending');
+  }
+
+  function drawThumb(canvas, probe) {
+    if (!canvas) return;
+    var c = canvas.getContext('2d');
+    c.fillStyle = '#101418';
+    c.fillRect(0, 0, canvas.width, canvas.height);
+    var vw = probe.videoWidth;
+    var vh = probe.videoHeight;
+    if (!vw || !vh) return;
+    var scale = Math.min(canvas.width / vw, canvas.height / vh);
+    var dw = vw * scale;
+    var dh = vh * scale;
+    try {
+      c.drawImage(probe, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
+    } catch (e) {}
+  }
+
+  function resetThumbs() {
+    thumbQueue.length = 0;
+    thumbCurrent = null;
+    thumbBusy = false;
+    thumbWaiting = false;
+    window.clearTimeout(thumbTimer);
+    if (!el.list) return;
+    var canvases = el.list.querySelectorAll('[data-frame]');
+    Array.prototype.forEach.call(canvases, function (canvas) {
+      drawThumbPlaceholder(canvas, state.hasFile ? 'кадр…' : 'нет видео');
+    });
+  }
+
+  function queueThumb(canvas, i, kind, t) {
+    if (!canvas) return;
+    if (!state.hasFile || !state.fileUrl) {
+      drawThumbPlaceholder(canvas, 'нет видео');
+      return;
+    }
+    var key = thumbKey(i, kind, t);
+    if (canvas.getAttribute('data-key') === key) return;
+    if (canvas.getAttribute('data-pending') === key) return;
+    for (var q = thumbQueue.length - 1; q >= 0; q--) {
+      if (thumbQueue[q].canvas === canvas) thumbQueue.splice(q, 1);
+    }
+    canvas.setAttribute('data-pending', key);
+    thumbQueue.push({ canvas: canvas, t: t, key: key });
+  }
+
+  function queueThumbs() {
+    if (!el.list) return;
+    var cards = el.list.querySelectorAll('.org-vc-duel');
+    Array.prototype.forEach.call(cards, function (card) {
+      var i = parseInt(card.getAttribute('data-i'), 10);
+      var d = state.duels[i];
+      if (!d) return;
+      queueThumb(card.querySelector('[data-frame="start"]'), i, 'start', thumbCanvasTime(d, 'start'));
+      queueThumb(card.querySelector('[data-frame="end"]'), i, 'end', thumbCanvasTime(d, 'end'));
+    });
+    processThumbQueue();
+  }
+
+  function finishThumb(token, paint) {
+    if (!thumbCurrent || thumbCurrent.token !== token) return;
+    var task = thumbCurrent;
+    thumbCurrent = null;
+    thumbBusy = false;
+    window.clearTimeout(thumbTimer);
+    if (task.canvas.isConnected && task.canvas.getAttribute('data-pending') === task.key) {
+      if (paint) {
+        drawThumb(task.canvas, thumbProbe);
+        task.canvas.setAttribute('data-key', task.key);
+      }
+      task.canvas.removeAttribute('data-pending');
+    }
+    processThumbQueue();
+  }
+
+  function processThumbQueue() {
+    if (thumbBusy || !thumbQueue.length) return;
+    if (!state.hasFile || !state.fileUrl) {
+      thumbQueue.length = 0;
+      return;
+    }
+    if (thumbProbe.readyState < 1) {
+      if (!thumbWaiting) {
+        thumbWaiting = true;
+        thumbProbe.addEventListener('loadedmetadata', function () {
+          thumbWaiting = false;
+          processThumbQueue();
+        }, { once: true });
+      }
+      return;
+    }
+    var task = thumbQueue.shift();
+    if (!task.canvas.isConnected || task.canvas.getAttribute('data-pending') !== task.key) {
+      processThumbQueue();
+      return;
+    }
+    var dur = thumbProbe.duration;
+    if (!isFinite(dur) || dur <= 0) {
+      task.canvas.removeAttribute('data-pending');
+      processThumbQueue();
+      return;
+    }
+    var target = clamp(task.t, 0, Math.max(0, dur - 0.05));
+    var token = ++thumbToken;
+    task.token = token;
+    task.target = target;
+    thumbCurrent = task;
+    thumbBusy = true;
+    window.clearTimeout(thumbTimer);
+    thumbTimer = window.setTimeout(function () {
+      finishThumb(token, false);
+    }, 5000);
+    if (Math.abs(thumbProbe.currentTime - target) < 0.001 && thumbProbe.readyState >= 2) {
+      finishThumb(token, true);
+      return;
+    }
+    try {
+      thumbProbe.currentTime = target;
+    } catch (e) {
+      finishThumb(token, false);
+    }
+  }
+
+  thumbProbe.addEventListener('seeked', function () {
+    if (!thumbCurrent) return;
+    if (Math.abs(thumbProbe.currentTime - thumbCurrent.target) > 0.15) return;
+    finishThumb(thumbCurrent.token, true);
+  });
+  thumbProbe.addEventListener('error', function () {
+    if (!thumbCurrent) return;
+    finishThumb(thumbCurrent.token, false);
+  });
+
   function seekTo(t) {
     if (!state.hasFile) return;
     var dur = state.duration || el.video.duration || 0;
@@ -753,7 +930,20 @@
 
   function markStartAtPlayhead() {
     if (state.selected < 0 || state.selected >= state.duels.length) return;
-    setStartAtPlayhead(state.selected);
+    var d = state.duels[state.selected];
+    if (!d || !state.hasFile) return;
+    if (!el.video.paused) el.video.pause();
+    var t = snapLeftFrame(el.video.currentTime || 0);
+    var delta = t - dispStart(d);
+    if (Math.abs(delta) < 0.0005) return;
+    state.shiftSec = round3(t - d.baseStart);
+    if (el.shift) el.shift.value = String(state.shiftSec);
+    ensureView(true);
+    renderListValues(true);
+    renderSelected();
+    computeIssues();
+    updateSteps();
+    scheduleSave();
   }
 
   function selectDuel(i, seek) {
@@ -1146,9 +1336,13 @@
       state.fileSize = file.size;
       probes.start.src = state.fileUrl;
       probes.end.src = state.fileUrl;
+      thumbProbe.src = state.fileUrl;
+      thumbProbe.load();
       el.video.src = state.fileUrl;
       el.video.hidden = false;
       if (el.playerEmpty) el.playerEmpty.hidden = true;
+      resetThumbs();
+      renderListValues(true);
       updateFileMeta();
       updateSteps();
       setSaveState('dirty');
@@ -1196,6 +1390,9 @@
         probes[k].removeAttribute('src');
         probes[k].load();
       });
+      thumbProbe.removeAttribute('src');
+      thumbProbe.load();
+      resetThumbs();
       if (el.playerEmpty) el.playerEmpty.hidden = false;
       if (el.file) el.file.value = '';
       clearFrame(el.frameStart);
@@ -1227,6 +1424,8 @@
       if (v > 240) v = 240;
       state.fps = v;
       el.fps.value = String(v);
+      renderListValues(true);
+      schedulePreview();
       scheduleSave();
     });
   }

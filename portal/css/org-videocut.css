@@ -461,6 +461,13 @@ body.page-org-videocut {
 .org-vc-badge--warn { background: #ffebee; color: #c62828; }
 .org-vc-video-mark { color: var(--org); font-weight: 800; font-size: 0.72rem; }
 
+.org-vc-duel-frames {
+  margin-top: 0.4rem;
+  gap: 0.3rem;
+}
+.org-vc-duel-frames canvas { border: 1px solid #cfd8dc; }
+.org-vc-duel-frames figcaption { font-size: 0.66rem; }
+
 .org-vc-duel-times {
   display: grid;
   grid-template-columns: 1fr 1fr auto;
@@ -561,6 +568,7 @@ body.page-org-videocut {
   .org-vc-footer { width: calc(100% - 0.8rem); position: static; }
   .org-vc-settings-grid { grid-template-columns: 1fr; }
   .org-vc-frames { grid-template-columns: 1fr; }
+  .org-vc-duel-frames { grid-template-columns: 1fr 1fr; }
   .org-vc-tl-bar .org-vc-field input { max-width: none; width: 100%; }
   .org-vc-tl-hint { margin-left: 0; }
 }

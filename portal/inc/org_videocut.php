@@ -411,14 +411,14 @@ function org_vc_render(array $ctx, string $error = ''): void
                         <button type="button" data-nudge="-15" title="Назад на 15 секунд">−15</button>
                         <button type="button" data-nudge="-5" title="Назад на 5 секунд">−5</button>
                         <button type="button" data-nudge="-1" title="Назад на 1 секунду">−1</button>
-                        <button type="button" class="org-vc-nudge-mark" id="org-vc-mark-start" title="Поставить начало выбранного поединка в текущей позиции; старт выравнивается по ближайшему полному кадру слева">точка начала</button>
+                        <button type="button" class="org-vc-nudge-mark" id="org-vc-mark-start" title="Сдвинуть весь таймлайн так, чтобы выбранный поединок начинался в текущей позиции; старт по ближайшему полному кадру слева">точка начала</button>
                         <button type="button" data-nudge="1" title="Вперёд на 1 секунду">+1</button>
                         <button type="button" data-nudge="5" title="Вперёд на 5 секунд">+5</button>
                         <button type="button" data-nudge="15" title="Вперёд на 15 секунд">+15</button>
                         <button type="button" data-nudge="30" title="Вперёд на 30 секунд">+30</button>
                         <button type="button" data-nudge="60" title="Вперёд на 60 секунд">+60</button>
                     </div>
-                    <p class="org-vc-nudge-note">Шаг — секунды. «точка начала» ставит начало выбранного поединка по левому полному кадру; fps — в параметрах нарезки.</p>
+                    <p class="org-vc-nudge-note">Шаг — секунды. «точка начала» сдвигает весь таймлайн под выбранный поединок (по левому полному кадру); fps — в параметрах нарезки.</p>
                 </div>
             </section>
 
