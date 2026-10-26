@@ -306,7 +306,7 @@ if ($page !== 'org') {
     <link rel="stylesheet" href="css/org-outreach.css?v=6">
     <?php } ?>
     <?php if ($page === 'org' && $orgSection === 'videocut') { ?>
-    <link rel="stylesheet" href="css/org-videocut.css?v=1">
+    <link rel="stylesheet" href="css/org-videocut.css?v=2">
     <?php } ?>
 </head>
 <body class="page-<?php echo h($bodyPage); ?><?php echo $page === 'org' ? ' page-org' : ''; ?><?php echo $me ? '' : ' is-guest'; ?>">
@@ -657,7 +657,7 @@ if (document.readyState === "loading") {
 <?php } ?>
 <?php if ($page === 'org' && $orgSection === 'videocut') { ?>
 <script src="vendor/jsQR.js?v=1"></script>
-<script src="js/org-videocut.js?v=1"></script>
+<script src="js/org-videocut.js?v=2"></script>
 <?php } ?>
 </body>
 </html>
