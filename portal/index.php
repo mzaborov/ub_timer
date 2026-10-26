@@ -656,6 +656,7 @@ if (document.readyState === "loading") {
 <script src="js/org-outreach.js?v=3"></script>
 <?php } ?>
 <?php if ($page === 'org' && $orgSection === 'videocut') { ?>
+<script src="vendor/jsQR.js?v=1"></script>
 <script src="js/org-videocut.js?v=1"></script>
 <?php } ?>
 </body>

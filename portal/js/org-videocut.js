@@ -16,6 +16,7 @@
     eventSelect: document.getElementById('org-vc-event-select'),
     file: document.getElementById('org-vc-file'),
     fileMeta: document.getElementById('org-vc-file-meta'),
+    calNote: document.getElementById('org-vc-cal-note'),
     clearFile: document.getElementById('org-vc-clear'),
     video: document.getElementById('org-vc-video'),
     playerEmpty: document.getElementById('org-vc-player-empty'),
@@ -89,7 +90,8 @@
     fileSize: 0,
     duration: 0,
     recordingStartMs: DATA.recordingStartMs || 0,
-    recStartTouched: false,
+    recStartSource: 'event',
+    qrScanToken: 0,
     shiftSec: 0,
     gapSec: 2,
     tailSec: 5,
@@ -396,14 +398,171 @@
   }
 
   function autoCalibrateRecStart() {
-    if (state.recStartTouched || !state.duration) return false;
+    if (state.recStartSource === 'manual' || state.recStartSource === 'qr' || !state.duration) return false;
     var lastEnd = 0;
     state.duels.forEach(function (d) {
       if (d.protoEndMs && d.protoEndMs > lastEnd) lastEnd = d.protoEndMs;
     });
     if (!lastEnd) return false;
     state.recordingStartMs = Math.round(lastEnd - state.duration * 1000 + state.tailSec * 1000);
+    state.recStartSource = 'auto';
     return true;
+  }
+
+  function setCalNote_(text, cls) {
+    if (!el.calNote) return;
+    el.calNote.textContent = text || '';
+    el.calNote.hidden = !text;
+    el.calNote.classList.remove('is-ok', 'is-warn');
+    if (cls) el.calNote.classList.add(cls);
+  }
+
+  function parseCalibrationPayload_(text) {
+    var parts = String(text || '').split('&');
+    var q = {};
+    for (var i = 0; i < parts.length; i++) {
+      var p = parts[i];
+      var eq = p.indexOf('=');
+      if (eq < 0) continue;
+      var k = decodeURIComponent(p.slice(0, eq));
+      var v = decodeURIComponent(p.slice(eq + 1).replace(/\+/g, ' '));
+      q[k] = v;
+    }
+    if (q.v !== '1' || q.k !== 'cal') return null;
+    var ts = Number(q.ts);
+    if (!isFinite(ts) || ts <= 0) return null;
+    return {
+      eventId: Number(q.e) || 0,
+      duelId: Number(q.d) || 0,
+      token: q.id || '',
+      ts: ts
+    };
+  }
+
+  function waitSeek_(video, t) {
+    return new Promise(function (resolve) {
+      if (Math.abs(video.currentTime - t) < 0.02) {
+        resolve();
+        return;
+      }
+      var done = false;
+      function finish() {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        video.removeEventListener('seeked', finish);
+        resolve();
+      }
+      var timer = setTimeout(finish, 2500);
+      video.addEventListener('seeked', finish);
+      try {
+        video.currentTime = t;
+      } catch (e) {
+        finish();
+      }
+    });
+  }
+
+  async function scanQrCalibration_() {
+    if (!state.fileUrl || typeof jsQR !== 'function') return;
+    var myToken = ++state.qrScanToken;
+    var src = state.fileUrl;
+    var probe = document.createElement('video');
+    probe.muted = true;
+    probe.preload = 'auto';
+    probe.src = src;
+    var canvas = document.createElement('canvas');
+    var ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return;
+
+    var ready = await new Promise(function (resolve) {
+      var done = false;
+      function finish(ok) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        probe.removeEventListener('loadedmetadata', onmeta);
+        probe.removeEventListener('error', onerr);
+        resolve(ok);
+      }
+      function onmeta() { finish(!!(probe.videoWidth && probe.videoHeight)); }
+      function onerr() { finish(false); }
+      var timer = setTimeout(function () { finish(!!(probe.videoWidth && probe.videoHeight)); }, 8000);
+      probe.addEventListener('loadedmetadata', onmeta);
+      probe.addEventListener('error', onerr);
+      probe.load();
+    });
+    if (!ready || myToken !== state.qrScanToken || src !== state.fileUrl) return;
+
+    var duration = isFinite(probe.duration) && probe.duration > 0 ? probe.duration : state.duration;
+    var maxT = Math.min(duration || 0, 600);
+    var samples = [];
+    for (var t = 0.5; t < Math.min(maxT, 180); t += 1) samples.push(t);
+    for (var t2 = 180; t2 < maxT; t2 += 2) samples.push(t2);
+    if (!samples.length) samples.push(Math.min(0.1, maxT));
+
+    var w = Math.min(1920, probe.videoWidth || 1280);
+    var h = Math.round(w * ((probe.videoHeight || 720) / (probe.videoWidth || 1280)));
+    canvas.width = w;
+    canvas.height = h;
+    setCalNote_('Ищу QR-маркер в начале записи…', '');
+
+    var found = null;
+    for (var i = 0; i < samples.length; i++) {
+      if (myToken !== state.qrScanToken || src !== state.fileUrl) {
+        cleanupProbe_();
+        return;
+      }
+      await waitSeek_(probe, samples[i]);
+      if (myToken !== state.qrScanToken || src !== state.fileUrl) {
+        cleanupProbe_();
+        return;
+      }
+      try {
+        ctx.drawImage(probe, 0, 0, w, h);
+        var img = ctx.getImageData(0, 0, w, h);
+        var code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+        if (code && code.data) {
+          var cal = parseCalibrationPayload_(code.data);
+          if (cal) {
+            found = { cal: cal, t: samples[i] };
+            break;
+          }
+        }
+      } catch (e) {}
+      if (i % 20 === 0) {
+        setCalNote_('Ищу QR-маркер… ' + fmtClock(samples[i]) + ' / ' + fmtClock(maxT), '');
+      }
+    }
+    cleanupProbe_();
+    if (myToken !== state.qrScanToken || src !== state.fileUrl) return;
+
+    if (!found) {
+      setCalNote_(state.recStartSource === 'auto'
+        ? 'QR-маркер не найден; старт рассчитан по протоколу.'
+        : 'QR-маркер не найден. Проверьте старт записи вручную.', 'is-warn');
+      return;
+    }
+    if (found.cal.eventId && state.eventId && found.cal.eventId !== state.eventId) {
+      setCalNote_('QR относится к другому мероприятию (id ' + found.cal.eventId + ').', 'is-warn');
+      return;
+    }
+    if (state.recStartSource === 'manual') {
+      setCalNote_('QR найден, но старт записи задан вручную — оставляю ручное значение.', 'is-warn');
+      return;
+    }
+    state.recordingStartMs = Math.round(found.cal.ts - found.t * 1000);
+    state.recStartSource = 'qr';
+    autoLayout(false);
+    scheduleSave();
+    setCalNote_('QR найден: старт записи '
+      + msToLocalInput(state.recordingStartMs).replace('T', ' ')
+      + ' (маркер на ' + fmtClock(found.t) + ').', 'is-ok');
+
+    function cleanupProbe_() {
+      probe.removeAttribute('src');
+      try { probe.load(); } catch (e) {}
+    }
   }
 
   function autoLayout(keepManual) {
@@ -1207,7 +1366,7 @@
       fileSize: state.fileSize,
       duration: state.duration,
       recordingStartMs: state.recordingStartMs,
-      recStartManual: state.recStartTouched,
+      recStartSource: state.recStartSource,
       shiftSec: state.shiftSec,
       gapSec: state.gapSec,
       tailSec: state.tailSec,
@@ -1254,12 +1413,13 @@
     state.fileSize = (obj.fileSize || 0);
     state.duration = (obj.duration || 0);
     state.recordingStartMs = obj.recordingStartMs || 0;
-    state.recStartTouched = obj.recStartManual === true;
-    if (obj.recStartManual === undefined && obj.recordingStartMs
-        && DATA.recordingStartMs
-        && Math.abs(Number(obj.recordingStartMs) - Number(DATA.recordingStartMs)) > 1000) {
-      /* Старый черновик: старт отличается от времени мероприятия — значит, его задавали вручную. */
-      state.recStartTouched = true;
+    state.recStartSource = obj.recStartSource || '';
+    if (!state.recStartSource) {
+      /* Старые черновики: отличающийся от времени мероприятия старт считаем ручным. */
+      state.recStartSource = (obj.recStartManual === true
+        || (obj.recordingStartMs && DATA.recordingStartMs
+          && Math.abs(Number(obj.recordingStartMs) - Number(DATA.recordingStartMs)) > 1000))
+        ? 'manual' : 'event';
     }
     state.shiftSec = Number(obj.shiftSec) || 0;
     state.gapSec = obj.gapSec != null ? Number(obj.gapSec) : 2;
@@ -1363,6 +1523,8 @@
     el.file.addEventListener('change', function () {
       var file = el.file.files && el.file.files[0];
       if (!file) return;
+      state.qrScanToken++;
+      setCalNote_('', '');
       if (state.fileUrl) {
         try { URL.revokeObjectURL(state.fileUrl); } catch (e) {}
       }
@@ -1400,6 +1562,7 @@
         refreshAll();
       }
       scheduleSave();
+      scanQrCalibration_();
     }
   });
 
@@ -1417,6 +1580,8 @@
 
   if (el.clearFile) {
     el.clearFile.addEventListener('click', function () {
+      state.qrScanToken++;
+      setCalNote_('', '');
       if (state.fileUrl) {
         try { URL.revokeObjectURL(state.fileUrl); } catch (e) {}
       }
@@ -1473,7 +1638,7 @@
   if (el.recStart) {
     el.recStart.addEventListener('change', function () {
       state.recordingStartMs = parseLocalInput(el.recStart.value);
-      state.recStartTouched = true;
+      state.recStartSource = 'manual';
       autoLayout(true);
     });
   }

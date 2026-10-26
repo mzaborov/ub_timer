@@ -198,6 +198,8 @@ body.page-org-videocut {
   font-size: 0.78rem;
   color: #78909c;
 }
+.org-vc-cal-note.is-ok { color: #1f7a3f; }
+.org-vc-cal-note.is-warn { color: #a15c00; }
 
 .org-vc-playercard { padding: 0; overflow: hidden; background: #101418; }
 .org-vc-playercard video {
