@@ -89,6 +89,7 @@
     fileSize: 0,
     duration: 0,
     recordingStartMs: DATA.recordingStartMs || 0,
+    recStartTouched: false,
     shiftSec: 0,
     gapSec: 2,
     tailSec: 5,
@@ -392,6 +393,17 @@
     el.canvas.height = Math.round(ch * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     draw();
+  }
+
+  function autoCalibrateRecStart() {
+    if (state.recStartTouched || !state.duration) return false;
+    var lastEnd = 0;
+    state.duels.forEach(function (d) {
+      if (d.protoEndMs && d.protoEndMs > lastEnd) lastEnd = d.protoEndMs;
+    });
+    if (!lastEnd) return false;
+    state.recordingStartMs = Math.round(lastEnd - state.duration * 1000 + state.tailSec * 1000);
+    return true;
   }
 
   function autoLayout(keepManual) {
@@ -1241,6 +1253,7 @@
     state.fileSize = (obj.fileSize || 0);
     state.duration = (obj.duration || 0);
     state.recordingStartMs = obj.recordingStartMs || 0;
+    state.recStartTouched = !!obj.recordingStartMs;
     state.shiftSec = Number(obj.shiftSec) || 0;
     state.gapSec = obj.gapSec != null ? Number(obj.gapSec) : 2;
     state.tailSec = obj.tailSec != null ? Number(obj.tailSec) : 5;
@@ -1373,8 +1386,12 @@
       if (prev && Math.abs(prev - d) > 2) {
         /* Черновик от другого файла: не двигаем границы автоматически. */
       }
-      ensureView(!prev);
-      refreshAll();
+      if (autoCalibrateRecStart()) {
+        autoLayout(false);
+      } else {
+        ensureView(!prev);
+        refreshAll();
+      }
       scheduleSave();
     }
   });
@@ -1449,6 +1466,7 @@
   if (el.recStart) {
     el.recStart.addEventListener('change', function () {
       state.recordingStartMs = parseLocalInput(el.recStart.value);
+      state.recStartTouched = true;
       autoLayout(true);
     });
   }
