@@ -91,10 +91,38 @@ function org_vc_duels(mysqli $db, int $eventId): array
     return $out;
 }
 
-/** Абсолютные метки из payload_json.server_ts (мс) и длительность по moment_sec. */
+/**
+ * Абсолютные метки из payload_json.server_ts (мс) и длительность по moment_sec.
+ *
+ * Границы фрагмента:
+ * - начало #1 — событие «началоПоединка»;
+ * - начало #N — «решениеСудей» предыдущего поединка (закрытие формы судей);
+ * - конец — «завершение» этого поединка.
+ * Автоматическое «раскрытиеСитуации» после предыдущего поединка — не граница.
+ */
 function org_vc_protocol_times(mysqli $db, int $eventId): array
 {
-    $sql = 'SELECT pe.duel_id, pe.moment_sec, pe.payload_json
+    $stD = $db->prepare(
+        'SELECT id, sort_order FROM duels WHERE event_id = ? ORDER BY sort_order ASC, id ASC'
+    );
+    $stD->bind_param('i', $eventId);
+    $stD->execute();
+    $resD = $stD->get_result();
+    $orderIds = [];
+    $out = [];
+    while ($row = $resD->fetch_assoc()) {
+        $did = (int)$row['id'];
+        $orderIds[] = $did;
+        $out[$did] = [
+            'startMs' => null,
+            'endMs' => null,
+            'durationSec' => null,
+            'decisionMs' => null,
+        ];
+    }
+    $stD->close();
+
+    $sql = 'SELECT pe.duel_id, pe.moment_sec, pe.event_type, pe.payload_json
             FROM protocol_events pe
             JOIN duels d ON d.id = pe.duel_id
             WHERE d.event_id = ?
@@ -103,11 +131,11 @@ function org_vc_protocol_times(mysqli $db, int $eventId): array
     $st->bind_param('i', $eventId);
     $st->execute();
     $res = $st->get_result();
-    $out = [];
+    $events = [];
     while ($row = $res->fetch_assoc()) {
         $did = (int)$row['duel_id'];
         if (!isset($out[$did])) {
-            $out[$did] = ['startMs' => null, 'endMs' => null, 'durationSec' => null];
+            continue;
         }
         $moment = $row['moment_sec'];
         if ($moment !== null && $moment !== '') {
@@ -132,14 +160,56 @@ function org_vc_protocol_times(mysqli $db, int $eventId): array
         } else {
             continue;
         }
-        if ($out[$did]['startMs'] === null || $ms < $out[$did]['startMs']) {
-            $out[$did]['startMs'] = $ms;
-        }
-        if ($out[$did]['endMs'] === null || $ms > $out[$did]['endMs']) {
-            $out[$did]['endMs'] = $ms;
-        }
+        $events[$did][] = [
+            'type' => (string)($row['event_type'] ?? ''),
+            'ms' => $ms,
+        ];
     }
     $st->close();
+
+    $prevDid = null;
+    foreach ($orderIds as $did) {
+        $list = $events[$did] ?? [];
+        $startEvent = null;
+        $finishEvent = null;
+        $decisionEvent = null;
+        $minMs = null;
+        foreach ($list as $ev) {
+            if ($minMs === null || $ev['ms'] < $minMs) {
+                $minMs = $ev['ms'];
+            }
+            if ($ev['type'] === 'началоПоединка' && ($startEvent === null || $ev['ms'] < $startEvent)) {
+                $startEvent = $ev['ms'];
+            } elseif ($ev['type'] === 'завершение' && ($finishEvent === null || $ev['ms'] > $finishEvent)) {
+                $finishEvent = $ev['ms'];
+            } elseif ($ev['type'] === 'решениеСудей' && ($decisionEvent === null || $ev['ms'] > $decisionEvent)) {
+                $decisionEvent = $ev['ms'];
+            }
+        }
+        $startMs = null;
+        if ($prevDid !== null && $out[$prevDid]['decisionMs'] !== null) {
+            $startMs = $out[$prevDid]['decisionMs'];
+        } elseif ($startEvent !== null) {
+            $startMs = $startEvent;
+        } else {
+            $startMs = $minMs;
+        }
+        $endMs = $finishEvent !== null ? $finishEvent : null;
+        if ($endMs === null) {
+            foreach ($list as $ev) {
+                if ($ev['type'] === 'решениеСудей' || $ev['type'] === 'раскрытиеСитуации') {
+                    continue;
+                }
+                if ($endMs === null || $ev['ms'] > $endMs) {
+                    $endMs = $ev['ms'];
+                }
+            }
+        }
+        $out[$did]['startMs'] = $startMs;
+        $out[$did]['endMs'] = $endMs;
+        $out[$did]['decisionMs'] = $decisionEvent;
+        $prevDid = $did;
+    }
     return $out;
 }
 
