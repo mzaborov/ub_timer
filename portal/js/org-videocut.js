@@ -19,12 +19,14 @@
     clearFile: document.getElementById('org-vc-clear'),
     video: document.getElementById('org-vc-video'),
     playerEmpty: document.getElementById('org-vc-player-empty'),
+    nudge: document.getElementById('org-vc-nudge'),
     canvas: document.getElementById('org-vc-canvas'),
     recStart: document.getElementById('org-vc-rec-start'),
     shift: document.getElementById('org-vc-shift'),
     auto: document.getElementById('org-vc-auto'),
     crf: document.getElementById('org-vc-crf'),
     preset: document.getElementById('org-vc-preset'),
+    fps: document.getElementById('org-vc-fps'),
     template: document.getElementById('org-vc-template'),
     gap: document.getElementById('org-vc-gap'),
     tail: document.getElementById('org-vc-tail'),
@@ -81,6 +83,7 @@
     tailSec: 5,
     crf: 20,
     preset: 'medium',
+    fps: 25,
     template: '{дата}_{мероприятие}_{номер}_{игрок1}_vs_{игрок2}.mp4',
     selected: -1,
     view: { start: 0, end: 600 },
@@ -555,9 +558,9 @@
         + '<span class="org-vc-dur" data-role="dur">—</span>'
         + '</div>'
         + '<div class="org-vc-duel-actions">'
-        + '<button type="button" data-act="seek-start" title="Перейти к началу">&#9654; начало</button>'
-        + '<button type="button" data-act="seek-end" title="Перейти к концу">конец &#9654;</button>'
-        + '<button type="button" data-act="set-start" title="Начало в позиции плеера">[ в точке</button>'
+        + '<button type="button" data-act="seek-start" title="Перейти к началу (первый кадр)">&#9654; начало</button>'
+        + '<button type="button" data-act="seek-end" title="Перейти к концу (последний кадр)">конец &#9654;</button>'
+        + '<button type="button" data-act="set-start" title="Начало в позиции плеера (по левому полному кадру)">[ в точке</button>'
         + '<button type="button" data-act="set-end" title="Конец в позиции плеера">] в точке</button>'
         + '<button type="button" data-act="prev" title="Предыдущий поединок">&#8592;</button>'
         + '<button type="button" data-act="next" title="Следующий поединок">&#8594;</button>'
@@ -661,8 +664,9 @@
   function grabSelectedFrames() {
     var d = state.duels[state.selected];
     if (!d) return;
-    grabFrame(dispStart(d) + 0.3, el.frameStart, 'start');
-    grabFrame(Math.max(dispStart(d) + 0.4, dispEnd(d) - 0.3), el.frameEnd, 'end');
+    var eps = frameEps();
+    grabFrame(dispStart(d) + eps, el.frameStart, 'start');
+    grabFrame(Math.max(dispStart(d) + eps, dispEnd(d) - eps), el.frameEnd, 'end');
   }
 
   function grabFrame(t, canvas, key) {
@@ -716,6 +720,35 @@
     } catch (e) {}
     followPlayhead(target);
     draw();
+  }
+
+  function snapLeftFrame(t) {
+    var fps = state.fps > 0 ? state.fps : 25;
+    var dur = state.duration || (el.video && el.video.duration) || 0;
+    var max = dur > 0 ? Math.max(0, dur - 0.001) : Math.max(0, t);
+    var x = clamp(t, 0, max);
+    return Math.max(0, Math.floor(x * fps + 1e-6) / fps);
+  }
+
+  function frameEps() {
+    var fps = state.fps > 0 ? state.fps : 25;
+    return 0.5 / fps;
+  }
+
+  function setStartAtPlayhead(i) {
+    var d = state.duels[i];
+    if (!d || !state.hasFile) return;
+    if (!el.video.paused) el.video.pause();
+    var t = snapLeftFrame(el.video.currentTime || 0);
+    setBoundary(i, 'start', t);
+    var actual = dispStart(d);
+    selectDuel(i, false);
+    seekTo(actual);
+  }
+
+  function markStartAtPlayhead() {
+    if (state.selected < 0 || state.selected >= state.duels.length) return;
+    setStartAtPlayhead(state.selected);
   }
 
   function selectDuel(i, seek) {
@@ -953,6 +986,7 @@
       tailSec: state.tailSec,
       crf: state.crf,
       preset: state.preset,
+      fps: state.fps,
       template: state.template,
       selected: state.selected,
       duels: state.duels.map(function (d) {
@@ -998,6 +1032,7 @@
     state.tailSec = obj.tailSec != null ? Number(obj.tailSec) : 5;
     state.crf = obj.crf != null ? Number(obj.crf) : 20;
     state.preset = obj.preset || 'medium';
+    state.fps = obj.fps != null && Number(obj.fps) > 0 ? Number(obj.fps) : 25;
     state.template = obj.template || state.template;
     state.selected = typeof obj.selected === 'number' ? obj.selected : -1;
     var byId = {};
@@ -1020,12 +1055,14 @@
     if (el.shift) el.shift.value = String(state.shiftSec);
     if (el.crf) el.crf.value = String(state.crf);
     if (el.preset) el.preset.value = state.preset;
+    if (el.fps) el.fps.value = String(state.fps);
     if (el.template) el.template.value = state.template;
     if (el.gap) el.gap.value = String(state.gapSec);
     if (el.tail) el.tail.value = String(state.tailSec);
   }
 
   function updateFileMeta() {
+    if (el.nudge) el.nudge.hidden = !state.hasFile;
     if (!el.fileMeta) return;
     if (state.hasFile) {
       var size = state.fileSize ? (state.fileSize / (1024 * 1024)).toFixed(0) + ' МБ' : '';
@@ -1160,6 +1197,32 @@
     });
   }
 
+  if (el.nudge) {
+    el.nudge.addEventListener('click', function (e) {
+      if (e.target.closest('#org-vc-mark-start')) {
+        markStartAtPlayhead();
+        return;
+      }
+      var btn = e.target.closest('[data-nudge]');
+      if (!btn || !state.hasFile) return;
+      var step = parseFloat(btn.getAttribute('data-nudge'));
+      if (!isFinite(step)) return;
+      if (!el.video.paused) el.video.pause();
+      seekTo((el.video.currentTime || 0) + step);
+    });
+  }
+
+  if (el.fps) {
+    el.fps.addEventListener('change', function () {
+      var v = parseFloat(el.fps.value);
+      if (!isFinite(v) || v < 1) v = 25;
+      if (v > 240) v = 240;
+      state.fps = v;
+      el.fps.value = String(v);
+      scheduleSave();
+    });
+  }
+
   if (el.recStart) {
     el.recStart.addEventListener('change', function () {
       state.recordingStartMs = parseLocalInput(el.recStart.value);
@@ -1229,9 +1292,9 @@
         var act = actEl.getAttribute('data-act');
         var d = state.duels[i];
         if (!d) return;
-        if (act === 'seek-start') { selectDuel(i, false); seekTo(dispStart(d) + 0.1); }
-        else if (act === 'seek-end') { selectDuel(i, false); seekTo(dispEnd(d) - 0.1); }
-        else if (act === 'set-start') { setBoundary(i, 'start', (state.hasFile ? el.video.currentTime : dispStart(d))); selectDuel(i, false); }
+        if (act === 'seek-start') { selectDuel(i, false); seekTo(dispStart(d) + frameEps()); }
+        else if (act === 'seek-end') { selectDuel(i, false); seekTo(dispEnd(d) - frameEps()); }
+        else if (act === 'set-start') { setStartAtPlayhead(i); }
         else if (act === 'set-end') { setBoundary(i, 'end', (state.hasFile ? el.video.currentTime : dispEnd(d))); selectDuel(i, false); }
         else if (act === 'prev') selectDuel(i - 1, true);
         else if (act === 'next') selectDuel(i + 1, true);
@@ -1300,6 +1363,7 @@
         fileName: state.fileName,
         duration: state.duration,
         shiftSec: state.shiftSec,
+        fps: state.fps,
         ffmpeg: { crf: state.crf, preset: state.preset, audio: 'copy' },
         fragments: []
       };

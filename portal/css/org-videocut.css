@@ -215,6 +215,43 @@ body.page-org-videocut {
   font-size: 0.9rem;
 }
 
+.org-vc-nudge-wrap {
+  padding: 0.45rem 0.55rem 0.55rem;
+  border-top: 1px solid #263238;
+  background: #101418;
+}
+.org-vc-nudge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+}
+.org-vc-nudge button {
+  min-height: 1.85rem;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid #37474f;
+  border-radius: 6px;
+  background: #1c262b;
+  color: #e3f2fd;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.org-vc-nudge button:hover { border-color: var(--org); color: #fff; }
+.org-vc-nudge-mark {
+  min-width: 8.8rem;
+  background: var(--org) !important;
+  border-color: var(--org) !important;
+  color: #fff !important;
+}
+.org-vc-nudge-note {
+  margin: 0.35rem 0 0;
+  color: #90a4ae;
+  font-size: 0.72rem;
+}
+
 .org-vc-tl { padding-bottom: 0.5rem; }
 .org-vc-tl-bar {
   display: flex;

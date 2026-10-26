@@ -404,6 +404,22 @@ function org_vc_render(array $ctx, string $error = ''): void
             <section class="card org-vc-card org-vc-playercard">
                 <video id="org-vc-video" controls playsinline preload="metadata"></video>
                 <p class="org-vc-player-empty" id="org-vc-player-empty">Выберите файл записи, чтобы увидеть превью и таймлайн.</p>
+                <div class="org-vc-nudge-wrap" id="org-vc-nudge" hidden>
+                    <div class="org-vc-nudge" aria-label="Навигация по видео">
+                        <button type="button" data-nudge="-60" title="Назад на 60 секунд">−60</button>
+                        <button type="button" data-nudge="-30" title="Назад на 30 секунд">−30</button>
+                        <button type="button" data-nudge="-15" title="Назад на 15 секунд">−15</button>
+                        <button type="button" data-nudge="-5" title="Назад на 5 секунд">−5</button>
+                        <button type="button" data-nudge="-1" title="Назад на 1 секунду">−1</button>
+                        <button type="button" class="org-vc-nudge-mark" id="org-vc-mark-start" title="Поставить начало выбранного поединка в текущей позиции; старт выравнивается по ближайшему полному кадру слева">точка начала</button>
+                        <button type="button" data-nudge="1" title="Вперёд на 1 секунду">+1</button>
+                        <button type="button" data-nudge="5" title="Вперёд на 5 секунд">+5</button>
+                        <button type="button" data-nudge="15" title="Вперёд на 15 секунд">+15</button>
+                        <button type="button" data-nudge="30" title="Вперёд на 30 секунд">+30</button>
+                        <button type="button" data-nudge="60" title="Вперёд на 60 секунд">+60</button>
+                    </div>
+                    <p class="org-vc-nudge-note">Шаг — секунды. «точка начала» ставит начало выбранного поединка по левому полному кадру; fps — в параметрах нарезки.</p>
+                </div>
             </section>
 
             <section class="card org-vc-card org-vc-tl">
@@ -464,6 +480,9 @@ function org_vc_render(array $ctx, string $error = ''): void
                             <option value="medium" selected>medium</option>
                             <option value="slow">slow</option>
                         </select>
+                    </label>
+                    <label class="org-vc-field">fps записи
+                        <input type="number" id="org-vc-fps" min="1" max="240" step="0.001" value="25" title="Частота кадров записи; для Zoom обычно 25">
                     </label>
                     <label class="org-vc-field org-vc-field--wide">Шаблон имени
                         <input type="text" id="org-vc-template" value="{дата}_{мероприятие}_{номер}_{игрок1}_vs_{игрок2}.mp4">
