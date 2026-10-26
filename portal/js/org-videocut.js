@@ -885,6 +885,16 @@
     grabFrame(Math.max(dispStart(d) + eps, dispEnd(d) - eps), el.frameEnd, 'end');
   }
 
+  function seekVideo(video, target) {
+    if (typeof video.fastSeek === 'function') {
+      try {
+        video.fastSeek(target);
+        return;
+      } catch (e) {}
+    }
+    video.currentTime = target;
+  }
+
   function grabFrame(t, canvas, key) {
     if (!canvas || !state.fileUrl || !state.hasFile) return;
     var probe = probes[key];
@@ -915,7 +925,7 @@
       };
       probe.addEventListener('seeked', onSeeked);
       try {
-        probe.currentTime = target;
+        seekVideo(probe, target);
       } catch (e) {
         probe.removeEventListener('seeked', onSeeked);
       }
@@ -1074,15 +1084,15 @@
     }, 15000);
     thumbSettle = window.setTimeout(function () {
       if (!thumbCurrent || thumbCurrent.token !== token) return;
-      if (Math.abs(thumbProbe.currentTime - target) > 0.15 || thumbProbe.readyState < 2) return;
+      if (thumbProbe.seeking || thumbProbe.readyState < 2) return;
       finishThumb(token, true);
     }, 700);
-    if (Math.abs(thumbProbe.currentTime - target) < 0.001 && thumbProbe.readyState >= 2) {
+    if (Math.abs(thumbProbe.currentTime - target) < 0.001 && !thumbProbe.seeking && thumbProbe.readyState >= 2) {
       finishThumb(token, true);
       return;
     }
     try {
-      thumbProbe.currentTime = target;
+      seekVideo(thumbProbe, target);
     } catch (e) {
       finishThumb(token, false);
     }
@@ -1090,7 +1100,8 @@
 
   thumbProbe.addEventListener('seeked', function () {
     if (!thumbCurrent) return;
-    if (Math.abs(thumbProbe.currentTime - thumbCurrent.target) > 0.15) return;
+    /* fastSeek останавливается на ключевом кадре — допускаем отклонение. */
+    if (Math.abs(thumbProbe.currentTime - thumbCurrent.target) > 12) return;
     finishThumb(thumbCurrent.token, true);
   });
   thumbProbe.addEventListener('error', function () {
