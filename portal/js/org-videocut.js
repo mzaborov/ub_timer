@@ -494,14 +494,20 @@
     });
     if (!ready || myToken !== state.qrScanToken || src !== state.fileUrl) return;
 
+    /* Даём превью поединков догрузиться, чтобы не конкурировать за декодер. */
+    for (var wait = 0; wait < 5000; wait += 250) {
+      if (!thumbBusy && !thumbQueue.length) break;
+      await new Promise(function (r) { setTimeout(r, 250); });
+      if (myToken !== state.qrScanToken || src !== state.fileUrl) return;
+    }
+
     var duration = isFinite(probe.duration) && probe.duration > 0 ? probe.duration : state.duration;
-    var maxT = Math.min(duration || 0, 600);
+    var maxT = Math.min(duration || 0, 180);
     var samples = [];
-    for (var t = 0.5; t < Math.min(maxT, 180); t += 1) samples.push(t);
-    for (var t2 = 180; t2 < maxT; t2 += 2) samples.push(t2);
+    for (var t = 0.5; t < maxT; t += 1) samples.push(t);
     if (!samples.length) samples.push(Math.min(0.1, maxT));
 
-    var w = Math.min(1920, probe.videoWidth || 1280);
+    var w = Math.min(1280, probe.videoWidth || 1280);
     var h = Math.round(w * ((probe.videoHeight || 720) / (probe.videoWidth || 1280)));
     canvas.width = w;
     canvas.height = h;
@@ -1065,7 +1071,7 @@
     window.clearTimeout(thumbSettle);
     thumbTimer = window.setTimeout(function () {
       finishThumb(token, false);
-    }, 5000);
+    }, 15000);
     thumbSettle = window.setTimeout(function () {
       if (!thumbCurrent || thumbCurrent.token !== token) return;
       if (Math.abs(thumbProbe.currentTime - target) > 0.15 || thumbProbe.readyState < 2) return;
