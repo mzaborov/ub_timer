@@ -530,7 +530,7 @@
           }
         }
       } catch (e) {}
-      if (i % 20 === 0) {
+      if (i % 5 === 0) {
         setCalNote_('Ищу QR-маркер… ' + fmtClock(samples[i]) + ' / ' + fmtClock(maxT), '');
       }
     }
