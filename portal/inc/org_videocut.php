@@ -469,6 +469,7 @@ function org_vc_render(array $ctx, string $error = ''): void
                         <span class="org-vc-file-btn">Выбрать запись</span>
                     </label>
                     <div class="org-vc-file-meta" id="org-vc-file-meta">Файл не выбран</div>
+                    <button type="button" class="btn-ghost" id="org-vc-qr-scan" disabled title="Найти QR-маркер калибровки в первых 3 минутах записи">Найти QR</button>
                     <button type="button" class="btn-ghost" id="org-vc-clear">Убрать</button>
                 </div>
                 <p class="org-vc-hint">Файл не загружается на сервер: браузер читает его локально. Нарезка пойдёт через локальный ffmpeg-сервис. Записи Zoom обычно лежат в <code>Документы\Zoom</code> (<code>C:\Users\...\Documents\Zoom</code>).</p>

@@ -17,6 +17,7 @@
     file: document.getElementById('org-vc-file'),
     fileMeta: document.getElementById('org-vc-file-meta'),
     calNote: document.getElementById('org-vc-cal-note'),
+    qrScan: document.getElementById('org-vc-qr-scan'),
     clearFile: document.getElementById('org-vc-clear'),
     video: document.getElementById('org-vc-video'),
     playerEmpty: document.getElementById('org-vc-player-empty'),
@@ -101,6 +102,7 @@
     recordingStartMs: DATA.recordingStartMs || 0,
     recStartSource: 'event',
     qrScanToken: 0,
+    qrScanning: false,
     shiftSec: 0,
     gapSec: 2,
     tailSec: 5,
@@ -1580,6 +1582,7 @@
       }
       state.fileUrl = URL.createObjectURL(file);
       state.hasFile = true;
+      if (el.qrScan) el.qrScan.disabled = false;
       state.fileName = file.name;
       state.fileSize = file.size;
       probes.start.src = state.fileUrl;
@@ -1594,6 +1597,25 @@
       updateFileMeta();
       updateSteps();
       setSaveState('dirty');
+    });
+  }
+
+  if (el.qrScan) {
+    el.qrScan.addEventListener('click', function () {
+      if (state.qrScanning || !state.hasFile) return;
+      state.qrScanning = true;
+      el.qrScan.disabled = true;
+      var oldText = el.qrScan.textContent;
+      el.qrScan.textContent = 'Ищу QR…';
+      function done() {
+        state.qrScanning = false;
+        el.qrScan.disabled = !state.hasFile;
+        el.qrScan.textContent = oldText;
+      }
+      scanQrCalibration_().then(done, function () {
+        setCalNote_('Не удалось выполнить поиск QR.', 'is-warn');
+        done();
+      });
     });
   }
 
@@ -1612,7 +1634,6 @@
         refreshAll();
       }
       scheduleSave();
-      scanQrCalibration_();
     }
   });
 
@@ -1637,6 +1658,7 @@
       }
       state.fileUrl = '';
       state.hasFile = false;
+      if (el.qrScan) el.qrScan.disabled = true;
       state.fileName = '';
       state.fileSize = 0;
       el.video.removeAttribute('src');
