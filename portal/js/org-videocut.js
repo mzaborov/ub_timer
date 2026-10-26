@@ -62,6 +62,15 @@
   thumbProbe.muted = true;
   thumbProbe.playsInline = true;
   thumbProbe.preload = 'auto';
+  /* Detached <video> в Chromium ищет кадры в разы медленнее; держим пробники в DOM. */
+  var probeHost = document.createElement('div');
+  probeHost.id = 'org-vc-probe-host';
+  probeHost.setAttribute('aria-hidden', 'true');
+  probeHost.style.cssText = 'position:absolute;left:-9999px;top:0;width:2px;height:2px;overflow:hidden;opacity:0.01;pointer-events:none';
+  document.body.appendChild(probeHost);
+  probeHost.appendChild(probes.start);
+  probeHost.appendChild(probes.end);
+  probeHost.appendChild(thumbProbe);
   var thumbQueue = [];
   var thumbBusy = false;
   var thumbCurrent = null;
@@ -470,6 +479,7 @@
     var probe = document.createElement('video');
     probe.muted = true;
     probe.preload = 'auto';
+    probeHost.appendChild(probe);
     probe.src = src;
     var canvas = document.createElement('canvas');
     var ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -585,6 +595,7 @@
     function cleanupProbe_() {
       probe.removeAttribute('src');
       try { probe.load(); } catch (e) {}
+      probe.remove();
     }
   }
 
