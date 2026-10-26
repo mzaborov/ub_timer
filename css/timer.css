@@ -839,3 +839,33 @@ body.dice-blink-active #Player2Label {
 .duel-add-box-disabled {
   opacity: 0.65;
 }
+
+/* Калибровка видео: QR + обратный отсчёт */
+.video-cal-qr {
+  width: 400px;
+  height: 400px;
+  max-width: 86vw;
+  max-height: 86vw;
+  margin: 0 auto;
+  padding: 20px;
+  background: #fff;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 1px #dee2e6 inset;
+}
+.video-cal-qr canvas,
+.video-cal-qr img,
+.video-cal-qr table {
+  width: 100% !important;
+  height: 100% !important;
+  image-rendering: pixelated;
+}
+.video-cal-countdown {
+  font-size: 3.2rem;
+  line-height: 1;
+  font-weight: 700;
+  color: #dc3545;
+  font-variant-numeric: tabular-nums;
+}

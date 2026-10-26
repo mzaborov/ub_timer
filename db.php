@@ -856,6 +856,79 @@ function dbj_has_column($link, $table, $col) {
     return $cache[$key];
 }
 
+function dbj_calibration($link) {
+    if (dbj_org_configured() && !dbj_is_org()) {
+        dbj_err('org_required', 403);
+    }
+    $in = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($in)) {
+        dbj_err('bad_json', 400);
+    }
+    $eventId = isset($in['event_id']) ? (int)$in['event_id'] : 0;
+    $duelId = isset($in['duel_id']) ? (int)$in['duel_id'] : 0;
+    $token = isset($in['token']) ? trim((string)$in['token']) : '';
+    $durationMs = isset($in['duration_ms']) ? (int)$in['duration_ms'] : 3000;
+    if ($eventId <= 0) {
+        dbj_err('no_event', 400);
+    }
+    if ($token === '' || strlen($token) > 64 || !preg_match('/^[A-Za-z0-9_-]+$/', $token)) {
+        dbj_err('bad_token', 400);
+    }
+    if ($durationMs < 500 || $durationMs > 10000) {
+        $durationMs = 3000;
+    }
+    $r = mysql_query('SELECT id FROM events WHERE id = ' . $eventId, $link);
+    if (!$r || !mysql_num_rows($r)) {
+        dbj_err('bad_event', 404);
+    }
+    if ($duelId > 0) {
+        $r = mysql_query('SELECT id FROM duels WHERE id = ' . $duelId . ' AND event_id = ' . $eventId, $link);
+        if (!$r || !mysql_num_rows($r)) {
+            dbj_err('bad_duel', 404);
+        }
+    } else {
+        $r = mysql_query('SELECT id FROM duels WHERE event_id = ' . $eventId . ' ORDER BY sort_order ASC, id ASC LIMIT 1', $link);
+        if (!$r || !mysql_num_rows($r)) {
+            dbj_err('no_duels', 404);
+        }
+        $row = mysql_fetch_assoc($r);
+        $duelId = (int)$row['id'];
+    }
+    $nowMs = (int)round(microtime(true) * 1000);
+    $r = mysql_query('SELECT IFNULL(MAX(seq_num),0)+1 FROM protocol_events WHERE duel_id=' . $duelId, $link);
+    $seqRow = $r ? mysql_fetch_row($r) : array(1);
+    $seq = (int)$seqRow[0];
+    if (!$seq) {
+        $seq = 1;
+    }
+    $payload = json_encode(array(
+        'token' => $token,
+        'event_id' => $eventId,
+        'duel_id' => $duelId,
+        'duration_ms' => $durationMs,
+        'kind' => 'video_calibration',
+        'server_ts' => $nowMs
+    ));
+    $ok = mysql_query(
+        'INSERT INTO protocol_events (duel_id, seq_num, moment_sec, event_type, payload_json) VALUES ('
+        . $duelId . ', ' . $seq . ', 0, '
+        . "'" . mysql_real_escape_string('калибровкаВидео', $link) . "', "
+        . "'" . mysql_real_escape_string($payload, $link) . "')",
+        $link
+    );
+    if (!$ok) {
+        dbj_err('calibration_insert_failed', 500);
+    }
+    dbj_out(array(
+        'ok' => true,
+        'token' => $token,
+        'event_id' => $eventId,
+        'server_ts' => $nowMs,
+        'duel_id' => $duelId,
+        'duration_ms' => $durationMs
+    ));
+}
+
 $cfg = dirname(__FILE__) . '/../db.inc.php';
 if (!is_file($cfg)) {
     dbj_err('no_db_config', 500);
@@ -885,6 +958,8 @@ if ($action === 'events') {
     dbj_person_rename($link);
 } elseif ($action === 'write') {
     dbj_write($link);
+} elseif ($action === 'calibration') {
+    dbj_calibration($link);
 } elseif ($action === 'org_status') {
     dbj_org_status($link);
 } elseif ($action === 'org_login') {

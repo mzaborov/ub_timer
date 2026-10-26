@@ -285,6 +285,10 @@
                                 id="start_stop_duel" style="visibility: visible; display: block ">Начать
                                 поединок</button>
                             <div class="w-100 mb-1"></div>
+                            <button type="button" class="btn btn-outline-dark btn-sm mb-1" id="video_calibration_btn"
+                                onclick="openVideoCalibration()" title="Показать QR с серверным временем для синхронизации записи Zoom">
+                                <i class="fa-solid fa-qrcode"></i> Калибровка видео
+                            </button>
                             <button type="button" class="btn btn-outline-secondary btn-sm" id="reopen_judges_form_btn" style="display:none;" onclick="reopenJudgesForm()" title="Открыть форму голосования судей с восстановлением контекста">Вернуть голосование</button>
                         </div>
                     </div>
@@ -664,9 +668,30 @@
         </div>
     </div>
 
+    <div class="modal fade" id="videoCalibrationModal" tabindex="-1" aria-labelledby="videoCalibrationModalLabel"
+        aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header justify-content-center">
+                    <h1 class="modal-title fs-5" id="videoCalibrationModalLabel">Калибровка видео</h1>
+                </div>
+                <div class="modal-body text-center">
+                    <p class="text-muted mb-3">
+                        Не закрывайте окно до конца отсчёта. QR должен попасть в запись Zoom целиком.
+                    </p>
+                    <div class="video-cal-qr" id="videoCalibrationQr"></div>
+                    <div class="video-cal-countdown mt-3" id="videoCalibrationCountdown">3</div>
+                    <div class="small text-muted mt-2" id="videoCalibrationStatus">Запись в БД…</div>
+                    <div class="small text-muted mt-1" id="videoCalibrationServerTime"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="credit-hidden" aria-hidden="true">Исходный код доступен на: https://github.com/mzaborov/ub_timer/ | Версия: 139</div>
     <div class="app-version text-end small text-muted me-2 mb-1" title="Версия выкладки">v 139</div>
     <script type="application/json" id="intro-tracks-json">["Baba_O_Riley.mp3","Bad_To_The_Bone.mp3","Cant_Stop.mp3","Deutschland.mp3","Eye_Of_The_Tiger.mp3","Jamming.mp3","Masha_i_medvedi.mp3","Misirlou.mp3","Peremen.mp3","Stop_the_Rock.mp3","Sweet_Home_Alabama.mp3","Tatarskaya_plyasovaya.mp3"]</script>
+    <script type="text/javascript" src="vendor/qrcode.min.js?v=139"></script>
     <script type="text/javascript" src="js/state.js?v=139"></script>
     <script type="text/javascript" src="js/core.js?v=139"></script>
     <script type="text/javascript" src="js/referees.js?v=139"></script>
@@ -674,6 +699,7 @@
     <script type="text/javascript" src="js/db-schedule.js?v=139"></script>
     <script type="text/javascript" src="js/db-write.js?v=139"></script>
     <script type="text/javascript" src="js/toolbar-sound.js?v=139"></script>
+    <script type="text/javascript" src="js/video-calibration.js?v=139"></script>
     <script type="text/javascript" src="js/protocol.js?v=139"></script>
     <script type="text/javascript" src="js/live-protocol.js?v=139"></script>
     <script type="text/javascript" src="js/init.js?v=139"></script>
