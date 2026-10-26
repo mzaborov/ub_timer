@@ -101,6 +101,10 @@
     fileUrl: '',
     fileName: '',
     fileSize: 0,
+    file: null,
+    keyframes: [],
+    keyframesReady: false,
+    keyframesLoading: false,
     duration: 0,
     recordingStartMs: DATA.recordingStartMs || 0,
     recStartSource: 'event',
@@ -790,8 +794,8 @@
         + '<button type="button" data-act="set-start" title="Начало только этого поединка в позиции плеера (по левому полному кадру)">[ в точке</button>'
         + '<button type="button" data-act="set-end" title="Конец в позиции плеера">] в точке</button>'
         + '<span class="org-vc-step-edge" data-role="step-edge" title="Кнопки «кадр» двигают границу, которую вы редактировали последней">шаг: конец</span>'
-        + '<button type="button" data-act="frame-prev" title="Предыдущий кадр активной границы">&#9668; кадр</button>'
-        + '<button type="button" data-act="frame-next" title="Следующий кадр активной границы">кадр &#9658;</button>'
+        + '<button type="button" data-act="kf-prev" disabled title="Предыдущий ключевой кадр">&#9668; I-кадр</button>'
+        + '<button type="button" data-act="kf-next" disabled title="Следующий ключевой кадр">I-кадр &#9658;</button>'
         + '<label class="org-vc-include"><input type="checkbox" data-act="include"> в нарезку</label>'
         + '</div>'
         + '</article>';
@@ -839,6 +843,7 @@
       applyFilter(card, d);
     });
     if (!noThumbs) queueThumbs();
+    updateKeyframeButtons_();
     updateCount();
   }
 
@@ -1079,6 +1084,65 @@
     }
   }
 
+  function updateKeyframeButtons_() {
+    if (!el.list) return;
+    var ready = state.keyframesReady && state.keyframes.length > 0;
+    var buttons = el.list.querySelectorAll('[data-act="kf-prev"], [data-act="kf-next"]');
+    Array.prototype.forEach.call(buttons, function (btn) {
+      btn.disabled = !ready;
+      if (ready) {
+        btn.title = (btn.getAttribute('data-act') === 'kf-prev' ? 'Предыдущий' : 'Следующий')
+          + ' ключевой кадр (I-frame)';
+      } else if (state.keyframesLoading) {
+        btn.title = 'Читаю ключевые кадры…';
+      } else if (state.file) {
+        btn.title = 'Ключевые кадры не найдены: нужен MP4/MOV с таблицей sync samples';
+      } else {
+        btn.title = 'Сначала выберите видео';
+      }
+    });
+  }
+
+  function loadKeyframes_(file) {
+    state.keyframes = [];
+    state.keyframesReady = false;
+    state.keyframesLoading = !!(window.UBMp4Keyframes && file);
+    updateKeyframeButtons_();
+    if (!state.keyframesLoading) return;
+    window.UBMp4Keyframes.read(file).then(function (times) {
+      if (state.file !== file) return;
+      state.keyframesLoading = false;
+      state.keyframes = times || [];
+      state.keyframesReady = state.keyframes.length > 0;
+      updateKeyframeButtons_();
+    }, function () {
+      if (state.file !== file) return;
+      state.keyframesLoading = false;
+      state.keyframesReady = false;
+      updateKeyframeButtons_();
+    });
+  }
+
+  function stepBoundaryKeyframe(i, dir) {
+    var d = state.duels[i];
+    if (!d || !state.hasFile || !state.keyframes.length) return;
+    var which = d.stepEdge === 'start' ? 'start' : 'end';
+    var cur = which === 'start' ? dispStart(d) : dispEnd(d);
+    var times = state.keyframes;
+    var target = null;
+    if (dir > 0) {
+      for (var n = 0; n < times.length; n++) {
+        if (times[n] > cur + 1e-6) { target = times[n]; break; }
+      }
+    } else {
+      for (var p = times.length - 1; p >= 0; p--) {
+        if (times[p] < cur - 1e-6) { target = times[p]; break; }
+      }
+    }
+    if (target == null) return;
+    setBoundary(i, which, target);
+  }
+
   function resetThumbs() {
     thumbQueue.length = 0;
     thumbCurrent = null;
@@ -1250,16 +1314,6 @@
     var card = el.list ? el.list.querySelector('.org-vc-duel[data-i="' + i + '"]') : null;
     var label = card ? card.querySelector('[data-role="step-edge"]') : null;
     if (label) label.textContent = 'шаг: ' + (d.stepEdge === 'start' ? 'начало' : 'конец');
-  }
-
-  function stepBoundaryFrame(i, dir) {
-    var d = state.duels[i];
-    if (!d || !state.hasFile) return;
-    var which = d.stepEdge === 'start' ? 'start' : 'end';
-    var fps = state.fps > 0 ? state.fps : 25;
-    var cur = which === 'start' ? dispStart(d) : dispEnd(d);
-    var frame = Math.round(cur * fps) + dir;
-    setBoundary(i, which, frame / fps);
   }
 
   function setStartAtPlayhead(i) {
@@ -1696,6 +1750,8 @@
       if (el.qrScan) el.qrScan.disabled = false;
       state.fileName = file.name;
       state.fileSize = file.size;
+      state.file = file;
+      loadKeyframes_(file);
       probes.start.src = state.fileUrl;
       probes.end.src = state.fileUrl;
       thumbProbe.src = state.fileUrl;
@@ -1773,6 +1829,10 @@
       if (el.qrScan) el.qrScan.disabled = true;
       state.fileName = '';
       state.fileSize = 0;
+      state.file = null;
+      state.keyframes = [];
+      state.keyframesReady = false;
+      state.keyframesLoading = false;
       el.video.removeAttribute('src');
       el.video.load();
       Object.keys(probes).forEach(function (k) {
@@ -1893,8 +1953,8 @@
         else if (act === 'seek-end') { setStepEdge(i, 'end'); selectDuel(i, false); seekTo(dispEnd(d) - frameEps()); }
         else if (act === 'set-start') { setStepEdge(i, 'start'); setStartAtPlayhead(i); }
         else if (act === 'set-end') { setStepEdge(i, 'end'); selectDuel(i, false); setBoundary(i, 'end', (state.hasFile ? el.video.currentTime : dispEnd(d))); }
-        else if (act === 'frame-prev') { stepBoundaryFrame(i, -1); }
-        else if (act === 'frame-next') { stepBoundaryFrame(i, 1); }
+        else if (act === 'kf-prev') { stepBoundaryKeyframe(i, -1); }
+        else if (act === 'kf-next') { stepBoundaryKeyframe(i, 1); }
         return;
       }
       if (e.target.closest('input,label,button')) return;
