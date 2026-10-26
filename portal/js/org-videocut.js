@@ -1024,6 +1024,57 @@
     else thumbProbe.addEventListener('loadedmetadata', doWarm, { once: true });
   }
 
+  /* Правку границы показываем сразу с основного видео: оно декодирует холодный файл быстрее скрытых пробников. */
+  function previewBoundaryOnMain(i, which) {
+    var d = state.duels[i];
+    if (!d || !state.hasFile || !el.video) return;
+    var canvas = null;
+    if (el.list) {
+      var card = el.list.querySelector('.org-vc-duel[data-i="' + i + '"]');
+      canvas = card ? card.querySelector('[data-frame="' + which + '"]') : null;
+    }
+    var t = thumbCanvasTime(d, which);
+    var key = thumbKey(i, which, t);
+    var large = i === state.selected ? (which === 'start' ? el.frameStart : el.frameEnd) : null;
+    var token = 0;
+    if (canvas) {
+      for (var q = thumbQueue.length - 1; q >= 0; q--) {
+        if (thumbQueue[q].canvas === canvas) thumbQueue.splice(q, 1);
+      }
+      canvas.removeAttribute('data-pending');
+      canvas._vcPreviewToken = (canvas._vcPreviewToken || 0) + 1;
+      token = canvas._vcPreviewToken;
+    }
+    var frameT = large ? ++frameToken[which] : 0;
+    var done = false;
+    function paint() {
+      if (done) return;
+      done = true;
+      el.video.removeEventListener('seeked', paint);
+      if (canvas && canvas.isConnected && canvas._vcPreviewToken === token) {
+        drawThumb(canvas, el.video);
+        canvas.setAttribute('data-key', key);
+        canvas.removeAttribute('data-pending');
+      }
+      if (large && frameToken[which] === frameT) {
+        drawThumb(large, el.video);
+      }
+    }
+    var dur = el.video.duration || state.duration || 0;
+    var target = dur > 0 ? clamp(t, 0, Math.max(0, dur - 0.05)) : Math.max(0, t);
+    try { el.video.pause(); } catch (e) {}
+    el.video.addEventListener('seeked', paint);
+    try {
+      el.video.currentTime = target;
+    } catch (e) {
+      paint();
+      return;
+    }
+    if (!el.video.seeking && Math.abs(el.video.currentTime - target) < 0.001 && el.video.readyState >= 2) {
+      paint();
+    }
+  }
+
   function resetThumbs() {
     thumbQueue.length = 0;
     thumbCurrent = null;
@@ -1262,6 +1313,7 @@
     computeIssues();
     renderListValues(true);
     if (i === state.selected) renderSelected();
+    previewBoundaryOnMain(i, which);
     scheduleSave();
   }
 
