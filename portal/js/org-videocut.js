@@ -65,6 +65,7 @@
   var thumbBusy = false;
   var thumbCurrent = null;
   var thumbTimer = 0;
+  var thumbSettle = 0;
   var thumbToken = 0;
   var thumbWaiting = false;
   var frameToken = { start: 0, end: 0 };
@@ -778,6 +779,7 @@
     thumbBusy = false;
     thumbWaiting = false;
     window.clearTimeout(thumbTimer);
+    window.clearTimeout(thumbSettle);
     if (!el.list) return;
     var canvases = el.list.querySelectorAll('[data-frame]');
     Array.prototype.forEach.call(canvases, function (canvas) {
@@ -785,7 +787,7 @@
     });
   }
 
-  function queueThumb(canvas, i, kind, t) {
+  function queueThumb(canvas, i, kind, t, retried) {
     if (!canvas) return;
     if (!state.hasFile || !state.fileUrl) {
       drawThumbPlaceholder(canvas, 'нет видео');
@@ -798,7 +800,7 @@
       if (thumbQueue[q].canvas === canvas) thumbQueue.splice(q, 1);
     }
     canvas.setAttribute('data-pending', key);
-    thumbQueue.push({ canvas: canvas, t: t, key: key });
+    thumbQueue.push({ canvas: canvas, t: t, key: key, i: i, kind: kind, retried: !!retried });
   }
 
   function queueThumbs() {
@@ -820,12 +822,20 @@
     thumbCurrent = null;
     thumbBusy = false;
     window.clearTimeout(thumbTimer);
+    window.clearTimeout(thumbSettle);
     if (task.canvas.isConnected && task.canvas.getAttribute('data-pending') === task.key) {
       if (paint) {
         drawThumb(task.canvas, thumbProbe);
         task.canvas.setAttribute('data-key', task.key);
       }
       task.canvas.removeAttribute('data-pending');
+    }
+    if (!paint && !task.retried && task.canvas.isConnected) {
+      window.setTimeout(function () {
+        if (!task.canvas.isConnected) return;
+        queueThumb(task.canvas, task.i, task.kind, task.t, true);
+        processThumbQueue();
+      }, 300);
     }
     processThumbQueue();
   }
@@ -864,9 +874,15 @@
     thumbCurrent = task;
     thumbBusy = true;
     window.clearTimeout(thumbTimer);
+    window.clearTimeout(thumbSettle);
     thumbTimer = window.setTimeout(function () {
       finishThumb(token, false);
     }, 5000);
+    thumbSettle = window.setTimeout(function () {
+      if (!thumbCurrent || thumbCurrent.token !== token) return;
+      if (Math.abs(thumbProbe.currentTime - target) > 0.15 || thumbProbe.readyState < 2) return;
+      finishThumb(token, true);
+    }, 700);
     if (Math.abs(thumbProbe.currentTime - target) < 0.001 && thumbProbe.readyState >= 2) {
       finishThumb(token, true);
       return;
