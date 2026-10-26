@@ -79,6 +79,9 @@
   var thumbSettle = 0;
   var thumbToken = 0;
   var thumbWaiting = false;
+  var thumbWarm = false;
+  var thumbWarming = false;
+  var thumbWarmTimer = 0;
   var frameToken = { start: 0, end: 0 };
   var saveTimer = 0;
   var previewTimer = 0;
@@ -990,13 +993,47 @@
     } catch (e) {}
   }
 
+  /* Первый seek в холодном большом файле занимает секунды; греем декодер у начала. */
+  function warmThumbProbe() {
+    if (thumbWarm || thumbWarming || !state.fileUrl) return;
+    function doWarm() {
+      if (thumbWarm || thumbWarming) return;
+      thumbWarming = true;
+      window.clearTimeout(thumbWarmTimer);
+      thumbWarmTimer = window.setTimeout(function () {
+        thumbWarming = false;
+        thumbWarm = true;
+        processThumbQueue();
+      }, 3000);
+      thumbProbe.addEventListener('seeked', function () {
+        window.clearTimeout(thumbWarmTimer);
+        thumbWarming = false;
+        thumbWarm = true;
+        processThumbQueue();
+      }, { once: true });
+      try {
+        thumbProbe.currentTime = 0.5;
+      } catch (e) {
+        window.clearTimeout(thumbWarmTimer);
+        thumbWarming = false;
+        thumbWarm = true;
+        processThumbQueue();
+      }
+    }
+    if (thumbProbe.readyState >= 1) doWarm();
+    else thumbProbe.addEventListener('loadedmetadata', doWarm, { once: true });
+  }
+
   function resetThumbs() {
     thumbQueue.length = 0;
     thumbCurrent = null;
     thumbBusy = false;
     thumbWaiting = false;
+    thumbWarm = false;
+    thumbWarming = false;
     window.clearTimeout(thumbTimer);
     window.clearTimeout(thumbSettle);
+    window.clearTimeout(thumbWarmTimer);
     if (!el.list) return;
     var canvases = el.list.querySelectorAll('[data-frame]');
     Array.prototype.forEach.call(canvases, function (canvas) {
@@ -1058,7 +1095,7 @@
   }
 
   function processThumbQueue() {
-    if (thumbBusy || !thumbQueue.length) return;
+    if (thumbBusy || thumbWarming || !thumbQueue.length) return;
     if (!state.hasFile || !state.fileUrl) {
       thumbQueue.length = 0;
       return;
@@ -1593,6 +1630,7 @@
       el.video.hidden = false;
       if (el.playerEmpty) el.playerEmpty.hidden = true;
       resetThumbs();
+      warmThumbProbe();
       renderListValues(true);
       updateFileMeta();
       updateSteps();
