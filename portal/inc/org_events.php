@@ -1191,6 +1191,13 @@ function org_event_export_download(mysqli $db, int $eventId): void
         echo 'Мероприятие не найдено';
         exit;
     }
+    $source = org_event_load($db, $eventId);
+    if (!$source || (string)($source['status'] ?? '') !== 'Проведено') {
+        http_response_code(409);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'Экспорт доступен только для проведённых мероприятий';
+        exit;
+    }
     $duels = [];
     foreach ($events as $ev) {
         $title = (string)($ev['title'] ?? '');
@@ -2953,9 +2960,9 @@ function org_echo_year_month(
     echo '</tbody></table></div>';
 }
 
-function org_echo_export_link(int $eventId): void
+function org_echo_export_link(int $eventId, string $status = ''): void
 {
-    if ($eventId <= 0) {
+    if ($eventId <= 0 || $status !== 'Проведено') {
         return;
     }
     echo '<p class="org-export-row"><a class="org-export-btn" href="'
@@ -2997,7 +3004,7 @@ function org_echo_attrs_read(mysqli $db, array $ev): void
     $orgPool = org_event_orgs_map($db, array_values($roleMap));
     $refPool = org_referees_map($db, $ref, $evType);
     org_echo_staff_table($roleMap, $ref, $orgPool, $refPool, false, (string)($ev['referee_name'] ?? ''), $evType);
-    org_echo_export_link((int)$ev['id']);
+    org_echo_export_link((int)$ev['id'], (string)($ev['status'] ?? ''));
     if (($ev['status'] ?? '') === 'Отменено') {
         echo '<form method="post" class="org-attrs-actions" onsubmit="return confirm(\'Восстановить мероприятие?\');">';
         portal_csrf_field();
@@ -3126,7 +3133,7 @@ function org_echo_attrs_form(?array $ev, array $people, mysqli $db, ?string $pre
     echo '<p class="org-attrs-actions"><button type="submit">' . ($isNew ? 'Создать' : 'Сохранить') . '</button></p>';
     echo '</form>';
     if (!$isNew && $ev) {
-        org_echo_export_link((int)$ev['id']);
+        org_echo_export_link((int)$ev['id'], (string)($ev['status'] ?? ''));
     }
     org_echo_test_actions($ev, $isNew);
     echo '</section>';

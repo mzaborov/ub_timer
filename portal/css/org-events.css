@@ -210,6 +210,27 @@ body.org-resizing {
   border-color: var(--orange);
   color: var(--orange);
 }
+body.page-org a.org-export-btn,
+body.page-org a.org-export-btn:visited {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  justify-content: center;
+  align-items: center;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid rgba(0,0,0,.15);
+  border-radius: 6px;
+  background: #fff;
+  color: #1a1a1a;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+body.page-org a.org-export-btn:hover {
+  border-color: var(--orange);
+  color: var(--orange);
+  text-decoration: none;
+}
 .org-test-delete { background: #ad1457; border-color: #880e4f; color: #fff; }
 .org-attrs h2,
 .org-gg-wrap h2,
