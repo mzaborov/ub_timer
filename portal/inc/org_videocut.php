@@ -95,10 +95,10 @@ function org_vc_duels(mysqli $db, int $eventId): array
  * Абсолютные метки из payload_json.server_ts (мс) и длительность по moment_sec.
  *
  * Границы фрагмента:
- * - начало #1 — событие «началоПоединка»;
- * - начало #N — «решениеСудей» предыдущего поединка (закрытие формы судей);
- * - конец — «завершение» этого поединка.
- * Автоматическое «раскрытиеСитуации» после предыдущего поединка — не граница.
+ * - начало — последнее «раскрытиеСитуации» перед поединком (первое — автооткрытие,
+ *   второе — после выбора ситуации; для #1 достаточно одного);
+ * - конец — «решениеСудей» (закрытие формы судей), а не «завершение».
+ * «завершение» наступает до обсуждения судей и даёт слишком короткий фрагмент.
  */
 function org_vc_protocol_times(mysqli $db, int $eventId): array
 {
@@ -170,7 +170,7 @@ function org_vc_protocol_times(mysqli $db, int $eventId): array
     $prevDid = null;
     foreach ($orderIds as $did) {
         $list = $events[$did] ?? [];
-        $startEvent = null;
+        $revealEvent = null;
         $finishEvent = null;
         $decisionEvent = null;
         $minMs = null;
@@ -178,8 +178,8 @@ function org_vc_protocol_times(mysqli $db, int $eventId): array
             if ($minMs === null || $ev['ms'] < $minMs) {
                 $minMs = $ev['ms'];
             }
-            if ($ev['type'] === 'началоПоединка' && ($startEvent === null || $ev['ms'] < $startEvent)) {
-                $startEvent = $ev['ms'];
+            if ($ev['type'] === 'раскрытиеСитуации' && ($revealEvent === null || $ev['ms'] > $revealEvent)) {
+                $revealEvent = $ev['ms'];
             } elseif ($ev['type'] === 'завершение' && ($finishEvent === null || $ev['ms'] > $finishEvent)) {
                 $finishEvent = $ev['ms'];
             } elseif ($ev['type'] === 'решениеСудей' && ($decisionEvent === null || $ev['ms'] > $decisionEvent)) {
@@ -187,17 +187,20 @@ function org_vc_protocol_times(mysqli $db, int $eventId): array
             }
         }
         $startMs = null;
-        if ($prevDid !== null && $out[$prevDid]['decisionMs'] !== null) {
+        if ($revealEvent !== null) {
+            $startMs = $revealEvent;
+        } elseif ($prevDid !== null && $out[$prevDid]['decisionMs'] !== null) {
             $startMs = $out[$prevDid]['decisionMs'];
-        } elseif ($startEvent !== null) {
-            $startMs = $startEvent;
         } else {
             $startMs = $minMs;
         }
-        $endMs = $finishEvent !== null ? $finishEvent : null;
+        $endMs = $decisionEvent !== null ? $decisionEvent : null;
+        if ($endMs === null) {
+            $endMs = $finishEvent;
+        }
         if ($endMs === null) {
             foreach ($list as $ev) {
-                if ($ev['type'] === 'решениеСудей' || $ev['type'] === 'раскрытиеСитуации') {
+                if ($ev['type'] === 'раскрытиеСитуации') {
                     continue;
                 }
                 if ($endMs === null || $ev['ms'] > $endMs) {
