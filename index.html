@@ -592,8 +592,8 @@
                     <div class="tab-content" id="participantsJudgesTabContent">
                         <div class="tab-pane fade" id="tab-participants" role="tabpanel">
                             <div class="mb-2 d-flex flex-wrap gap-2 align-items-center">
-                                <input type="text" class="form-control form-control-sm" id="participants-new-name" list="participants-people-list" placeholder="ФИО нового участника" style="max-width:240px">
-                                <datalist id="participants-people-list"></datalist>
+                                <input type="text" class="form-control form-control-sm" id="participants-new-name" placeholder="ФИО нового участника" autocomplete="off" style="max-width:240px">
+                                <div id="participants-people-dropdown" class="participants-people-dropdown" role="listbox" aria-label="Подсказки из справочника"></div>
                                 <button type="button" class="btn btn-sm btn-primary" onclick="addParticipantFromModal()">Добавить участника</button>
                                 <span class="small text-muted ms-2" id="participants-filter-hint"></span>
                             </div>

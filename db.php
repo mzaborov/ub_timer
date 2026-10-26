@@ -805,6 +805,46 @@ function dbj_person_create($link) {
         'membership_ok' => $membershipOk
     ));
 }
+function dbj_person_rename($link) {
+    if (dbj_org_configured() && !dbj_is_org()) {
+        dbj_err('org_required', 403);
+    }
+    $raw = file_get_contents('php://input');
+    $in = json_decode($raw, true);
+    if (!is_array($in)) {
+        dbj_err('bad_json', 400);
+    }
+    $pid = isset($in['person_id']) ? (int)$in['person_id'] : 0;
+    $name = isset($in['full_name']) ? trim((string)$in['full_name']) : '';
+    if ($pid < 1) {
+        dbj_err('bad_person', 400);
+    }
+    if ($name === '') {
+        dbj_err('empty_name', 400);
+    }
+    if (function_exists('mb_substr')) {
+        $name = mb_substr($name, 0, 191, 'UTF-8');
+    } else {
+        $name = substr($name, 0, 191);
+    }
+    $key = dbj_name_key($name);
+    $r = mysql_query('SELECT id, full_name FROM people WHERE id <> ' . $pid, $link);
+    if ($r) {
+        while ($row = mysql_fetch_assoc($r)) {
+            if ($key !== '' && dbj_name_key((string)$row['full_name']) === $key) {
+                dbj_err('duplicate_name', 409);
+            }
+        }
+    }
+    $esc = mysql_real_escape_string($name, $link);
+    if (!mysql_query("UPDATE people SET full_name = '" . $esc . "' WHERE id = " . $pid, $link)) {
+        dbj_err('rename_failed', 500);
+    }
+    dbj_out(array(
+        'ok' => true,
+        'person' => array('id' => $pid, 'full_name' => $name)
+    ));
+}
 function dbj_has_column($link, $table, $col) {
     static $cache = array();
     $key = $table . '.' . $col;
@@ -841,6 +881,8 @@ if ($action === 'events') {
     dbj_situations($link);
 } elseif ($action === 'person_create') {
     dbj_person_create($link);
+} elseif ($action === 'person_rename') {
+    dbj_person_rename($link);
 } elseif ($action === 'write') {
     dbj_write($link);
 } elseif ($action === 'org_status') {

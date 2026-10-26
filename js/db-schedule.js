@@ -262,7 +262,7 @@ function applyDatabaseEvent_(payload) {
         people[key] = {
             id: key,
             fullName: p.full_name || "",
-            isActive: p.is_active !== false,
+            isActive: true, // участие в текущем онлайне, не глобальный is_active
             experience: dbScheduleExperience_(p),
             notes: ""
         };

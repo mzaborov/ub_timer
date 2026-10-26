@@ -1150,6 +1150,135 @@ function getSlotCategory(duelIdx, slotKey) {
     return i < 1 ? "hiring" : i < 4 ? "negotiators" : "owners";
 }
 
+/* Автокомплит ФИО из справочника портала: собственный список вместо нативного datalist. */
+var participantsSuggestState_ = { items: [], index: -1 };
+
+function participantsNormQuery_(value) {
+    return String(value || "").toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
+}
+
+function participantsNameMatches_(name, query) {
+    var n = participantsNormQuery_(name);
+    if (!query) return true;
+    var parts = query.split(" ").filter(function (x) { return !!x; });
+    for (var i = 0; i < parts.length; i++) {
+        if (n.indexOf(parts[i]) < 0) return false;
+    }
+    return true;
+}
+
+function hideParticipantsSuggest_() {
+    var box = document.getElementById("participants-people-dropdown");
+    if (box) {
+        box.style.display = "none";
+        box.innerHTML = "";
+    }
+    participantsSuggestState_.items = [];
+    participantsSuggestState_.index = -1;
+}
+
+function renderParticipantsSuggest_(query) {
+    var box = document.getElementById("participants-people-dropdown");
+    var input = document.getElementById("participants-new-name");
+    if (!box || !input) return;
+    var q = participantsNormQuery_(query);
+    var src = (typeof peopleDirectory !== "undefined" && peopleDirectory) ? peopleDirectory : [];
+    var items = [];
+    for (var i = 0; i < src.length && items.length < 12; i++) {
+        var nm = src[i] && (src[i].full_name || src[i].fullName);
+        if (!nm) continue;
+        if (participantsNameMatches_(nm, q)) items.push(String(nm));
+    }
+    if (!items.length) {
+        hideParticipantsSuggest_();
+        return;
+    }
+    participantsSuggestState_.items = items;
+    participantsSuggestState_.index = -1;
+    box.innerHTML = items.map(function (nm, idx) {
+        return '<button type="button" class="participants-people-option" data-idx="' + idx + '">' + escapeHtmlForChooser(nm) + '</button>';
+    }).join("");
+    var rect = input.getBoundingClientRect();
+    if (!rect.width && !rect.height) {
+        hideParticipantsSuggest_();
+        return;
+    }
+    box.style.display = "block";
+    box.style.left = Math.round(rect.left) + "px";
+    box.style.top = Math.round(rect.bottom + 4) + "px";
+    box.style.minWidth = Math.round(rect.width) + "px";
+}
+
+function highlightParticipantsSuggest_() {
+    var box = document.getElementById("participants-people-dropdown");
+    if (!box) return;
+    var btns = box.querySelectorAll(".participants-people-option");
+    for (var i = 0; i < btns.length; i++) {
+        btns[i].classList.toggle("is-active", i === participantsSuggestState_.index);
+    }
+}
+
+function pickParticipantsSuggest_(idx) {
+    var input = document.getElementById("participants-new-name");
+    var items = participantsSuggestState_.items;
+    if (!input || !items || idx < 0 || idx >= items.length) return;
+    input.value = items[idx];
+    hideParticipantsSuggest_();
+    input.focus();
+}
+
+function initParticipantsAutocomplete_() {
+    var input = document.getElementById("participants-new-name");
+    var box = document.getElementById("participants-people-dropdown");
+    if (!input || !box || input._acReady) return;
+    input._acReady = true;
+    input.addEventListener("input", function () { renderParticipantsSuggest_(input.value); });
+    input.addEventListener("focus", function () {
+        if (input.value.trim()) renderParticipantsSuggest_(input.value);
+    });
+    input.addEventListener("keydown", function (ev) {
+        var open = box.style.display === "block";
+        var items = participantsSuggestState_.items || [];
+        if (ev.key === "ArrowDown" && open) {
+            ev.preventDefault();
+            participantsSuggestState_.index = Math.min(items.length - 1, participantsSuggestState_.index + 1);
+            highlightParticipantsSuggest_();
+        } else if (ev.key === "ArrowUp" && open) {
+            ev.preventDefault();
+            participantsSuggestState_.index = Math.max(0, participantsSuggestState_.index - 1);
+            highlightParticipantsSuggest_();
+        } else if (ev.key === "Enter" && open && participantsSuggestState_.index >= 0) {
+            ev.preventDefault();
+            pickParticipantsSuggest_(participantsSuggestState_.index);
+        } else if (ev.key === "Escape" && open) {
+            ev.preventDefault();
+            hideParticipantsSuggest_();
+        }
+    });
+    box.addEventListener("mousedown", function (ev) {
+        ev.preventDefault();
+        var btn = ev.target && ev.target.closest ? ev.target.closest(".participants-people-option") : null;
+        if (!btn) return;
+        pickParticipantsSuggest_(parseInt(btn.getAttribute("data-idx"), 10));
+    });
+    document.addEventListener("click", function (ev) {
+        if (ev.target === input || (box && box.contains(ev.target))) return;
+        hideParticipantsSuggest_();
+    });
+    window.addEventListener("resize", function () {
+        if (box.style.display === "block") renderParticipantsSuggest_(input.value);
+    });
+    document.addEventListener("scroll", function () {
+        if (box.style.display === "block") renderParticipantsSuggest_(input.value);
+    }, true);
+    var modalEl = document.getElementById("participantsJudgesModal");
+    if (modalEl) {
+        modalEl.addEventListener("shown.bs.modal", function () {
+            if (input.value.trim()) renderParticipantsSuggest_(input.value);
+        });
+    }
+}
+
 function renderParticipantsDirectory_() {
     var dl = document.getElementById("participants-people-list");
     if (!dl) return;
@@ -1192,7 +1321,9 @@ function renderParticipantsTab() {
         var played = countTimesPlayed(p.id);
         var seconded = countTimesSeconded(p.id);
         var expVal = p.experience || "none";
-        var statusLabel = p.isActive !== false ? "активен" : "неактивен";
+        var present = p.isActive !== false;
+        var statusLabel = present ? "пришёл" : "не пришёл";
+        var statusTitle = "Участие в этом онлайне: влияет на автоназначение. В справочник не пишется.";
         var tr = document.createElement("tr");
         tr.setAttribute("data-person-id", p.id);
         if (p.isActive === false) tr.classList.add("text-muted");
@@ -1214,9 +1345,10 @@ function renderParticipantsTab() {
         var actions = isLocal
             ? "<button type=\"button\" class=\"btn btn-sm btn-outline-secondary me-1\" title=\"Переименовать\" onclick=\"event.stopPropagation(); renameLocalPerson('" + p.id + "')\">✎</button>" +
               "<button type=\"button\" class=\"btn btn-sm btn-outline-danger\" title=\"Удалить\" onclick=\"event.stopPropagation(); deleteLocalPerson('" + p.id + "')\">×</button>"
-            : "<span class=\"text-muted small\" title=\"Справочник портала\">справочник</span>";
+            : "<button type=\"button\" class=\"btn btn-sm btn-outline-secondary me-1\" title=\"Переименовать в справочнике (для всех мероприятий)\" onclick=\"event.stopPropagation(); renameDirectoryPerson('" + p.id + "')\">✎</button>" +
+              "<a class=\"btn btn-sm btn-outline-secondary\" href=\"https://ciocdo-org-skills.zaborov.ru/?p=org&s=people&person=" + encodeURIComponent(p.id) + "\" target=\"_blank\" rel=\"noopener\" title=\"Открыть карточку в портале\">портал</a>";
         tr.innerHTML = "<td class=\"text-nowrap\">" + (index + 1) + "</td><td>" + (p.fullName || "") + "</td>" +
-            "<td><button type=\"button\" class=\"btn btn-sm btn-outline-secondary\" onclick=\"setPersonActive('" + p.id + "', " + (p.isActive === false ? "true" : "false") + "); renderParticipantsTab();\">" + statusLabel + "</button></td>" +
+            "<td><button type=\"button\" class=\"btn btn-sm " + (present ? "btn-outline-success" : "btn-outline-secondary") + "\" title=\"" + statusTitle + "\" onclick=\"setPersonActive('" + p.id + "', " + (present ? "false" : "true") + "); renderParticipantsTab();\">" + statusLabel + "</button></td>" +
             "<td onclick=\"event.stopPropagation();\">" + expCell + "</td>" +
             "<td>" + judged + "</td><td>" + played + "</td><td>" + seconded + "</td>" +
             "<td class=\"text-nowrap\" onclick=\"event.stopPropagation();\">" + actions + "</td>";
@@ -1237,6 +1369,7 @@ function setPersonExperience(personId, experience) {
 }
 
 function addParticipantFromModal() {
+    if (typeof hideParticipantsSuggest_ === "function") hideParticipantsSuggest_();
     var input = document.getElementById("participants-new-name");
     var name = (input && input.value) ? String(input.value).trim() : "";
     if (!name) {
@@ -1282,12 +1415,12 @@ function addParticipantFromModal() {
                 var full = String(p.full_name || name).trim();
                 if (people[pid]) {
                     people[pid].fullName = full;
-                    people[pid].isActive = p.is_active !== false;
+                    people[pid].isActive = true;
                 } else {
                     people[pid] = {
                         id: pid,
                         fullName: full,
-                        isActive: p.is_active !== false,
+                        isActive: true,
                         experience: "none",
                         notes: ""
                     };
@@ -1318,6 +1451,43 @@ function addParticipantFromModal() {
     if (input) input.value = "";
     saveProtocolStateToLocalStorage();
     renderParticipantsTab();
+}
+
+function renameDirectoryPerson(personId) {
+    if (!personId || String(personId).indexOf("p_") === 0 || !people[personId]) return;
+    var p = people[personId];
+    var oldName = p.fullName || "";
+    var name = prompt("Новое ФИО в справочнике (изменится для всех мероприятий)", oldName);
+    if (name === null) return;
+    name = String(name).trim();
+    if (!name || name === oldName) return;
+    if (!confirm("Переименовать «" + oldName + "» → «" + name + "» во всём справочнике?")) return;
+    postDatabaseJson_("?action=person_rename", { person_id: Number(personId), full_name: name }, "переименование в справочнике")
+        .then(function (data) {
+            var np = data && data.person ? data.person : null;
+            var full = (np && np.full_name) ? String(np.full_name) : name;
+            p.fullName = full;
+            if (typeof peopleDirectory !== "undefined" && peopleDirectory) {
+                for (var i = 0; i < peopleDirectory.length; i++) {
+                    if (String(peopleDirectory[i].id) === String(personId)) peopleDirectory[i].full_name = full;
+                }
+            }
+            if (duelsList) {
+                for (var d = 0; d < duelsList.length; d++) {
+                    var duel = duelsList[d];
+                    if (duel.Player1 === oldName) duel.Player1 = full;
+                    if (duel.Player2 === oldName) duel.Player2 = full;
+                    if (duel.Second1 === oldName) duel.Second1 = full;
+                    if (duel.Second2 === oldName) duel.Second2 = full;
+                }
+            }
+            saveProtocolStateToLocalStorage();
+            renderParticipantsTab();
+            if (typeof renderJudgesLayoutTab === "function") renderJudgesLayoutTab();
+        })
+        .catch(function (err) {
+            alert("Не удалось переименовать:\n" + ((err && err.message) ? err.message : String(err)));
+        });
 }
 
 function renameLocalPerson(personId) {
@@ -1377,11 +1547,17 @@ function openParticipantsJudgesModal() {
     else if (tabParticipants) tabParticipants.click();
     renderParticipantsTab();
     var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    if (typeof initParticipantsAutocomplete_ === "function") initParticipantsAutocomplete_();
     var newNameInput = document.getElementById("participants-new-name");
     if (newNameInput && !newNameInput._enterListener) {
         newNameInput._enterListener = true;
         newNameInput.addEventListener("keydown", function (e) {
-            if (e.key === "Enter") { e.preventDefault(); addParticipantFromModal(); }
+            if (e.key === "Enter") {
+                var box = document.getElementById("participants-people-dropdown");
+                if (box && box.style.display === "block") return;
+                e.preventDefault();
+                addParticipantFromModal();
+            }
         });
     }
     var tabsEl = document.getElementById("participantsJudgesTabs");
@@ -3773,5 +3949,6 @@ function roleChoosed(player) {
     saveProtocolStateToLocalStorage();
     if (typeof dbLogEvent_ === "function") dbLogEvent_("выборРоли", { player: player, role: role });
 }
+
 
 
