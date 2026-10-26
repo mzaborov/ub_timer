@@ -833,6 +833,7 @@
     }
     if (hit && hit.which === 'body') {
       selectDuel(hit.i, false);
+      seekTo(xToT(mx));
       return;
     }
     seekTo(xToT(mx));

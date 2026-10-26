@@ -427,7 +427,7 @@ function org_vc_render(array $ctx, string $error = ''): void
                     <span><i class="org-vc-dot-mark org-vc-dot-mark--guess"></i> расчёт</span>
                     <span><i class="org-vc-dot-mark org-vc-dot-mark--manual"></i> вручную</span>
                     <span><i class="org-vc-dot-mark org-vc-dot-mark--warn"></i> требует проверки</span>
-                    <span class="org-vc-tl-hint">Колесо — зум, края блоков — границы, клик — перемотка</span>
+                    <span class="org-vc-tl-hint">Колесо — зум, края блоков — границы, клик по блоку — выбор и перемотка</span>
                 </div>
             </section>
         </div>
