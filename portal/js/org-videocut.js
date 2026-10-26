@@ -799,7 +799,7 @@
     renderListValues();
   }
 
-  function renderListValues(force) {
+  function renderListValues(force, noThumbs) {
     if (!el.list) return;
     var cards = el.list.querySelectorAll('.org-vc-duel');
     var warnings = warnSet();
@@ -838,7 +838,7 @@
       if (chk) chk.checked = !!d.include;
       applyFilter(card, d);
     });
-    queueThumbs();
+    if (!noThumbs) queueThumbs();
     updateCount();
   }
 
@@ -1031,6 +1031,7 @@
   function previewBoundaryOnMain(i, which) {
     var d = state.duels[i];
     if (!d || !state.hasFile || !el.video) return;
+    window.clearTimeout(previewTimer);
     var canvas = null;
     if (el.list) {
       var card = el.list.querySelector('.org-vc-duel[data-i="' + i + '"]');
@@ -1266,10 +1267,9 @@
     if (!d || !state.hasFile) return;
     if (!el.video.paused) el.video.pause();
     var t = snapLeftFrame(el.video.currentTime || 0);
-    setBoundary(i, 'start', t);
-    var actual = dispStart(d);
     selectDuel(i, false);
-    seekTo(actual);
+    setBoundary(i, 'start', t);
+    seekTo(dispStart(d));
   }
 
   function markStartAtPlayhead() {
@@ -1333,7 +1333,7 @@
     }
     d.source = 'manual';
     computeIssues();
-    renderListValues(true);
+    renderListValues(true, true);
     if (i === state.selected) renderSelected();
     previewBoundaryOnMain(i, which);
     scheduleSave();
@@ -1892,7 +1892,7 @@
         if (act === 'seek-start') { setStepEdge(i, 'start'); selectDuel(i, false); seekTo(dispStart(d) + frameEps()); }
         else if (act === 'seek-end') { setStepEdge(i, 'end'); selectDuel(i, false); seekTo(dispEnd(d) - frameEps()); }
         else if (act === 'set-start') { setStepEdge(i, 'start'); setStartAtPlayhead(i); }
-        else if (act === 'set-end') { setStepEdge(i, 'end'); setBoundary(i, 'end', (state.hasFile ? el.video.currentTime : dispEnd(d))); selectDuel(i, false); }
+        else if (act === 'set-end') { setStepEdge(i, 'end'); selectDuel(i, false); setBoundary(i, 'end', (state.hasFile ? el.video.currentTime : dispEnd(d))); }
         else if (act === 'frame-prev') { stepBoundaryFrame(i, -1); }
         else if (act === 'frame-next') { stepBoundaryFrame(i, 1); }
         return;
