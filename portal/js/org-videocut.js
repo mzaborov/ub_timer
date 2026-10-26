@@ -553,8 +553,8 @@
         + (d.video ? '<span class="org-vc-video-mark" title="Видео уже привязано">&#9679;</span>' : '')
         + '</div>'
         + '<div class="org-vc-duel-times">'
-        + '<label class="org-vc-field">Начало <input type="number" step="0.1" data-f="start"></label>'
-        + '<label class="org-vc-field">Конец <input type="number" step="0.1" data-f="end"></label>'
+        + '<label class="org-vc-field">Начало <input type="number" step="0.001" data-f="start"></label>'
+        + '<label class="org-vc-field">Конец <input type="number" step="0.001" data-f="end"></label>'
         + '<span class="org-vc-dur" data-role="dur">—</span>'
         + '</div>'
         + '<div class="org-vc-duel-actions">'
@@ -596,10 +596,10 @@
       }
       if (durEl) durEl.textContent = fmtDur(d.baseEnd - d.baseStart);
       if (startInput && (force || document.activeElement !== startInput)) {
-        startInput.value = round3(dispStart(d)).toFixed(1);
+        startInput.value = round3(dispStart(d)).toFixed(3);
       }
       if (endInput && (force || document.activeElement !== endInput)) {
-        endInput.value = round3(dispEnd(d)).toFixed(1);
+        endInput.value = round3(dispEnd(d)).toFixed(3);
       }
       if (chk) chk.checked = !!d.include;
       applyFilter(card, d);
