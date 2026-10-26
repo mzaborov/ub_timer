@@ -793,7 +793,7 @@
         + '<button type="button" data-act="seek-end" title="Перейти к концу (последний кадр)">конец &#9654;</button>'
         + '<button type="button" data-act="set-start" title="Начало только этого поединка в позиции плеера (по левому полному кадру)">[ в точке</button>'
         + '<button type="button" data-act="set-end" title="Конец в позиции плеера">] в точке</button>'
-        + '<span class="org-vc-step-edge" data-role="step-edge" title="Кнопки «кадр» двигают границу, которую вы редактировали последней">шаг: конец</span>'
+        + '<span class="org-vc-step-edge" data-role="step-edge" title="Кнопки I-кадр двигают границу, которую вы редактировали последней">I-кадр: конец</span>'
         + '<button type="button" data-act="kf-prev" disabled title="Предыдущий ключевой кадр">&#9668; I-кадр</button>'
         + '<button type="button" data-act="kf-next" disabled title="Следующий ключевой кадр">I-кадр &#9658;</button>'
         + '<label class="org-vc-include"><input type="checkbox" data-act="include"> в нарезку</label>'
@@ -832,7 +832,7 @@
       if (durEl) durEl.textContent = fmtDur(d.baseEnd - d.baseStart);
       if (thumbStartT) thumbStartT.textContent = fmtClock(dispStart(d));
       if (thumbEndT) thumbEndT.textContent = fmtClock(dispEnd(d));
-      if (stepEdgeEl) stepEdgeEl.textContent = 'шаг: ' + ((d.stepEdge || 'end') === 'start' ? 'начало' : 'конец');
+      if (stepEdgeEl) stepEdgeEl.textContent = 'I-кадр: ' + ((d.stepEdge || 'end') === 'start' ? 'начало' : 'конец');
       if (startInput && (force || document.activeElement !== startInput)) {
         startInput.value = round3(dispStart(d)).toFixed(3);
       }
@@ -1313,7 +1313,7 @@
     d.stepEdge = edge === 'start' ? 'start' : 'end';
     var card = el.list ? el.list.querySelector('.org-vc-duel[data-i="' + i + '"]') : null;
     var label = card ? card.querySelector('[data-role="step-edge"]') : null;
-    if (label) label.textContent = 'шаг: ' + (d.stepEdge === 'start' ? 'начало' : 'конец');
+    if (label) label.textContent = 'I-кадр: ' + (d.stepEdge === 'start' ? 'начало' : 'конец');
   }
 
   function setStartAtPlayhead(i) {

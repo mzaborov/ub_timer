@@ -658,7 +658,7 @@ if (document.readyState === "loading") {
 <?php if ($page === 'org' && $orgSection === 'videocut') { ?>
 <script src="vendor/jsQR.js?v=1"></script>
 <script src="js/mp4-keyframes.js?v=1"></script>
-<script src="js/org-videocut.js?v=8"></script>
+<script src="js/org-videocut.js?v=9"></script>
 <?php } ?>
 </body>
 </html>
