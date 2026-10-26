@@ -398,7 +398,7 @@ function org_vc_render(array $ctx, string $error = ''): void
                     <div class="org-vc-file-meta" id="org-vc-file-meta">Файл не выбран</div>
                     <button type="button" class="btn-ghost" id="org-vc-clear">Убрать</button>
                 </div>
-                <p class="org-vc-hint">Файл не загружается на сервер: браузер читает его локально. Нарезка пойдёт через локальный ffmpeg-сервис.</p>
+                <p class="org-vc-hint">Файл не загружается на сервер: браузер читает его локально. Нарезка пойдёт через локальный ffmpeg-сервис. Записи Zoom обычно лежат в <code>Документы\Zoom</code> (<code>C:\Users\...\Documents\Zoom</code>).</p>
             </section>
 
             <section class="card org-vc-card org-vc-playercard">
