@@ -1,0 +1,3 @@
+PySide6>=6.10
+requests>=2.31
+mpv>=1.0.8
