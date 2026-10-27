@@ -7,7 +7,7 @@
 
 ## Что умеет
 
-- Список мероприятий и поединков из API портала (`/portal/api/videocut.php`).
+- Список мероприятий и поединков из API портала (`/api/videocut.php`).
 - Автоматические границы по протоколу (`recordingStartMs`, `protoStartMs/EndMs`).
 - Автокалибровка старта записи по последнему решению и длительности видео; кнопка «Автостарт».
 - Горячие клавиши: Space — play/pause, ←/→ — ±1 с (Shift — ±5 с), [ и ] — шаг по I-кадрам, Ctrl+O — видео, Ctrl+J — JSON.
@@ -49,9 +49,9 @@ python main.py
 
 ## API
 
-`GET /portal/api/videocut.php?action=events` — список мероприятий.
+`GET /api/videocut.php?action=events` — список мероприятий.
 
-`GET /portal/api/videocut.php?action=event&id=55` — событие, поединки, времена протокола,
+`GET /api/videocut.php?action=event&id=55` — событие, поединки, времена протокола,
 ссылка на запись дня (`media.mediaUrl`).
 
 Заголовок: `Authorization: Bearer <token>`.

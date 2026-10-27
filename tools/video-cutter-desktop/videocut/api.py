@@ -31,9 +31,7 @@ class PortalClient:
         base = self.base_url.rstrip("/")
         if base.endswith(".php"):
             return base
-        if base.endswith("/portal"):
-            return base + "/api/videocut.php"
-        return base + "/portal/api/videocut.php"
+        return base + "/api/videocut.php"
 
     def _get(self, params: dict[str, Any]) -> dict[str, Any]:
         try:
