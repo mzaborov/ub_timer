@@ -41,11 +41,16 @@ python main.py
 
 - адрес портала (по умолчанию `https://ciocdo-org-skills.zaborov.ru`);
 - токен доступа (сейчас API принимает пароль org-раздела, если отдельный
-  `$videocut_api_token` не задан в `db.inc.php`);
+  `$videocut_api_token` не задан в `db.inc.php`); если токена нет в настройках,
+  приложение берёт `PORTAL_ORG_PASSWORD` из локального `kvault` (сессия должна быть
+  разблокирована) или из env при запуске через `kvault run`;
 - путь к `libmpv-2.dll`, если он не найден автоматически;
 - папку кэша и папку результатов.
 
-Токен хранится в `%APPDATA%\ub-timer-videocut\config.json`.
+Порядок получения токена: `UB_VIDEOCUT_TOKEN`, затем `PORTAL_ORG_PASSWORD` из env
+(при запуске через `kvault run`), затем токен из `config.json`; если там пусто —
+`kvault get PORTAL_ORG_PASSWORD`. Если токен взят из kvault, в файл он не записывается,
+пока вы не сохраните настройки.
 
 ## API
 

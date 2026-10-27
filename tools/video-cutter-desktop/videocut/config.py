@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -17,6 +19,43 @@ def default_cache_dir() -> Path:
 
 def default_output_dir() -> Path:
     return Path.home() / "Documents" / "ub-timer-cuts"
+
+
+def _kvault_script() -> Path | None:
+    candidates: list[Path] = []
+    configured = os.environ.get("KILO_KVAULT_SCRIPT", "").strip()
+    if configured:
+        candidates.append(Path(configured))
+    try:
+        candidates.append(Path(__file__).resolve().parents[4] / ".kilo" / "kvault" / "kvault.py")
+    except IndexError:
+        pass
+    candidates.append(Path(r"C:\Projects\.kilo\kvault\kvault.py"))
+    candidates.append(Path.home() / ".kilo" / "kvault" / "kvault.py")
+    for path in candidates:
+        if path.is_file():
+            return path
+    return None
+
+
+def token_from_kvault() -> str:
+    """Read PORTAL_ORG_PASSWORD from an unlocked local kvault session."""
+    script = _kvault_script()
+    if script is None:
+        return ""
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(script), "get", "PORTAL_ORG_PASSWORD"],
+            capture_output=True,
+            text=True,
+            timeout=8,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    if proc.returncode != 0:
+        return ""
+    return proc.stdout.strip()
 
 
 @dataclass
@@ -47,8 +86,12 @@ class AppConfig:
             except (OSError, ValueError):
                 pass
         env_token = os.environ.get("UB_VIDEOCUT_TOKEN", "").strip()
+        if not env_token:
+            env_token = os.environ.get("PORTAL_ORG_PASSWORD", "").strip()
         if env_token:
             cfg.token = env_token
+        elif not cfg.token:
+            cfg.token = token_from_kvault()
         return cfg
 
     def save(self) -> None:
