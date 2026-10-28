@@ -6,7 +6,7 @@ from pathlib import Path
 
 os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu")
 
-from PySide6.QtCore import QTimer, QUrl
+from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QApplication
 
@@ -17,6 +17,7 @@ def main() -> None:
     url, out = sys.argv[1], Path(sys.argv[2])
     app = QApplication([])
     view = QWebEngineView()
+    view.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
     view.resize(1500, 1200)
     view.show()
     attempts = {"n": 0}
