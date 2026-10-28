@@ -49,7 +49,15 @@ from ..models import Duel, EventState, fmt_clock
 from ..mp4index import read_index
 from ..mpv import MpvError, MpvPlayer
 from ..session import load_session, save_session
-from ..uploader import UploadError, UploadItem, UploadPlan, day_video_title, drive_folder_name, run_upload
+from ..uploader import (
+    UploadError,
+    UploadItem,
+    UploadPlan,
+    cleanup_local,
+    day_video_title,
+    drive_folder_name,
+    run_upload,
+)
 from .timeline import TimelineWidget
 
 
@@ -478,6 +486,13 @@ class MainWindow(QMainWindow):
             "Снимите галочку, чтобы перекодировать весь фрагмент (медленно, максимальная точность)."
         )
         cut_layout.addWidget(self.chk_fast)
+        self.chk_cleanup = QCheckBox("Удалить локальные нарезки и исходник после заливки")
+        self.chk_cleanup.setChecked(bool(self.cfg.cleanup_after_upload))
+        self.chk_cleanup.setToolTip(
+            "Файлы удаляются только после проверки, что все они есть в Google Drive "
+            "и совпадают по размеру. Удаление — в корзину Windows."
+        )
+        cut_layout.addWidget(self.chk_cleanup)
         cut_actions = QHBoxLayout()
         self.btn_cut = self._button("Нарезать выбранные", self._start_cut)
         self.btn_upload = self._button("Залить видео…", self._start_upload)
@@ -1525,6 +1540,7 @@ class MainWindow(QMainWindow):
             portal_url=self.cfg.api_base.rstrip("/") + "/?p=events",
             tg_chat_id=int(self.cfg.tg_chat_id),
             tg_topic_id=int(self.cfg.tg_topic_id),
+            cleanup_local=self.chk_cleanup.isChecked(),
         )
         answer = QMessageBox.question(
             self,
@@ -1533,8 +1549,14 @@ class MainWindow(QMainWindow):
             f"Папка: {folder_name}\n"
             f"Файлов: {len(items)}, {total_mb:.0f} МБ\n"
             "Портал: ссылки на поединки и полную запись\n"
-            "Telegram: я-ИТ-ы. Стрим развития Управленческих навыков / General\n\n"
-            "При первом запуске откроется браузер для доступа к Drive (аккаунт mzaborov@ciocdo.ru).",
+            "Telegram: я-ИТ-ы. Стрим развития Управленческих навыков / General\n"
+            + (
+                "После успешной заливки локальные нарезки и исходник будут удалены "
+                "(только если все файлы подтверждены в облаке).\n"
+                if self.chk_cleanup.isChecked()
+                else ""
+            )
+            + "\nПри первом запуске откроется браузер для доступа к Drive (аккаунт mzaborov@ciocdo.ru).",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -1556,8 +1578,25 @@ class MainWindow(QMainWindow):
             self.btn_cut.setEnabled(True)
             self.btn_upload.setEnabled(True)
             self.progress.setValue(1000)
+            cleaned: list[str] = []
+            cleanup_error = ""
+            if plan.cleanup_local and result.verified:
+                try:
+                    self.player.close()
+                    cleaned = cleanup_local(
+                        [item.path for item in plan.items],
+                        keep_dirs=[Path(self.cfg.output_dir)],
+                    )
+                except Exception as exc:
+                    cleanup_error = str(exc)
+            suffix = ""
+            if cleaned:
+                suffix = f"\nЛокальные файлы удалены: {len(cleaned)}."
+            if cleanup_error:
+                suffix = f"\nНе удалось удалить локальные файлы: {cleanup_error}"
             self.lbl_cut.setText(
                 f"Готово: {len(result.files)} файл(ов), ссылки на портале, Telegram отправлен"
+                + ("; локальные удалены" if cleaned else "")
             )
             QApplication.clipboard().setText(result.folder_url)
             self._status("Видео загружены")
@@ -1565,8 +1604,9 @@ class MainWindow(QMainWindow):
                 self,
                 "Заливка видео",
                 f"Готово: {len(result.files)} файл(ов)\n"
-                f"Ссылка на папку скопирована:\n{result.folder_url}\n\n"
-                f"Скриншот: {result.screenshot}",
+                f"Ссылка на папку скопирована:\n{result.folder_url}\n"
+                f"Скриншот: {result.screenshot}"
+                + suffix,
             )
 
         def failed(text: str) -> None:

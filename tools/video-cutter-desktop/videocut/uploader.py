@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import ctypes
 import re
 import subprocess
 import sys
 import tempfile
+from ctypes import wintypes
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -51,6 +53,7 @@ class UploadPlan:
     portal_url: str = ""
     tg_chat_id: int = 0
     tg_topic_id: int = 0
+    cleanup_local: bool = False
 
 
 @dataclass
@@ -60,6 +63,7 @@ class UploadResult:
     published: int = 0
     screenshot: str = ""
     telegram_sent: bool = False
+    verified: bool = False
 
 
 def _total_bytes(items: list[UploadItem]) -> int:
@@ -128,6 +132,68 @@ def _send_telegram(cfg: AppConfig, plan: UploadPlan, text: str, photo: Path) -> 
         raise UploadError(f"Telegram не отправил сообщение: {detail}")
 
 
+class _SHFILEOPSTRUCTW(ctypes.Structure):
+    _fields_ = [
+        ("hwnd", wintypes.HWND),
+        ("wFunc", wintypes.UINT),
+        ("pFrom", wintypes.LPCWSTR),
+        ("pTo", wintypes.LPCWSTR),
+        ("fFlags", ctypes.c_uint16),
+        ("fAnyOperationsAborted", wintypes.BOOL),
+        ("hNameMappings", ctypes.c_void_p),
+        ("lpszProgressTitle", wintypes.LPCWSTR),
+    ]
+
+
+def _recycle(path: Path) -> None:
+    if not path.exists():
+        return
+    op = _SHFILEOPSTRUCTW()
+    op.wFunc = 3
+    op.pFrom = str(path.resolve()) + "\0\0"
+    op.fFlags = 0x0040 | 0x0010 | 0x0004
+    result = ctypes.windll.shell32.SHFileOperationW(ctypes.byref(op))
+    if result != 0 or op.fAnyOperationsAborted:
+        raise UploadError(f"Не удалось удалить {path.name} (код {result})")
+
+
+def verify_uploads(svc, files: list[dict], items: list[UploadItem]) -> None:
+    if len(files) != len(items):
+        raise UploadError("Число файлов в облаке не совпадает с локальным списком")
+    for item, info in zip(items, files):
+        meta = (
+            svc.files()
+            .get(
+                fileId=str(info["id"]),
+                fields="id,name,size,trashed",
+                supportsAllDrives=True,
+            )
+            .execute()
+        )
+        expected = item.path.stat().st_size
+        if meta.get("trashed") or int(meta.get("size") or 0) != expected:
+            raise UploadError(
+                f"Файл {item.path.name} в облаке не совпадает по размеру"
+            )
+
+
+def cleanup_local(paths: list[Path], keep_dirs: list[Path] | None = None) -> list[str]:
+    keep = {Path(p).resolve() for p in (keep_dirs or [])}
+    removed: list[str] = []
+    for path in paths:
+        if not path.is_file():
+            continue
+        _recycle(path)
+        removed.append(str(path))
+        parent = path.parent.resolve()
+        if parent not in keep:
+            try:
+                parent.rmdir()
+            except OSError:
+                pass
+    return removed
+
+
 def run_upload(cfg: AppConfig, plan: UploadPlan, progress: Progress | None = None) -> UploadResult:
     if not plan.items:
         raise UploadError("Нет файлов для загрузки")
@@ -151,6 +217,10 @@ def run_upload(cfg: AppConfig, plan: UploadPlan, progress: Progress | None = Non
         raise UploadError(str(exc)) from exc
     folder_id = str(folder.get("id") or "")
     folder_url = gdrive.folder_link(folder_id)
+    try:
+        gdrive._share(svc, folder_id)
+    except gdrive.GDriveError as exc:
+        raise UploadError(f"Не удалось открыть папку по ссылке: {exc}") from exc
     files: list[dict] = []
 
     for index, item in enumerate(plan.items, 1):
@@ -169,7 +239,7 @@ def run_upload(cfg: AppConfig, plan: UploadPlan, progress: Progress | None = Non
 
         _notify(progress, "upload", done / total, f"{index}/{len(plan.items)} {item.path.name}")
         try:
-            info = gdrive.upload_file(svc, folder_id, item.path, on_file)
+            info = gdrive.upload_file(svc, folder_id, item.path, on_file, name=item.title or item.path.name)
         except gdrive.GDriveError as exc:
             raise UploadError(f"{item.path.name}: {exc}") from exc
         info["kind"] = item.kind
@@ -217,6 +287,14 @@ def run_upload(cfg: AppConfig, plan: UploadPlan, progress: Progress | None = Non
             f"Ссылки опубликованы, но Telegram не отправил сообщение: {exc}\n"
             f"Папка Drive: {folder_url}"
         ) from exc
+    _notify(progress, "verify", 0.99, "Проверяю файлы в облаке…")
+    try:
+        verify_uploads(svc, files, plan.items)
+    except Exception as exc:
+        raise UploadError(
+            f"Ссылки опубликованы и Telegram отправлен, но проверка файлов в облаке не прошла: {exc}\n"
+            f"Локальные файлы не удалены. Папка Drive: {folder_url}"
+        ) from exc
     _notify(progress, "done", 1.0, "Готово")
     return UploadResult(
         folder_url=folder_url,
@@ -224,4 +302,5 @@ def run_upload(cfg: AppConfig, plan: UploadPlan, progress: Progress | None = Non
         published=published,
         screenshot=str(shot),
         telegram_sent=True,
+        verified=True,
     )

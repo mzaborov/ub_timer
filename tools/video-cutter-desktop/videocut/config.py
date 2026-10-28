@@ -77,6 +77,7 @@ class AppConfig:
     tg_chat_id: int = -1001568380062
     tg_topic_id: int = 1
     tg_python: str = r"C:\Projects\.kilo\tools\telegram-mcp\.venv\Scripts\python.exe"
+    cleanup_after_upload: bool = True
 
     @classmethod
     def load(cls) -> "AppConfig":

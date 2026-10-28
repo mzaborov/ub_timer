@@ -167,23 +167,30 @@ def _share(svc, file_id: str) -> None:
         ) from exc
 
 
-def upload_file(svc, folder_id: str, path: Path, progress: Progress | None = None) -> dict:
+def upload_file(
+    svc,
+    folder_id: str,
+    path: Path,
+    progress: Progress | None = None,
+    name: str | None = None,
+) -> dict:
     if not path.is_file():
         raise GDriveError(f"Нет файла: {path}")
+    target_name = (name or path.name).strip() or path.name
     media = _upload_media(path, progress)
-    existing = _list_children(svc, folder_id, path.name)
+    existing = _list_children(svc, folder_id, target_name)
     if existing:
         file_id = str(existing[0]["id"])
         request = svc.files().update(
             fileId=file_id,
-            body={"name": path.name},
+            body={"name": target_name},
             media_body=media,
             fields="id,name,size,webViewLink",
             supportsAllDrives=True,
         )
     else:
         request = svc.files().create(
-            body={"name": path.name, "parents": [folder_id]},
+            body={"name": target_name, "parents": [folder_id]},
             media_body=media,
             fields="id,name,size,webViewLink",
             supportsAllDrives=True,
@@ -197,14 +204,14 @@ def upload_file(svc, folder_id: str, path: Path, progress: Progress | None = Non
         progress(1.0)
     file_id = str(response.get("id") or "")
     if not file_id:
-        raise GDriveError(f"Google Drive не вернул id для {path.name}")
+        raise GDriveError(f"Google Drive не вернул id для {target_name}")
     _share(svc, file_id)
     link = str(response.get("webViewLink") or "")
     if not link:
         link = f"https://drive.google.com/file/d/{file_id}/view"
     return {
         "id": file_id,
-        "name": path.name,
+        "name": target_name,
         "size": int(response.get("size") or path.stat().st_size),
         "url": link,
     }
