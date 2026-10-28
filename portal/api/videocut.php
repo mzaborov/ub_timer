@@ -46,7 +46,16 @@ if ($expected === '' || $given === '' || !hash_equals($expected, $given)) {
     api_fail(401, 'Неверный или отсутствующий токен');
 }
 
-$action = strtolower(trim((string)($_GET['action'] ?? 'events')));
+$raw_body = file_get_contents('php://input');
+$json_body = [];
+if (is_string($raw_body) && trim($raw_body) !== '') {
+    $decoded = json_decode($raw_body, true);
+    if (is_array($decoded)) {
+        $json_body = $decoded;
+    }
+}
+$input = $json_body ?: $_POST;
+$action = strtolower(trim((string)($input['action'] ?? $_GET['action'] ?? 'events')));
 
 if ($action === 'health') {
     api_ok([
@@ -92,6 +101,22 @@ try {
             unset($payload['dayVideo']['url']);
         }
         api_ok($payload);
+    }
+
+    if ($action === 'publish') {
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            api_fail(405, 'Нужен POST');
+        }
+        $kind = strtolower(trim((string)($input['kind'] ?? 'duel')));
+        if ($kind === 'day') {
+            $result = org_vc_publish_day_video($db, $input);
+        } else {
+            $result = org_vc_publish_video($db, $input);
+        }
+        if (isset($result['error'])) {
+            api_fail(400, (string)$result['error']);
+        }
+        api_ok($result);
     }
 
     api_fail(400, 'Неизвестное действие');

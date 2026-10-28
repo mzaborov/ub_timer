@@ -1,3 +1,4 @@
-PySide6>=6.10
+PySide6>=6.12
 requests>=2.31
-mpv>=1.0.8
+google-api-python-client>=2.100
+google-auth-oauthlib>=1.2

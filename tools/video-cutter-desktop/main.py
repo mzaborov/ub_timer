@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 
 from PySide6.QtWidgets import QApplication
@@ -12,7 +13,10 @@ def main() -> int:
     app.setApplicationName("UB Timer Videocut")
     app.setOrganizationName("ub-timer")
     window = MainWindow()
-    window.show()
+    if os.environ.get("UB_START_MINIMIZED", "").strip().lower() in {"1", "true", "yes", "on"}:
+        window.showMinimized()
+    else:
+        window.show()
     return app.exec()
 
 

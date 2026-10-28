@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import bisect
 import re
+import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable
@@ -46,6 +49,8 @@ def _run_ffmpeg(
         "-hide_banner",
         "-loglevel",
         "error",
+        "-nostdin",
+        "-y",
         "-nostats",
         "-progress",
         "pipe:1",
@@ -83,23 +88,57 @@ def _run_ffmpeg(
         raise RuntimeError(err or f"ffmpeg завершился с кодом {proc.returncode}")
 
 
-def cut_one(
-    job: CutJob,
-    ffmpeg: str = "ffmpeg",
-    crf: int = 20,
-    preset: str = "medium",
-    progress: ProgressCallback | None = None,
-) -> Path:
-    duration = max(0.0, job.end - job.start)
-    if duration <= 0.05:
-        raise ValueError("Пустой фрагмент")
-    job.output.parent.mkdir(parents=True, exist_ok=True)
+def _ffmpeg_base() -> list[str]:
+    return ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
+
+
+def _copy_fragment(
+    source: Path,
+    output: Path,
+    start: float,
+    end: float,
+    ffmpeg: str,
+    progress: ProgressCallback | None,
+) -> None:
+    duration = max(0.0, end - start)
     args = [
-        "-y",
         "-ss",
-        f"{job.start:.3f}",
+        f"{start:.3f}",
         "-i",
-        str(job.source),
+        str(source),
+        "-t",
+        f"{duration:.3f}",
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a?",
+        "-c",
+        "copy",
+        "-avoid_negative_ts",
+        "make_zero",
+        "-movflags",
+        "+faststart",
+        str(output),
+    ]
+    _run_ffmpeg(ffmpeg, args, duration, progress)
+
+
+def _encode_fragment(
+    source: Path,
+    output: Path,
+    start: float,
+    end: float,
+    ffmpeg: str,
+    crf: int,
+    preset: str,
+    progress: ProgressCallback | None,
+) -> None:
+    duration = max(0.0, end - start)
+    args = [
+        "-ss",
+        f"{start:.3f}",
+        "-i",
+        str(source),
         "-t",
         f"{duration:.3f}",
         "-map",
@@ -120,8 +159,183 @@ def cut_one(
         "160k",
         "-movflags",
         "+faststart",
-        str(job.output),
+        str(output),
     ]
+    _run_ffmpeg(ffmpeg, args, duration, progress)
+
+
+def _smart_cut(
+    job: CutJob,
+    ffmpeg: str,
+    crf: int,
+    preset: str,
+    keyframes: list[float] | None,
+    progress: ProgressCallback | None,
+) -> Path:
+    duration = max(0.0, job.end - job.start)
+    keyframes = keyframes if keyframes is not None else read_index(job.source).keyframes
+    pos = bisect.bisect_left(keyframes, job.start - 0.001)
+    on_key = pos < len(keyframes) and abs(keyframes[pos] - job.start) <= 0.05
+    if on_key:
+        _copy_fragment(job.source, job.output, job.start, job.end, ffmpeg, progress)
+        return job.output
+    next_key = keyframes[pos] if pos < len(keyframes) else None
+    if next_key is None or next_key >= job.end - 0.02 or next_key - job.start <= 0.05:
+        _encode_fragment(job.source, job.output, job.start, job.end, ffmpeg, crf, preset, progress)
+        return job.output
+
+    parts = Path(tempfile.mkdtemp(prefix="ub-cut-", dir=str(job.output.parent)))
+    head = parts / "head.ts"
+    tail = parts / "tail.ts"
+    listing = parts / "list.txt"
+    try:
+        def head_progress(frac: float, msg: str) -> None:
+            if progress:
+                progress(frac * 0.3, "умная нарезка: начало")
+
+        def tail_progress(frac: float, msg: str) -> None:
+            if progress:
+                progress(0.3 + frac * 0.55, "умная нарезка: копия")
+
+        head_args = [
+            "-ss",
+            f"{job.start:.3f}",
+            "-i",
+            str(job.source),
+            "-t",
+            f"{next_key - job.start:.3f}",
+            "-map",
+            "0:v:0",
+            "-map",
+            "0:a?",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "18",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "160k",
+            "-f",
+            "mpegts",
+            str(head),
+        ]
+        _run_ffmpeg(ffmpeg, head_args, next_key - job.start, head_progress)
+
+        tail_args = [
+            "-ss",
+            f"{next_key:.3f}",
+            "-i",
+            str(job.source),
+            "-t",
+            f"{job.end - next_key:.3f}",
+            "-map",
+            "0:v:0",
+            "-map",
+            "0:a?",
+            "-c:v",
+            "copy",
+            "-c:a",
+            "copy",
+            "-f",
+            "mpegts",
+            str(tail),
+        ]
+        try:
+            _run_ffmpeg(ffmpeg, tail_args, job.end - next_key, tail_progress)
+        except RuntimeError:
+            for index, value in enumerate(tail_args):
+                if value == "copy" and index > 0 and tail_args[index - 1] == "-c:a":
+                    tail_args[index] = "aac"
+                    tail_args[index + 1:index + 1] = ["-b:a", "160k"]
+                    break
+            _run_ffmpeg(ffmpeg, tail_args, job.end - next_key, tail_progress)
+
+        listing.write_text(
+            "file '" + str(head).replace("'", "'\\''") + "'\n"
+            "file '" + str(tail).replace("'", "'\\''") + "'\n",
+            encoding="utf-8",
+        )
+        concat_args = [
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(listing),
+            "-c",
+            "copy",
+            "-movflags",
+            "+faststart",
+            str(job.output),
+        ]
+        _run_ffmpeg(ffmpeg, concat_args, 1.0, lambda frac, msg: progress(0.85 + frac * 0.15, "сборка") if progress else None)
+    finally:
+        shutil.rmtree(parts, ignore_errors=True)
+    return job.output
+
+
+def cut_one(
+    job: CutJob,
+    ffmpeg: str = "ffmpeg",
+    crf: int = 20,
+    preset: str = "medium",
+    copy_streams: bool = False,
+    smart: bool = False,
+    keyframes: list[float] | None = None,
+    progress: ProgressCallback | None = None,
+) -> Path:
+    duration = max(0.0, job.end - job.start)
+    if duration <= 0.05:
+        raise ValueError("Пустой фрагмент")
+    job.output.parent.mkdir(parents=True, exist_ok=True)
+    if smart:
+        return _smart_cut(job, ffmpeg, crf, preset, keyframes, progress)
+    args = [
+        "-y",
+        "-ss",
+        f"{job.start:.3f}",
+        "-i",
+        str(job.source),
+        "-t",
+        f"{duration:.3f}",
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a?",
+    ]
+    if copy_streams:
+        args += [
+            "-c",
+            "copy",
+            "-avoid_negative_ts",
+            "make_zero",
+            "-movflags",
+            "+faststart",
+            str(job.output),
+        ]
+    else:
+        args += [
+            "-c:v",
+            "libx264",
+            "-preset",
+            preset,
+            "-crf",
+            str(int(crf)),
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "160k",
+            "-movflags",
+            "+faststart",
+            str(job.output),
+        ]
     _run_ffmpeg(ffmpeg, args, duration, progress)
     return job.output
 
@@ -131,6 +345,9 @@ def cut_many(
     ffmpeg: str = "ffmpeg",
     crf: int = 20,
     preset: str = "medium",
+    copy_streams: bool = False,
+    smart: bool = False,
+    keyframes: list[float] | None = None,
     progress: Callable[[int, int, float, Path], None] | None = None,
 ) -> list[Path]:
     jobs = list(jobs)
@@ -140,7 +357,16 @@ def cut_many(
             if progress:
                 progress(idx, len(jobs), frac, job.output)
 
-        cut_one(job, ffmpeg=ffmpeg, crf=crf, preset=preset, progress=on_progress)
+        cut_one(
+            job,
+            ffmpeg=ffmpeg,
+            crf=crf,
+            preset=preset,
+            copy_streams=copy_streams,
+            smart=smart,
+            keyframes=keyframes,
+            progress=on_progress,
+        )
         out.append(job.output)
     return out
 

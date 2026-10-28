@@ -73,6 +73,10 @@ class AppConfig:
     tail_sec: float = 5.0
     gap_sec: float = 2.0
     template: str = "{дата}_{мероприятие}_{номер}_{игрок1}_vs_{игрок2}.mp4"
+    gdrive_parent_id: str = "16IBd36gvDe3tGQk8urKPKk55yQrn9JCE"
+    tg_chat_id: int = -1001568380062
+    tg_topic_id: int = 1
+    tg_python: str = r"C:\Projects\.kilo\tools\telegram-mcp\.venv\Scripts\python.exe"
 
     @classmethod
     def load(cls) -> "AppConfig":

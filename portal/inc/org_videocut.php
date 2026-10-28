@@ -373,6 +373,79 @@ function org_vc_publish_video(mysqli $db, array $in): array
     return ['ok' => true, 'id' => $id, 'updated' => false];
 }
 
+/**
+ * AJAX/API: сохранить ссылку на полную запись дня (videos.duel_id = NULL).
+ */
+function org_vc_publish_day_video(mysqli $db, array $in): array
+{
+    $eventId = (int)($in['event_id'] ?? 0);
+    $url = trim((string)($in['url'] ?? ''));
+    $title = trim((string)($in['title'] ?? ''));
+    if ($eventId <= 0) {
+        return ['error' => 'Не указано мероприятие'];
+    }
+    if ($url === '') {
+        return ['error' => 'Пустая ссылка на видео'];
+    }
+    if (!preg_match('#^https?://#i', $url) && !preg_match('#^/#', $url)) {
+        return ['error' => 'Ссылка должна начинаться с http(s):// или /'];
+    }
+    if (mb_strlen($url) > 1024) {
+        return ['error' => 'Слишком длинная ссылка'];
+    }
+    if ($title === '') {
+        $title = 'Запись дня';
+    }
+    if (mb_strlen($title) > 255) {
+        $title = mb_substr($title, 0, 255);
+    }
+    $st = $db->prepare('SELECT starts_on FROM events WHERE id = ? LIMIT 1');
+    $st->bind_param('i', $eventId);
+    $st->execute();
+    $ev = $st->get_result()->fetch_assoc();
+    $st->close();
+    if (!$ev) {
+        return ['error' => 'Мероприятие не найдено'];
+    }
+    $date = (string)($ev['starts_on'] ?? '');
+    $videoDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) ? $date : null;
+
+    $type = 'ДеньЦеликом';
+    $st = $db->prepare(
+        "SELECT id FROM videos
+         WHERE event_id = ? AND duel_id IS NULL AND video_type = ?
+         ORDER BY id ASC LIMIT 1"
+    );
+    $st->bind_param('is', $eventId, $type);
+    $st->execute();
+    $existing = $st->get_result()->fetch_assoc();
+    $st->close();
+    if ($existing) {
+        $id = (int)$existing['id'];
+        $st = $db->prepare(
+            'UPDATE videos SET url = ?, title = ?, video_date = ?, video_type = ?
+             WHERE id = ?'
+        );
+        $st->bind_param('ssssi', $url, $title, $videoDate, $type, $id);
+        $st->execute();
+        $st->close();
+        return ['ok' => true, 'id' => $id, 'updated' => true];
+    }
+
+    $st = $db->prepare(
+        'INSERT INTO videos (event_id, duel_id, url, video_date, title, video_type)
+         VALUES (?, NULL, ?, ?, ?, ?)'
+    );
+    $st->bind_param('issss', $eventId, $url, $videoDate, $title, $type);
+    $st->execute();
+    $id = (int)$db->insert_id;
+    $st->close();
+    if ($id < 1) {
+        return ['error' => 'Не удалось создать запись видео'];
+    }
+    return ['ok' => true, 'id' => $id, 'updated' => false];
+}
+
 function org_vc_handle_post(mysqli $db): array
 {
     if (!portal_csrf_ok((string)($_POST['csrf'] ?? ''))) {
