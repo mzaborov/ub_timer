@@ -159,6 +159,8 @@ def _share(svc, file_id: str) -> None:
             supportsAllDrives=True,
         ).execute()
     except HttpError as exc:
+        if getattr(exc.resp, "status", 0) == 409:
+            return
         raise GDriveError(
             "Файл загружен, но не удалось открыть доступ по ссылке. "
             "Проверьте права администратора Google Workspace."
