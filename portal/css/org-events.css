@@ -778,6 +778,38 @@ body.page-org a.org-export-btn:hover {
   padding: 0.22rem 0.4rem;
   background: #fff;
 }
+.org-reg-add-new {
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px dashed var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.55rem;
+}
+.org-reg-add-new-name {
+  flex: 1 1 12rem;
+  min-width: 9rem;
+}
+.org-reg-add-new-roles {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.55rem;
+  font-size: 0.8rem;
+}
+.org-reg-add-new-roles label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  white-space: nowrap;
+}
+.org-reg-add-new-type select {
+  max-width: 7.5rem;
+}
+.org-reg-add-new-btn {
+  margin-left: auto;
+}
 .org-to-reg { font-size: 0.78rem; padding: 0.05rem 0.35rem; margin-left: 0.2rem; }
 .org-rec {
   display: block;

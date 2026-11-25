@@ -708,6 +708,31 @@
   }
   bindRegEdit();
 
+  function bindRegAddNew() {
+    document.querySelectorAll('#org-reg-add-form').forEach(function (form) {
+      var btn = form.querySelector('.org-reg-add-new-btn');
+      if (!btn) {
+        return;
+      }
+      btn.addEventListener('click', function () {
+        var comboWrap = form.querySelector('.org-combo[data-combo="reg-add"]');
+        var pidEl = comboWrap ? comboWrap.querySelector('input[type="hidden"]') : null;
+        var comboInput = comboWrap ? comboWrap.querySelector('input[type="text"]') : null;
+        var nameEl = form.querySelector('input[name="full_name"]');
+        if (!pidEl || !comboInput || !nameEl) {
+          return;
+        }
+        if (parseInt(pidEl.value, 10) > 0) {
+          return; // выбран существующий человек — он и добавится
+        }
+        if (!nameEl.value.trim() && comboInput.value.trim()) {
+          nameEl.value = comboInput.value.trim();
+        }
+      });
+    });
+  }
+  bindRegAddNew();
+
   function bindRegTypePref() {
     document.querySelectorAll('.org-reg-edit-form').forEach(function (form) {
       var play = form.querySelector('input[name="wants_play"]');

@@ -2324,18 +2324,61 @@ function org_reg_add(mysqli $db): array
     $eid = (int)($_POST['event_id'] ?? 0);
     $pid = (int)($_POST['person_id'] ?? 0);
     $ev = org_event_load($db, $eid);
-    if (!$ev || !org_event_can_manage_regs($ev) || $pid <= 0) {
+    if (!$ev || !org_event_can_manage_regs($ev)) {
         return ['error' => 'Нельзя добавить заявку'];
     }
-    $st = $db->prepare(
-        'SELECT id, full_name, email, telegram FROM people WHERE id = ? AND is_active = 1'
-    );
-    $st->bind_param('i', $pid);
-    $st->execute();
-    $person = $st->get_result()->fetch_assoc();
-    $st->close();
-    if (!$person) {
-        return ['error' => 'Человек не найден'];
+    $person = null;
+    $created = false;
+    if ($pid > 0) {
+        $st = $db->prepare(
+            'SELECT id, full_name, email, telegram FROM people WHERE id = ? AND is_active = 1'
+        );
+        $st->bind_param('i', $pid);
+        $st->execute();
+        $person = $st->get_result()->fetch_assoc();
+        $st->close();
+        if (!$person) {
+            return ['error' => 'Человек не найден'];
+        }
+    } else {
+        $name = portal_field_norm((string)($_POST['full_name'] ?? ''));
+        if ($name === '') {
+            return ['error' => 'Введите ФИО нового человека'];
+        }
+        // Не плодим дубли: совпадение по набору слов ФИО. Если нашли — добавляем
+        // заявку существующему, иначе создаём карточку человека.
+        $existsId = 0;
+        $key = portal_name_key($name);
+        $r = $db->query('SELECT id, full_name FROM people WHERE is_active = 1');
+        if ($r) {
+            while ($row = $r->fetch_assoc()) {
+                if ($key !== '' && portal_name_key((string)$row['full_name']) === $key) {
+                    $existsId = (int)$row['id'];
+                    break;
+                }
+            }
+        }
+        if ($existsId > 0) {
+            $pid = $existsId;
+            $st = $db->prepare(
+                'SELECT id, full_name, email, telegram FROM people WHERE id = ?'
+            );
+            $st->bind_param('i', $pid);
+            $st->execute();
+            $person = $st->get_result()->fetch_assoc();
+            $st->close();
+        } else {
+            $signup = portal_signup_person($db, $name, '', '');
+            if (!empty($signup['error'])) {
+                return ['error' => (string)$signup['error']];
+            }
+            $pid = (int)($signup['person_id'] ?? 0);
+            if ($pid < 1) {
+                return ['error' => 'Не удалось создать карточку'];
+            }
+            $created = true;
+            $person = ['full_name' => $name, 'email' => '', 'telegram' => ''];
+        }
     }
     $chk = $db->prepare(
         'SELECT id FROM meeting_registrations WHERE event_id = ? AND person_id = ? LIMIT 1'
@@ -2351,12 +2394,18 @@ function org_reg_add(mysqli $db): array
     $name = (string)$person['full_name'];
     $email = trim((string)($person['email'] ?? ''));
     $telegram = trim((string)($person['telegram'] ?? ''));
-    $play = 1;
-    $judge = 0;
-    $second = 0;
+    if ($created) {
+        $play = !empty($_POST['wants_play']) ? 1 : 0;
+        $judge = !empty($_POST['wants_judge']) ? 1 : 0;
+        $second = !empty($_POST['wants_second']) ? 1 : 0;
+    } else {
+        $play = 1;
+        $judge = 0;
+        $second = 0;
+    }
     $duelTypePref = org_norm_duel_type_pref((string)($_POST['duel_type_pref'] ?? ''));
     $comment = trim((string)($_POST['comment'] ?? ''));
-    $source = 'manual';
+    $source = $created ? 'manual_new' : 'manual';
     $ins = $db->prepare(
         'INSERT INTO meeting_registrations
          (event_id, person_id, full_name, email, telegram,
@@ -2379,7 +2428,7 @@ function org_reg_add(mysqli $db): array
     );
     $ins->execute();
     $ins->close();
-    $_SESSION['org_flash'] = 'Добавлен в заявки';
+    $_SESSION['org_flash'] = $created ? 'Добавлен в заявки (новый человек)' : 'Добавлен в заявки';
     return ['redirect' => org_event_url($eid) . '#regs'];
 }
 
@@ -2751,6 +2800,37 @@ function org_echo_reg_add_form(int $eventId, int $pid): void
     echo '<input type="hidden" name="action" value="org_reg_add">';
     echo '<input type="hidden" name="event_id" value="' . $eventId . '">';
     echo '<input type="hidden" name="person_id" value="' . $pid . '">';
+    echo '</form>';
+}
+
+/**
+ * Форма добавления в заявки: автодополнение по списку существующих людей и
+ * ручной ввод ФИО нового человека (карточка создаётся в org_reg_add).
+ */
+function org_echo_reg_add_block(int $eventId, bool $withRoles): void
+{
+    echo '<form method="post" class="org-reg-add" id="org-reg-add-form">';
+    portal_csrf_field();
+    echo '<input type="hidden" name="action" value="org_reg_add">';
+    echo '<input type="hidden" name="event_id" value="' . $eventId . '">';
+    echo '<div class="org-combo" data-combo="reg-add">';
+    echo '<input type="hidden" name="person_id" value="0">';
+    echo '<input type="text" class="org-cell-in" placeholder="добавить человека…" autocomplete="off">';
+    echo '</div>';
+    echo '<div class="org-reg-add-new">';
+    echo '<input type="text" name="full_name" class="org-cell-in org-reg-add-new-name"'
+        . ' placeholder="или впишите ФИО нового человека" autocomplete="off" maxlength="191">';
+    if ($withRoles) {
+        echo '<div class="org-reg-add-new-roles">';
+        echo '<label title="Хочет играть"><input type="checkbox" name="wants_play" value="1" checked> играть</label>';
+        echo '<label title="Хочет судить"><input type="checkbox" name="wants_judge" value="1"> судить</label>';
+        echo '<label title="Хочет секундировать"><input type="checkbox" name="wants_second" value="1"> секунд</label>';
+        echo '<label class="org-reg-add-new-type" title="Предпочтение по типу поединка">тип'
+            . '<select name="duel_type_pref">' . org_duel_type_pref_options('') . '</select></label>';
+        echo '</div>';
+    }
+    echo '<button type="submit" class="btn-ghost org-reg-add-new-btn">Добавить</button>';
+    echo '</div>';
     echo '</form>';
 }
 
@@ -3815,14 +3895,7 @@ function org_echo_plan_side(array $ev, array $regs, array $career = [], array $d
         }
         echo '</tbody></table></div>';
     }
-    echo '<form method="post" class="org-reg-add" id="org-reg-add-form">';
-    portal_csrf_field();
-    echo '<input type="hidden" name="action" value="org_reg_add">';
-    echo '<input type="hidden" name="event_id" value="' . $eid . '">';
-    echo '<div class="org-combo" data-combo="reg-add">';
-    echo '<input type="hidden" name="person_id" value="0">';
-    echo '<input type="text" class="org-cell-in" placeholder="добавить человека…" autocomplete="off">';
-    echo '</div></form>';
+    org_echo_reg_add_block($eid, true);
     echo '</section>';
     echo '</aside>';
     foreach ($regs as $r) {
@@ -3917,14 +3990,7 @@ function org_echo_event_participants(array $ev, array $regs, array $people = [])
         echo '<div class="org-reg-att-actions"><button type="submit">Сохранить посещаемость</button></div>';
         echo '</form>';
     }
-    echo '<form method="post" class="org-reg-add" id="org-reg-add-form">';
-    portal_csrf_field();
-    echo '<input type="hidden" name="action" value="org_reg_add">';
-    echo '<input type="hidden" name="event_id" value="' . $eid . '">';
-    echo '<div class="org-combo" data-combo="reg-add">';
-    echo '<input type="hidden" name="person_id" value="0">';
-    echo '<input type="text" class="org-cell-in" placeholder="добавить человека…" autocomplete="off">';
-    echo '</div></form>';
+    org_echo_reg_add_block($eid, false);
     echo '</section>';
     foreach ($regs as $r) {
         $rid = (int)($r['reg_id'] ?? 0);
