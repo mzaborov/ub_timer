@@ -791,7 +791,7 @@
       nameEl.textContent = it.label || '';
     }
     var nameField = form.querySelector('input[name="full_name"]');
-    if (nameField) {
+    if (nameField && it.id > 0) {
       nameField.value = '';
     }
     regAddRoleModalReset(form);
