@@ -553,7 +553,12 @@
       if (kind === 'reg-add' && it.id) {
         var form = wrap.closest('form');
         if (form) {
-          form.submit();
+          var modal = form.querySelector('.org-reg-role-modal');
+          if (modal) {
+            showRegAddRoleModal(form, it);
+          } else {
+            form.submit();
+          }
         }
       }
     }
@@ -714,24 +719,120 @@
       if (!btn) {
         return;
       }
-      btn.addEventListener('click', function () {
+      btn.addEventListener('click', function (e) {
         var comboWrap = form.querySelector('.org-combo[data-combo="reg-add"]');
         var pidEl = comboWrap ? comboWrap.querySelector('input[type="hidden"]') : null;
         var comboInput = comboWrap ? comboWrap.querySelector('input[type="text"]') : null;
         var nameEl = form.querySelector('input[name="full_name"]');
-        if (!pidEl || !comboInput || !nameEl) {
+        var modal = form.querySelector('.org-reg-role-modal');
+        if (!pidEl || !nameEl) {
           return;
         }
-        if (parseInt(pidEl.value, 10) > 0) {
-          return; // выбран существующий человек — он и добавится
-        }
-        if (!nameEl.value.trim() && comboInput.value.trim()) {
+        if (!nameEl.value.trim() && comboInput && comboInput.value.trim()) {
           nameEl.value = comboInput.value.trim();
         }
+        if (!modal) {
+          return; // обучение — штатный submit формы
+        }
+        e.preventDefault();
+        var pid = parseInt(pidEl.value, 10) || 0;
+        var name = nameEl.value.trim();
+        if (pid > 0 && !name) {
+          var found = people.find(function (x) {
+            return x.id === pid;
+          });
+          showRegAddRoleModal(form, { id: pid, label: found ? found.name : '' });
+          return;
+        }
+        if (name) {
+          nameEl.value = name;
+          if (pid > 0) {
+            pidEl.value = '0';
+          }
+          showRegAddRoleModal(form, { id: 0, label: name });
+          return;
+        }
+        form.submit();
       });
     });
   }
   bindRegAddNew();
+
+  function regAddRoleModalReset(form) {
+    var modal = form.querySelector('.org-reg-role-modal');
+    if (!modal) {
+      return;
+    }
+    var play = modal.querySelector('input[name="wants_play"]');
+    var judge = modal.querySelector('input[name="wants_judge"]');
+    var second = modal.querySelector('input[name="wants_second"]');
+    var type = modal.querySelector('select[name="duel_type_pref"]');
+    if (play) {
+      play.checked = true;
+    }
+    if (judge) {
+      judge.checked = false;
+    }
+    if (second) {
+      second.checked = false;
+    }
+    if (type) {
+      type.value = '';
+    }
+  }
+
+  function showRegAddRoleModal(form, it) {
+    var modal = form.querySelector('.org-reg-role-modal');
+    if (!modal) {
+      return;
+    }
+    var nameEl = modal.querySelector('[data-role-name]');
+    if (nameEl) {
+      nameEl.textContent = it.label || '';
+    }
+    var nameField = form.querySelector('input[name="full_name"]');
+    if (nameField) {
+      nameField.value = '';
+    }
+    regAddRoleModalReset(form);
+    modal.hidden = false;
+  }
+
+  function bindRegAddRoleModal() {
+    document.querySelectorAll('.org-reg-role-modal').forEach(function (modal) {
+      var form = modal.closest('form');
+      var ok = modal.querySelector('.org-reg-role-ok');
+      var cancel = modal.querySelector('.org-reg-role-cancel');
+      if (!form || !ok || !cancel) {
+        return;
+      }
+      function clearPick() {
+        var wrap = form.querySelector('.org-combo[data-combo="reg-add"]');
+        var pidEl = wrap ? wrap.querySelector('input[type="hidden"]') : null;
+        var input = wrap ? wrap.querySelector('input[type="text"]') : null;
+        if (pidEl) {
+          pidEl.value = '0';
+        }
+        if (input) {
+          input.value = '';
+        }
+      }
+      ok.addEventListener('click', function () {
+        form.submit();
+      });
+      cancel.addEventListener('click', function () {
+        modal.hidden = true;
+        clearPick();
+      });
+      modal.addEventListener('click', function (e) {
+        if (e.target === modal) {
+          modal.hidden = true;
+          clearPick();
+        }
+      });
+    });
+  }
+  bindRegAddRoleModal();
 
   function bindRegTypePref() {
     document.querySelectorAll('.org-reg-edit-form').forEach(function (form) {

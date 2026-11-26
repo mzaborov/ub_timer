@@ -2394,7 +2394,9 @@ function org_reg_add(mysqli $db): array
     $name = (string)$person['full_name'];
     $email = trim((string)($person['email'] ?? ''));
     $telegram = trim((string)($person['telegram'] ?? ''));
-    if ($created) {
+    if (array_key_exists('wants_play', $_POST)
+        || array_key_exists('wants_judge', $_POST)
+        || array_key_exists('wants_second', $_POST)) {
         $play = !empty($_POST['wants_play']) ? 1 : 0;
         $judge = !empty($_POST['wants_judge']) ? 1 : 0;
         $second = !empty($_POST['wants_second']) ? 1 : 0;
@@ -2821,6 +2823,9 @@ function org_echo_reg_add_block(int $eventId, bool $withRoles): void
     echo '<input type="text" name="full_name" class="org-cell-in org-reg-add-new-name"'
         . ' placeholder="или впишите ФИО нового человека" autocomplete="off" maxlength="191">';
     if ($withRoles) {
+        echo '<div class="org-reg-role-modal" data-reg-role-modal hidden>'
+            . '<div class="org-reg-role-modal-box">'
+            . '<div class="org-reg-role-modal-title">Добавить в заявки: <strong data-role-name></strong></div>';
         echo '<div class="org-reg-add-new-roles">';
         echo '<label title="Хочет играть"><input type="checkbox" name="wants_play" value="1" checked> играть</label>';
         echo '<label title="Хочет судить"><input type="checkbox" name="wants_judge" value="1"> судить</label>';
@@ -2828,6 +2833,10 @@ function org_echo_reg_add_block(int $eventId, bool $withRoles): void
         echo '<label class="org-reg-add-new-type" title="Предпочтение по типу поединка">тип'
             . '<select name="duel_type_pref">' . org_duel_type_pref_options('') . '</select></label>';
         echo '</div>';
+        echo '<div class="org-reg-role-modal-actions">'
+            . '<button type="button" class="btn-ghost org-reg-role-cancel">Отмена</button>'
+            . '<button type="button" class="btn org-reg-role-ok">Добавить</button>'
+            . '</div></div></div>';
     }
     echo '<button type="submit" class="btn-ghost org-reg-add-new-btn">Добавить</button>';
     echo '</div>';
@@ -3868,6 +3877,7 @@ function org_echo_plan_side(array $ev, array $regs, array $career = [], array $d
                 echo '<input type="hidden" name="action" value="org_reg_update">';
                 echo '<input type="hidden" name="event_id" value="' . $eid . '">';
                 echo '<input type="hidden" name="reg_id" value="' . $rid . '">';
+                echo '<div class="org-reg-edit-name">Заявка: <strong>' . $regName . '</strong></div>';
                 echo '<div class="org-reg-edit-line">';
                 echo '<label class="org-reg-edit-role"><input type="checkbox" name="wants_play" value="1"' . ($r['play'] ? ' checked' : '') . '> играть</label>';
                 echo '<label class="org-reg-edit-role"><input type="checkbox" name="wants_judge" value="1"' . ($r['judge'] ? ' checked' : '') . '> судить</label>';

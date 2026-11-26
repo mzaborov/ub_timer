@@ -810,6 +810,45 @@ body.page-org a.org-export-btn:hover {
 .org-reg-add-new-btn {
   margin-left: auto;
 }
+.org-reg-role-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(20, 20, 20, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.org-reg-role-modal[hidden] {
+  display: none;
+}
+.org-reg-role-modal-box {
+  width: min(26rem, calc(100vw - 2rem));
+  background: #fff;
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+}
+.org-reg-role-modal-title {
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+}
+.org-reg-role-modal-title strong {
+  color: #1a1a1a;
+}
+.org-reg-role-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+}
+.org-reg-edit-name {
+  font-size: 0.85rem;
+  margin-bottom: 0.3rem;
+}
+.org-reg-edit-name strong {
+  color: #1a1a1a;
+}
 .org-to-reg { font-size: 0.78rem; padding: 0.05rem 0.35rem; margin-left: 0.2rem; }
 .org-rec {
   display: block;
