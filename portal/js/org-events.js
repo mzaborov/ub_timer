@@ -983,6 +983,7 @@
       return;
     }
     var eventEl = form.querySelector('input[name="event_id"]');
+    var csrfEl = form.querySelector('input[name="csrf"]');
 
     function refreshSummary() {
       var sum = document.querySelector('.org-slots-confirm-sum');
@@ -1013,10 +1014,23 @@
         var box = this;
         var pid = box.getAttribute('data-pid');
         var val = box.checked ? '1' : '0';
-        reviewPost('org_reg_confirm', {
-          event_id: eventEl ? eventEl.value : '',
-          person_id: pid,
-          confirmed: val
+        var body = new URLSearchParams();
+        body.set('csrf', csrfEl ? csrfEl.value : '');
+        body.set('ajax', '1');
+        body.set('action', 'org_reg_confirm');
+        body.set('event_id', eventEl ? eventEl.value : '');
+        body.set('person_id', pid);
+        body.set('confirmed', val);
+        fetch(window.location.pathname + window.location.search, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body,
+          credentials: 'same-origin'
+        }).then(function (resp) {
+          if (!resp.ok) {
+            throw new Error('HTTP ' + resp.status);
+          }
+          return resp.json();
         }).then(function (res) {
           if (res && res.error) {
             throw new Error(res.error);
