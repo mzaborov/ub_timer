@@ -982,14 +982,50 @@
     if (!form) {
       return;
     }
-    var pidField = form.querySelector('input[name="person_id"]');
-    var valField = form.querySelector('input[name="confirmed"]');
+    var eventEl = form.querySelector('input[name="event_id"]');
+
+    function refreshSummary() {
+      var sum = document.querySelector('.org-slots-confirm-sum');
+      if (!sum) {
+        return;
+      }
+      var seen = {};
+      var total = 0;
+      var ok = 0;
+      var boxes = document.querySelectorAll('.org-confirm-box');
+      for (var i = 0; i < boxes.length; i++) {
+        var pid = boxes[i].getAttribute('data-pid');
+        if (!pid || seen[pid]) {
+          continue;
+        }
+        seen[pid] = true;
+        total++;
+        if (boxes[i].checked) {
+          ok++;
+        }
+      }
+      sum.textContent = 'подтвердили ' + ok + ' из ' + total;
+    }
+
     var boxes = document.querySelectorAll('.org-confirm-box');
     for (var i = 0; i < boxes.length; i++) {
       boxes[i].addEventListener('change', function () {
-        pidField.value = this.getAttribute('data-pid');
-        valField.value = this.checked ? '1' : '0';
-        form.submit();
+        var box = this;
+        var pid = box.getAttribute('data-pid');
+        var val = box.checked ? '1' : '0';
+        reviewPost('org_reg_confirm', {
+          event_id: eventEl ? eventEl.value : '',
+          person_id: pid,
+          confirmed: val
+        }).then(function (res) {
+          if (res && res.error) {
+            throw new Error(res.error);
+          }
+          refreshSummary();
+        }).catch(function (e) {
+          box.checked = !box.checked;
+          window.alert(e.message || String(e));
+        });
       });
     }
   }

@@ -2556,8 +2556,10 @@ function org_reg_confirm(mysqli $db): array
         $name = (string)(($ns->get_result()->fetch_assoc()['full_name'] ?? ''));
         $ns->close();
     }
-    $_SESSION['org_flash'] = ($val ? 'Подтвердил участие: ' : 'Снята отметка подтверждения: ')
-        . ($name !== '' ? $name : ('#' . $pid));
+    if (empty($_POST['ajax'])) {
+        $_SESSION['org_flash'] = ($val ? 'Подтвердил участие: ' : 'Снята отметка подтверждения: ')
+            . ($name !== '' ? $name : ('#' . $pid));
+    }
     return ['redirect' => org_event_url($eid) . '#slots'];
 }
 
