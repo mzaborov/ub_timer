@@ -15,8 +15,8 @@ function org_pairs_priority_key(array $p, string $today): float
     $games = (int)($p['games'] ?? 0);
     $judged = !empty($p['judged']);
     $wantsJudge = !empty($p['wants_judge']);
-    // «Играть» не просил — мягкий фактор: уходит в конец СВОЕЙ группы (A или B),
-    // но не после другой группы. Смещение меньше разрыва между группами (1000).
+    // «Играть» не просил — резерв: в пары попадает только когда желающих играть
+    // не осталось (сдвиг больше всего разброса «играющих», но меньше группы C).
     $notPlay = array_key_exists('wants_play', $p) && empty($p['wants_play']);
 
     if ($games < 3) {
@@ -29,7 +29,7 @@ function org_pairs_priority_key(array $p, string $today): float
             $key += 0.25;
         }
         if ($notPlay) {
-            $key += 100.0;
+            $key += 5000.0;
         }
     } else {
         // Группа B: давно не игравшие — раньше.
@@ -40,7 +40,7 @@ function org_pairs_priority_key(array $p, string $today): float
             $key += 0.25;
         }
         if ($notPlay) {
-            $key += 100.0;
+            $key += 5000.0;
         }
     }
 
