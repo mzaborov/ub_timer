@@ -18,6 +18,11 @@ function org_pairs_priority_key(array $p, string $today): float
     // «Играть» не просил — резерв: в пары попадает только когда желающих играть
     // не осталось (сдвиг больше всего разброса «играющих», но меньше группы C).
     $notPlay = array_key_exists('wants_play', $p) && empty($p['wants_play']);
+    // Резерв («только судить/секундировать»): позади всех желающих играть,
+    // но внутри резерва опытные игроки идут раньше (новичку в пару — опытный судья).
+    if ($notPlay) {
+        return 5000.0 - (float)min($games, 5000);
+    }
 
     if ($games < 3) {
         // Группа A: по ступени воронки; несудившие — последними; желающие судить — чуть позже.
@@ -28,9 +33,6 @@ function org_pairs_priority_key(array $p, string $today): float
         if ($wantsJudge) {
             $key += 0.25;
         }
-        if ($notPlay) {
-            $key += 5000.0;
-        }
     } else {
         // Группа B: давно не игравшие — раньше.
         $last = (string)($p['last_played'] ?? '');
@@ -38,9 +40,6 @@ function org_pairs_priority_key(array $p, string $today): float
         $key = 1000.0 - ($days === null ? 0 : min($days, 5000));
         if ($wantsJudge) {
             $key += 0.25;
-        }
-        if ($notPlay) {
-            $key += 5000.0;
         }
     }
 
