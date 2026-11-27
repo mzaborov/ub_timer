@@ -481,8 +481,8 @@ function org_gen_pairs(mysqli $db): array
 
     $players = [];
     foreach ($regs as $r) {
-        // Жёстко — только пометка орга «не играть»; желание играть судить/секундировать
-        // мягкое (см. docs/планы/07_пары_из_заявок.md), учитывается в приоритете.
+        // Жёстко — пометка орга «не играть»; желание судить/секундировать — резерв
+        // (добираются только когда не хватает желающих играть, см. ниже).
         if (!empty($r['org_no_play'])) {
             continue;
         }
@@ -508,6 +508,25 @@ function org_gen_pairs(mysqli $db): array
             'recent' => $recent[$pid] ?? [],
         ];
     }
+    if (!$players) {
+        return ['error' => 'Нет заявок на игру'];
+    }
+
+    // Основной пул — кто отметил «играть». Отметившие только судить/секундировать
+    // идут в резерв: подключаются, только если желающих играть меньше мест.
+    $playOnly = [];
+    $reserve = [];
+    foreach ($players as $p) {
+        if (!empty($p['wants_play'])) {
+            $playOnly[] = $p;
+        } else {
+            $reserve[] = $p;
+        }
+    }
+    $freeSeats = count($slots) * 2;
+    $players = count($playOnly) < $freeSeats
+        ? array_merge($playOnly, $reserve)
+        : $playOnly;
     if (!$players) {
         return ['error' => 'Нет заявок на игру'];
     }
